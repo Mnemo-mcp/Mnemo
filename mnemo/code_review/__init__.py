@@ -1,34 +1,29 @@
-"""Code Review Context — store PR summaries, review feedback, rejected suggestions."""
+"""Code review context - store PR summaries, feedback, and rejected suggestions."""
 
 from __future__ import annotations
 
-import json
 import time
 from pathlib import Path
-from typing import Any
 
-from ..config import mnemo_path
-
-REVIEWS_FILE = "reviews.json"
-
-
-def _reviews_path(repo_root: Path) -> Path:
-    return mnemo_path(repo_root) / REVIEWS_FILE
+from ..storage import Collections, get_storage
 
 
 def _load_reviews(repo_root: Path) -> list[dict]:
-    path = _reviews_path(repo_root)
-    if path.exists():
-        return json.loads(path.read_text())
-    return []
+    data = get_storage(repo_root).read_collection(Collections.REVIEWS)
+    return data if isinstance(data, list) else []
 
 
-def _save_reviews(repo_root: Path, reviews: list[dict]):
-    _reviews_path(repo_root).write_text(json.dumps(reviews[-100:], indent=2))
+def _save_reviews(repo_root: Path, reviews: list[dict]) -> None:
+    get_storage(repo_root).write_collection(Collections.REVIEWS, reviews[-100:])
 
 
-def add_review(repo_root: Path, summary: str, files: list[str] = None,
-               feedback: str = "", outcome: str = "approved") -> dict:
+def add_review(
+    repo_root: Path,
+    summary: str,
+    files: list[str] | None = None,
+    feedback: str = "",
+    outcome: str = "approved",
+) -> dict:
     """Store a code review summary."""
     reviews = _load_reviews(repo_root)
     entry = {
@@ -37,7 +32,7 @@ def add_review(repo_root: Path, summary: str, files: list[str] = None,
         "summary": summary,
         "files": files or [],
         "feedback": feedback,
-        "outcome": outcome,  # approved, rejected, changes_requested
+        "outcome": outcome,
     }
     reviews.append(entry)
     _save_reviews(repo_root, reviews)
@@ -47,13 +42,13 @@ def add_review(repo_root: Path, summary: str, files: list[str] = None,
 def get_reviews_for_file(repo_root: Path, filepath: str) -> list[dict]:
     """Get all review feedback related to a specific file."""
     reviews = _load_reviews(repo_root)
-    return [r for r in reviews if filepath in (r.get("files") or [])]
+    return [review for review in reviews if filepath in (review.get("files") or [])]
 
 
 def get_rejected_suggestions(repo_root: Path) -> list[dict]:
-    """Get suggestions that were rejected — Q should not repeat these."""
+    """Get suggestions that were rejected so assistants should not repeat them."""
     reviews = _load_reviews(repo_root)
-    return [r for r in reviews if r.get("outcome") == "rejected"]
+    return [review for review in reviews if review.get("outcome") == "rejected"]
 
 
 def format_reviews(repo_root: Path) -> str:
@@ -63,11 +58,11 @@ def format_reviews(repo_root: Path) -> str:
         return "No code review history stored."
 
     lines = ["# Code Review History\n"]
-    for r in reviews[-20:]:
-        status = f"[{r['outcome']}]" if r.get("outcome") else ""
-        lines.append(f"- {r['summary']} {status}")
-        if r.get("feedback"):
-            lines.append(f"  Feedback: {r['feedback']}")
-        if r.get("files"):
-            lines.append(f"  Files: {', '.join(r['files'])}")
+    for review in reviews[-20:]:
+        status = f"[{review['outcome']}]" if review.get("outcome") else ""
+        lines.append(f"- {review['summary']} {status}")
+        if review.get("feedback"):
+            lines.append(f"  Feedback: {review['feedback']}")
+        if review.get("files"):
+            lines.append(f"  Files: {', '.join(review['files'])}")
     return "\n".join(lines)

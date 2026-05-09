@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ..chunking import markdown_heading_chunks
+from ..retrieval import index_chunks, semantic_query
 from ..config import mnemo_path
 
 KNOWLEDGE_DIR = "knowledge"
@@ -40,8 +42,10 @@ def search_knowledge(repo_root: Path, query: str) -> str:
 
     query_lower = query.lower()
     results: list[tuple[str, str]] = []
+    chunks = []
 
     for md_file in kdir.rglob("*.md"):
+        chunks.extend(markdown_heading_chunks(kdir, md_file))
         try:
             content = md_file.read_text()
         except (OSError, PermissionError):
@@ -65,6 +69,18 @@ def search_knowledge(repo_root: Path, query: str) -> str:
                 name = md_file.relative_to(kdir)
                 excerpt = "\n".join(relevant_lines[:50])
                 results.append((str(name), excerpt))
+
+    if chunks:
+        index_chunks(repo_root, "knowledge", chunks)
+        semantic_results = semantic_query(repo_root, "knowledge", query, limit=5)
+        if semantic_results:
+            lines = [f"# Knowledge: '{query}'\n", "## Semantic Matches"]
+            for result in semantic_results:
+                meta = result.get("metadata", {})
+                lines.append(f"- **{meta.get('path', 'unknown')}** ({meta.get('symbol', 'section')})")
+                lines.append(result.get("content", "")[:600])
+                lines.append("")
+            return "\n".join(lines)
 
     if not results:
         # Return all file names as suggestions

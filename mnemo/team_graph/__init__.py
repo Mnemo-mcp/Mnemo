@@ -26,7 +26,7 @@ def build_team_graph(repo_root: Path) -> dict[str, dict]:
     last_touch: dict[str, str] = {}
 
     try:
-        for commit in repo.iter_commits(max_count=500):
+        for commit in repo.iter_commits(max_count=500, no_merges=True):
             author = commit.author.name
             for file_path in commit.stats.files:
                 if _should_ignore(file_path):

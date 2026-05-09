@@ -5,7 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mnemo"
 version = "0.1.0"
-description = "Persistent memory and repo map for Amazon Q chats"
+description = "Persistent memory and repo map for AI coding assistants"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Mnemo Contributors"}]
 requires-python = ">=3.10"
 dependencies = [
     "click>=8.1",
@@ -17,6 +20,33 @@ dependencies = [
     "tree-sitter-go>=0.21",
     "gitpython>=3.1",
 ]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/mnemo-ai/mnemo"
+Repository = "https://github.com/mnemo-ai/mnemo"
+Issues = "https://github.com/mnemo-ai/mnemo/issues"
+
+[project.optional-dependencies]
+dev = [
+    "build>=1.2",
+    "pytest>=8.0",
+    "ruff>=0.5",
+]
+semantic = [
+    "chromadb>=0.5",
+]
+binary = [
+    "pyinstaller>=6.0",
+]
 
 [project.scripts]
 mnemo = "mnemo.cli:cli"
@@ -25,3 +55,13 @@ mnemo-mcp = "mnemo.mcp_server:run_stdio"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["mnemo*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+ignore = ["E501", "F401"]

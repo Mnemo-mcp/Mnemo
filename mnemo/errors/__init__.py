@@ -1,34 +1,31 @@
-"""Error Memory — store error → cause → fix mappings for instant recall."""
+"""Error memory - store error, cause, and fix mappings for instant recall."""
 
 from __future__ import annotations
 
-import json
 import time
 from pathlib import Path
 
-from ..config import mnemo_path
-
-ERRORS_FILE = "errors.json"
-
-
-def _errors_path(repo_root: Path) -> Path:
-    return mnemo_path(repo_root) / ERRORS_FILE
+from ..storage import Collections, get_storage
 
 
 def _load_errors(repo_root: Path) -> list[dict]:
-    path = _errors_path(repo_root)
-    if path.exists():
-        return json.loads(path.read_text())
-    return []
+    data = get_storage(repo_root).read_collection(Collections.ERRORS)
+    return data if isinstance(data, list) else []
 
 
-def _save_errors(repo_root: Path, errors: list[dict]):
-    _errors_path(repo_root).write_text(json.dumps(errors[-200:], indent=2))
+def _save_errors(repo_root: Path, errors: list[dict]) -> None:
+    get_storage(repo_root).write_collection(Collections.ERRORS, errors[-200:])
 
 
-def add_error(repo_root: Path, error: str, cause: str, fix: str,
-              file: str = "", tags: list[str] = None) -> dict:
-    """Store an error → cause → fix mapping."""
+def add_error(
+    repo_root: Path,
+    error: str,
+    cause: str,
+    fix: str,
+    file: str = "",
+    tags: list[str] | None = None,
+) -> dict:
+    """Store an error, cause, and fix mapping."""
     errors = _load_errors(repo_root)
     entry = {
         "id": len(errors) + 1,
@@ -49,22 +46,25 @@ def search_errors(repo_root: Path, query: str) -> str:
     errors = _load_errors(repo_root)
     query_lower = query.lower()
 
-    matches = [e for e in errors if
-               query_lower in e["error"].lower() or
-               query_lower in e.get("cause", "").lower() or
-               query_lower in e.get("file", "").lower() or
-               any(query_lower in t.lower() for t in e.get("tags", []))]
+    matches = [
+        error
+        for error in errors
+        if query_lower in error["error"].lower()
+        or query_lower in error.get("cause", "").lower()
+        or query_lower in error.get("file", "").lower()
+        or any(query_lower in tag.lower() for tag in error.get("tags", []))
+    ]
 
     if not matches:
         return f"No known errors matching '{query}'."
 
     lines = [f"# Known Errors matching '{query}'\n"]
-    for e in matches[-10:]:
-        lines.append(f"## {e['error']}")
-        lines.append(f"**Cause:** {e['cause']}")
-        lines.append(f"**Fix:** {e['fix']}")
-        if e.get("file"):
-            lines.append(f"**File:** {e['file']}")
+    for error in matches[-10:]:
+        lines.append(f"## {error['error']}")
+        lines.append(f"**Cause:** {error['cause']}")
+        lines.append(f"**Fix:** {error['fix']}")
+        if error.get("file"):
+            lines.append(f"**File:** {error['file']}")
         lines.append("")
     return "\n".join(lines)
 
@@ -76,6 +76,6 @@ def format_errors(repo_root: Path) -> str:
         return "No errors stored."
 
     lines = ["# Error Memory\n"]
-    for e in errors[-20:]:
-        lines.append(f"- **{e['error']}** → {e['fix']}")
+    for error in errors[-20:]:
+        lines.append(f"- **{error['error']}** -> {error['fix']}")
     return "\n".join(lines)
