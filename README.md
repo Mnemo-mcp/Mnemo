@@ -1,6 +1,6 @@
 # Mnemo
 
-Persistent memory, code intelligence, and API discovery for Amazon Q chats. One command gives Amazon Q full project context across every chat session — no re-reading files, no lost context.
+Persistent memory, code intelligence, and API discovery for AI coding assistants. One command gives Amazon Q, Cursor, Claude Code, and other MCP clients project context across chat sessions - no re-reading files, no lost context.
 
 ## What it does
 
@@ -40,6 +40,8 @@ pip install .
 > source ~/.bashrc
 > ```
 
+> **Note (Windows):** If `mnemo` is not found after install, add your Python Scripts directory to PATH. Common locations are `$env:APPDATA\Python\Python312\Scripts`, `$env:APPDATA\Python\Python311\Scripts`, and `$env:APPDATA\Python\Python310\Scripts`.
+
 ### Step 2: Initialize in your repo
 
 ```bash
@@ -47,21 +49,37 @@ cd your-project
 mnemo init
 ```
 
-That's it. This single command:
+By default this configures Amazon Q. You can target another client, or configure every supported client at once:
+
+```bash
+mnemo init --client cursor
+mnemo init --client claude-code
+mnemo init --client all
+```
+
+Supported values are `amazonq`, `cursor`, `claude-code`, `kiro`, `copilot`, `generic`, and `all`.
+
+That's it. This command:
 1. Creates `.mnemo/` folder (added to `.gitignore` automatically)
 2. Generates a compact repo map of your entire codebase
 3. Detects code patterns and conventions
 4. Creates a knowledge base directory
-5. Installs an auto-recall rule at `.amazonq/rules/mnemo.md`
-6. Configures the MCP server in `~/.aws/amazonq/mcp.json`
+5. Installs the right client context file, such as `.amazonq/rules/mnemo.md`, `.cursorrules`, or `CLAUDE.md`
+6. Configures the MCP server in the selected client's MCP config
 
 ### Step 3: Restart your IDE
 
-Restart your IDE (or reload the Amazon Q extension) to pick up the new MCP server.
+Restart your IDE or reload your AI client extension to pick up the new MCP server.
+
+If setup does not look right, run:
+
+```bash
+mnemo doctor --client all
+```
 
 ## That's it
 
-Every new Amazon Q chat will now:
+Every new AI chat with a configured client will now:
 1. Automatically recall project context before answering
 2. Know the full code structure without reading files
 3. Remember what happened in previous chats
@@ -309,7 +327,12 @@ Q can search these with `mnemo_knowledge`.
 | File | Purpose |
 |------|---------|
 | `~/.aws/amazonq/mcp.json` | Registers mnemo-mcp server with Amazon Q |
-| `.amazonq/rules/mnemo.md` | Auto-loaded instructions + embedded context |
+| `~/.cursor/mcp.json` | Registers mnemo-mcp server with Cursor |
+| `~/.claude/mcp.json` | Registers mnemo-mcp server with Claude Code |
+| `.amazonq/rules/mnemo.md` | Amazon Q auto-loaded instructions + embedded context |
+| `.cursorrules` | Cursor instructions + embedded context |
+| `CLAUDE.md` | Claude Code instructions + embedded context |
+| `MNEMO.md` | Generic MCP client instructions + embedded context |
 | `.mnemo/*` | All stored data (gitignored) |
 
 ---
@@ -319,6 +342,8 @@ Q can search these with `mnemo_knowledge`.
 | Command | Description |
 |---------|-------------|
 | `mnemo init` | Initialize Mnemo in current directory |
+| `mnemo init --client all` | Initialize Mnemo for all supported AI clients |
+| `mnemo doctor` | Diagnose install, repo, and MCP client setup |
 | `mnemo recall` | Show all stored memory (what Q sees) |
 | `mnemo map` | Manually refresh the repo map |
 | `mnemo remember "text"` | Store a note in memory |

@@ -45,7 +45,10 @@ def handle_tool_call(tool_name: str, arguments: dict) -> dict:
 
     if tool_name == "mnemo_init":
         target = Path(repo_path).resolve() if repo_path else Path.cwd()
-        msg = init(target)
+        try:
+            msg = init(target, client=arguments.get("client", "amazonq"))
+        except ValueError as exc:
+            return {"content": [{"type": "text", "text": str(exc)}], "isError": True}
         return {"content": [{"type": "text", "text": msg}]}
 
     if not repo_root:
@@ -206,7 +209,11 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "repo_path": {"type": "string", "description": "Path to the repository root"}
+                "repo_path": {"type": "string", "description": "Path to the repository root"},
+                "client": {
+                    "type": "string",
+                    "description": "AI client to configure: amazonq, cursor, claude-code, kiro, copilot, generic, or all",
+                },
             },
             "required": ["repo_path"],
         },

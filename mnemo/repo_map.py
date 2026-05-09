@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import time
 from pathlib import Path
 from typing import Any
 
 from .config import IGNORE_DIRS, SUPPORTED_EXTENSIONS, mnemo_path, REPO_MAP_FILE
+from .storage import Collections, get_storage
 
 CHANGELOG_FILE = "changelog.json"
 HASH_INDEX_FILE = "hashes.json"
@@ -183,15 +183,14 @@ def _extract_file(source: bytes, language: str) -> dict | None:
 # --- Hash index for change detection ---
 
 def _load_hashes(repo_root: Path) -> dict[str, str]:
-    path = mnemo_path(repo_root) / HASH_INDEX_FILE
-    if path.exists():
-        return json.loads(path.read_text())
-    return {}
+    data = get_storage(repo_root).read_collection(Collections.HASHES)
+    if not isinstance(data, dict):
+        return {}
+    return {str(path): str(file_hash) for path, file_hash in data.items()}
 
 
 def _save_hashes(repo_root: Path, hashes: dict[str, str]):
-    path = mnemo_path(repo_root) / HASH_INDEX_FILE
-    path.write_text(json.dumps(hashes))
+    get_storage(repo_root).write_collection(Collections.HASHES, hashes)
 
 
 def has_changes(repo_root: Path) -> bool:

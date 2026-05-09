@@ -7,63 +7,53 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .config import mnemo_path, MEMORY_FILE, DECISIONS_FILE, CONTEXT_FILE, REPO_MAP_FILE
+from .config import CONTEXT_FILE, DECISIONS_FILE, MEMORY_FILE, mnemo_path
+from .storage import Collections, get_storage
 
 MAX_OUTPUT_CHARS = 75000  # Hard limit for MCP response
 RECALL_BUDGET = 12000  # Target: keep recall small (~3K tokens)
-
-
-def _load_json(path: Path) -> list[dict[str, Any]] | dict[str, Any]:
-    if path.exists():
-        return json.loads(path.read_text())
-    return []
-
-
-def _save_json(path: Path, data: Any) -> None:
-    path.write_text(json.dumps(data, indent=2))
-
-
-def _refresh_rule(repo_root: Path):
-    """Update the .amazonq/rules/mnemo.md with latest context."""
-    from .init import _build_rule_with_context
-    rules_dir = repo_root / ".amazonq" / "rules"
-    rule_file = rules_dir / "mnemo.md"
-    if rule_file.exists():
-        rule_file.write_text(_build_rule_with_context(repo_root))
-
-
 MAX_MEMORY_ENTRIES = 50  # Keep last 50 entries, summarize older ones
 
 
-def _compact_memory(entries: list[dict]) -> list[dict]:
+def _refresh_rule(repo_root: Path) -> None:
+    """Update installed client context files with latest context."""
+    from .init import refresh_context_files
+
+    refresh_context_files(repo_root)
+
+
+def _as_list(data: Any) -> list[dict[str, Any]]:
+    return data if isinstance(data, list) else []
+
+
+def _as_dict(data: Any) -> dict[str, Any]:
+    return data if isinstance(data, dict) else {}
+
+
+def _compact_memory(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """When memory exceeds limit, compress old entries into a summary."""
     if len(entries) <= MAX_MEMORY_ENTRIES:
         return entries
 
-    # Keep the last 30 entries as-is
     keep = entries[-30:]
-
-    # Summarize the older ones into a single entry
     old = entries[:-30]
-    summary_lines = [e["content"] for e in old[-20:]]  # Last 20 of the old batch
+    summary_lines = [entry["content"] for entry in old[-20:] if entry.get("content")]
     summary = "Previous context: " + "; ".join(summary_lines)
 
     summary_entry = {
         "id": 0,
         "timestamp": old[-1]["timestamp"],
         "category": "summary",
-        "content": summary[:500],  # Cap at 500 chars
+        "content": summary[:500],
     }
 
     return [summary_entry] + keep
 
 
-def add_memory(repo_root: Path, content: str, category: str = "general") -> dict:
-    """Add a memory entry and refresh the rule file."""
-    path = mnemo_path(repo_root) / MEMORY_FILE
-    entries = _load_json(path)
-    if not isinstance(entries, list):
-        entries = []
+def add_memory(repo_root: Path, content: str, category: str = "general") -> dict[str, Any]:
+    """Add a memory entry and refresh installed context files."""
+    storage = get_storage(repo_root)
+    entries = _as_list(storage.read_collection(Collections.MEMORY))
     entry = {
         "id": len(entries) + 1,
         "timestamp": time.time(),
@@ -71,18 +61,15 @@ def add_memory(repo_root: Path, content: str, category: str = "general") -> dict
         "content": content,
     }
     entries.append(entry)
-    entries = _compact_memory(entries)
-    _save_json(path, entries)
+    storage.write_collection(Collections.MEMORY, _compact_memory(entries))
     _refresh_rule(repo_root)
     return entry
 
 
-def add_decision(repo_root: Path, decision: str, reasoning: str = "") -> dict:
-    """Record a decision and refresh the rule file."""
-    path = mnemo_path(repo_root) / DECISIONS_FILE
-    entries = _load_json(path)
-    if not isinstance(entries, list):
-        entries = []
+def add_decision(repo_root: Path, decision: str, reasoning: str = "") -> dict[str, Any]:
+    """Record a decision and refresh installed context files."""
+    storage = get_storage(repo_root)
+    entries = _as_list(storage.read_collection(Collections.DECISIONS))
     entry = {
         "id": len(entries) + 1,
         "timestamp": time.time(),
@@ -90,30 +77,27 @@ def add_decision(repo_root: Path, decision: str, reasoning: str = "") -> dict:
         "reasoning": reasoning,
     }
     entries.append(entry)
-    _save_json(path, entries)
+    storage.write_collection(Collections.DECISIONS, entries)
     _refresh_rule(repo_root)
     return entry
 
 
 def save_context(repo_root: Path, context: dict[str, Any]) -> None:
-    """Save project context and refresh the rule file."""
-    path = mnemo_path(repo_root) / CONTEXT_FILE
-    existing = {}
-    if path.exists():
-        existing = json.loads(path.read_text())
+    """Save project context and refresh installed context files."""
+    storage = get_storage(repo_root)
+    existing = _as_dict(storage.read_collection(Collections.CONTEXT))
     existing.update(context)
     existing["last_updated"] = time.time()
-    path.write_text(json.dumps(existing, indent=2))
+    storage.write_collection(Collections.CONTEXT, existing)
     _refresh_rule(repo_root)
 
 
-
 def lookup(repo_root: Path, query: str) -> str:
-    """Look up detailed info for a specific file or folder — parses on demand."""
-    from .repo_map import _extract_file, _should_ignore, SUPPORTED_EXTENSIONS, MAX_FILE_SIZE
+    """Look up detailed info for a specific file or folder - parses on demand."""
+    from .repo_map import MAX_FILE_SIZE, SUPPORTED_EXTENSIONS, _extract_file, _should_ignore
 
     query_lower = query.lower().strip("/")
-    matches: list[tuple[str, dict]] = []
+    matches: list[tuple[str, dict[str, Any]]] = []
 
     for ext, language in SUPPORTED_EXTENSIONS.items():
         for filepath in repo_root.rglob(f"*{ext}"):
@@ -141,10 +125,10 @@ def lookup(repo_root: Path, query: str) -> str:
         for cls in info.get("classes", []):
             impl = f" : {cls['implements']}" if cls.get("implements") else ""
             lines.append(f"### `{cls['name']}{impl}`")
-            for m in cls.get("methods", []):
-                lines.append(f"- {m}")
-        for f in info.get("functions", []):
-            lines.append(f"- {f}")
+            for method in cls.get("methods", []):
+                lines.append(f"- {method}")
+        for function in info.get("functions", []):
+            lines.append(f"- {function}")
         lines.append("")
 
     result = "\n".join(lines)
@@ -159,56 +143,45 @@ def lookup(repo_root: Path, query: str) -> str:
 
 def recall(repo_root: Path) -> str:
     """Recall project memory as a compact markdown document."""
-    from .repo_map import generate_summary, has_changes, save_summary
+    from .repo_map import CHANGELOG_FILE, has_changes, save_summary
 
     base = mnemo_path(repo_root)
     if not base.exists():
         return ""
 
-    # Only regenerate if files changed
     if has_changes(repo_root):
         save_summary(repo_root)
 
-    sections = []
+    storage = get_storage(repo_root)
+    sections: list[str] = []
 
-    # Project context
-    context_path = base / CONTEXT_FILE
-    if context_path.exists():
-        ctx = json.loads(context_path.read_text())
-        ctx.pop("last_updated", None)
-        if ctx:
-            sections.append("# Project Context")
-            for k, v in ctx.items():
-                sections.append(f"- **{k}**: {v}")
-            sections.append("")
+    context = dict(_as_dict(storage.read_collection(Collections.CONTEXT)))
+    context.pop("last_updated", None)
+    if context:
+        sections.append("# Project Context")
+        for key, value in context.items():
+            sections.append(f"- **{key}**: {value}")
+        sections.append("")
 
-    # Decisions
-    decisions_path = base / DECISIONS_FILE
-    if decisions_path.exists():
-        decisions = json.loads(decisions_path.read_text())
-        if decisions:
-            sections.append("# Decisions")
-            for d in decisions:
-                reasoning = f" — {d['reasoning']}" if d.get("reasoning") else ""
-                sections.append(f"- {d['decision']}{reasoning}")
-            sections.append("")
+    decisions = _as_list(storage.read_collection(Collections.DECISIONS))
+    if decisions:
+        sections.append("# Decisions")
+        for decision in decisions:
+            reasoning = f" - {decision['reasoning']}" if decision.get("reasoning") else ""
+            sections.append(f"- {decision['decision']}{reasoning}")
+        sections.append("")
 
-    # Memory
-    memory_path = base / MEMORY_FILE
-    if memory_path.exists():
-        memory = json.loads(memory_path.read_text())
-        if memory:
-            sections.append("# Memory")
-            for m in memory:
-                cat = f" [{m['category']}]" if m.get("category") != "general" else ""
-                sections.append(f"- {m['content']}{cat}")
-            sections.append("")
+    memory = _as_list(storage.read_collection(Collections.MEMORY))
+    if memory:
+        sections.append("# Memory")
+        for item in memory:
+            cat = f" [{item['category']}]" if item.get("category") != "general" else ""
+            sections.append(f"- {item['content']}{cat}")
+        sections.append("")
 
-    # Recent changes
-    from .repo_map import CHANGELOG_FILE
     changelog_path = base / CHANGELOG_FILE
     if changelog_path.exists():
-        changelog = json.loads(changelog_path.read_text())
+        changelog = json.loads(changelog_path.read_text(encoding="utf-8"))
         if changelog:
             sections.append("# Recent Changes")
             for entry in changelog[-5:]:
@@ -220,16 +193,15 @@ def recall(repo_root: Path) -> str:
                     sections.append(f"- Deleted: {', '.join(entry['deleted'])}")
                 if entry.get("renamed"):
                     for new, old in entry["renamed"].items():
-                        sections.append(f"- Renamed: {old} → {new}")
+                        sections.append(f"- Renamed: {old} -> {new}")
             sections.append("")
 
-    # Compact repo summary
     summary_path = base / "summary.md"
     if summary_path.exists():
-        summary = summary_path.read_text()
+        summary = summary_path.read_text(encoding="utf-8")
         sections.append("# Repo Map")
         sections.append("(use mnemo_lookup for method-level details)\n")
-        # Truncate if needed
+
         header_size = len("\n".join(sections))
         budget = RECALL_BUDGET - header_size
         if len(summary) > budget:
