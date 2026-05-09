@@ -1,9 +1,9 @@
 {
   "name": "mnemo-vscode",
-  "displayName": "Mnemo — AI Project Memory",
-  "description": "Persistent memory and code intelligence for AI coding assistants. Zero-config setup.",
-  "version": "0.0.1",
-  "publisher": "nikhil1057",
+  "displayName": "Mnemo",
+  "description": "Persistent memory, semantic code search, cross-repo intelligence, and architecture awareness for AI coding assistants. Works with Amazon Q, Cursor, Claude Code, Copilot, and any MCP client.",
+  "version": "0.0.2",
+  "publisher": "Nikhil1057",
   "repository": {
     "type": "git",
     "url": "https://github.com/nikhil1057/Mnemo"
@@ -11,16 +11,21 @@
   "engines": {
     "vscode": "^1.92.0"
   },
-  "categories": ["AI", "Other"],
-  "keywords": ["mnemo", "mcp", "ai", "memory", "code-intelligence"],
+  "categories": ["AI", "Programming Languages", "Other"],
+  "icon": "icon.png",
+  "keywords": ["mnemo", "mcp", "ai", "memory", "code-intelligence", "semantic-search", "amazon-q", "cursor", "claude", "copilot", "architecture", "cross-repo"],
+  "galleryBanner": {
+    "color": "#1a1a2e",
+    "theme": "dark"
+  },
   "activationEvents": ["onStartupFinished"],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
-      {"command": "mnemo.detectInstall", "title": "Mnemo: Check Installation"},
       {"command": "mnemo.initWorkspace", "title": "Mnemo: Initialize Workspace"},
       {"command": "mnemo.showStatus", "title": "Mnemo: Show Status"},
-      {"command": "mnemo.refreshIndex", "title": "Mnemo: Refresh Index"}
+      {"command": "mnemo.refreshIndex", "title": "Mnemo: Refresh Index"},
+      {"command": "mnemo.detectInstall", "title": "Mnemo: Check Installation"}
     ]
   },
   "scripts": {
