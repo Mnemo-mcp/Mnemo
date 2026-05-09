@@ -19,6 +19,8 @@ jobs:
           - os: windows-latest
             artifact: mnemo-win-x64.exe
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
