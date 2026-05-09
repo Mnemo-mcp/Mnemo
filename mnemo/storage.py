@@ -105,7 +105,7 @@ class JSONFileAdapter:
         if collection in LIST_COLLECTIONS:
             items = self._load_list(collection)
             replacement = dict(value)
-            if "id" not in replacement and key:
+            if "id" not in replacement and key and "task_id" not in replacement:
                 replacement["id"] = key
 
             for index, item in enumerate(items):

@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from ..config import IGNORE_DIRS, mnemo_path
+from ..retrieval import semantic_query
+from ..sprint import get_current_task
 
 
 def _should_ignore(path: Path) -> bool:
@@ -159,11 +161,51 @@ def detect_patterns(repo_root: Path) -> list[str]:
     return patterns
 
 
+def classify_architecture(repo_root: Path) -> list[dict[str, Any]]:
+    """Classify high-level architecture styles with evidence."""
+    findings: list[dict[str, Any]] = []
+    paths = [p for p in repo_root.rglob("*") if not _should_ignore(p)]
+    names = [str(p).lower() for p in paths]
+    text_blob = " ".join(names)
+
+    checks = [
+        ("Clean Architecture", ["domain", "application", "infrastructure", "presentation"]),
+        ("CQRS", ["command", "query", "handler"]),
+        ("Hexagonal", ["ports", "adapters"]),
+        ("Event-Driven", ["event", "consumer", "producer"]),
+        ("Microservices", ["docker-compose", "helm", "service", "gateway"]),
+    ]
+    for arch, signals in checks:
+        matched = [signal for signal in signals if signal in text_blob]
+        if matched:
+            findings.append(
+                {
+                    "name": arch,
+                    "confidence": round(len(matched) / len(signals), 2),
+                    "evidence": matched,
+                }
+            )
+    return sorted(findings, key=lambda item: item["confidence"], reverse=True)
+
+
 # --- Similar Implementations ---
 
 def find_similar(repo_root: Path, query: str) -> list[dict[str, str]]:
     """Find files with similar naming patterns to help implement new features."""
     query_lower = query.lower()
+    semantic_hits = semantic_query(repo_root, "code", query, limit=20)
+    if semantic_hits:
+        results = []
+        for hit in semantic_hits:
+            meta = hit.get("metadata", {})
+            results.append(
+                {
+                    "file": str(meta.get("path", "")),
+                    "class": str(meta.get("symbol", "")),
+                }
+            )
+        return results
+
     similar: list[dict[str, str]] = []
 
     # Find files matching the pattern
@@ -184,6 +226,24 @@ def find_similar(repo_root: Path, query: str) -> list[dict[str, str]]:
                 similar.append({"file": rel, "class": ""})
 
     return similar[:20]
+
+
+def context_for_active_task(repo_root: Path, query: str = "") -> str:
+    """Retrieve semantic context using the active task as a relevance hint."""
+    active_task_markdown = get_current_task(repo_root)
+    if active_task_markdown.startswith("No active task"):
+        return active_task_markdown
+
+    search_query = query.strip() or active_task_markdown
+    hits = semantic_query(repo_root, "code", search_query, limit=10)
+    if not hits:
+        return "No semantic context found for the current task."
+
+    lines = ["# Context for Active Task", "", "## Active Task", active_task_markdown, "", "## Relevant Code"]
+    for hit in hits:
+        meta = hit.get("metadata", {})
+        lines.append(f"- `{meta.get('path', '')}` :: `{meta.get('symbol', '')}`")
+    return "\n".join(lines)
 
 
 # --- Ownership (git blame stats) ---
@@ -251,6 +311,14 @@ def generate_intelligence(repo_root: Path) -> str:
         lines.append("## Code Ownership")
         for path, owner in owners.items():
             lines.append(f"- `{path}` → {owner}")
+        lines.append("")
+
+    architectures = classify_architecture(repo_root)
+    if architectures:
+        lines.append("## Architecture Classification")
+        for arch in architectures:
+            evidence = ", ".join(arch["evidence"])
+            lines.append(f"- **{arch['name']}** (confidence {arch['confidence']}) — evidence: {evidence}")
         lines.append("")
 
     return "\n".join(lines)

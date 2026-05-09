@@ -83,6 +83,9 @@ def resolve_clients(selection: str) -> list[ClientTarget]:
 
 def find_mnemo_mcp_command() -> str:
     """Find the installed mnemo-mcp executable, falling back to PATH lookup by name."""
+    if getattr(sys, "frozen", False):
+        return str(Path(sys.executable))
+
     mnemo_bin = shutil.which("mnemo-mcp")
     if mnemo_bin:
         return mnemo_bin

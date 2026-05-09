@@ -45,6 +45,7 @@ def doctor(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
 
     python_ok = sys.version_info >= (3, 10)
     lines.append(f"[{_status(python_ok)}] Python: {sys.version.split()[0]} (requires 3.10+)")
+    lines.append(f"[OK] Runtime mode: {'binary' if getattr(sys, 'frozen', False) else 'python-package'}")
 
     try:
         package_version = version("mnemo")

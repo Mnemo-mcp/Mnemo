@@ -1,0 +1,36 @@
+{
+  "name": "mnemo-vscode",
+  "displayName": "Mnemo",
+  "description": "Mnemo helper extension for local setup and index management.",
+  "version": "0.0.1",
+  "publisher": "mnemo",
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:mnemo.detectInstall",
+    "onCommand:mnemo.initWorkspace",
+    "onCommand:mnemo.showStatus",
+    "onCommand:mnemo.refreshIndex"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {"command": "mnemo.detectInstall", "title": "Mnemo: Detect Install"},
+      {"command": "mnemo.initWorkspace", "title": "Mnemo: Initialize Workspace"},
+      {"command": "mnemo.showStatus", "title": "Mnemo: Show Status"},
+      {"command": "mnemo.refreshIndex", "title": "Mnemo: Refresh Index"}
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.12",
+    "@types/vscode": "^1.92.0",
+    "typescript": "^5.5.4"
+  }
+}

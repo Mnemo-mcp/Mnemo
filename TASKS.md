@@ -37,11 +37,12 @@ Goal: make Mnemo easy to install, easy to initialize, and genuinely useful for o
 - [x] `MNO-001` Add a test harness with `pytest`.
   - Added initial tests for client config, init behavior, and storage adapter behavior.
 
-- [ ] `MNO-002` Fix packaging/runtime basics.
+- [x] `MNO-002` Fix packaging/runtime basics.
   - Confirm CLI entry points `mnemo` and `mnemo-mcp`.
   - Verify install from source in a clean environment.
   - Decide whether the package stays at Python 3.10+ or moves to Python 3.12+.
   - Done when `pip install .`, `mnemo --help`, and `mnemo-mcp` work.
+  - Verified on Windows with Python 3.14 in a clean venv (`.venv-mno002`); kept baseline at Python 3.10+ per `pyproject.toml`.
 
 - [ ] `MNO-003` Normalize text encoding in user-facing strings.
   - CLI/init output is improved.
@@ -95,52 +96,52 @@ Goal: make Mnemo easy to install, easy to initialize, and genuinely useful for o
 
 ### Local Intelligence
 
-- [ ] `MNO-301` Design chunk schema.
+- [x] `MNO-301` Design chunk schema.
   - Code chunks at function/class boundaries.
   - Knowledge chunks by markdown heading.
   - Include metadata: file path, language, symbol, chunk type, hash.
 
-- [ ] `MNO-302` Add local embedding provider abstraction.
+- [x] `MNO-302` Add local embedding provider abstraction.
   - Start with a provider interface and a cheap fallback keyword provider for tests.
   - Add local model support later behind optional extras.
 
-- [ ] `MNO-303` Add local vector index.
+- [x] `MNO-303` Add local vector index.
   - Candidate from docs: ChromaDB.
   - Keep optional until install strategy is settled.
 
-- [ ] `MNO-304` Upgrade `mnemo_similar`.
+- [x] `MNO-304` Upgrade `mnemo_similar`.
   - Use semantic retrieval when an index exists.
   - Fall back to current keyword search when it does not.
 
-- [ ] `MNO-305` Upgrade `mnemo_knowledge` and `mnemo_search_api`.
+- [x] `MNO-305` Upgrade `mnemo_knowledge` and `mnemo_search_api`.
   - Use semantic retrieval over knowledge docs and endpoint chunks.
 
-- [ ] `MNO-401` Add formal architecture classifier.
+- [x] `MNO-401` Add formal architecture classifier.
   - Detect Clean Architecture, CQRS, Hexagonal, Event-Driven, Microservices.
 
-- [ ] `MNO-402` Add task-aware context retrieval.
+- [x] `MNO-402` Add task-aware context retrieval.
   - Use active `mnemo_task` as a relevance signal.
   - Add `mnemo_context_for_task`.
 
-- [ ] `MNO-403` Make repo map hierarchical.
+- [x] `MNO-403` Make repo map hierarchical.
   - Generate module/service sections.
   - Lazy-load details via `mnemo_lookup`.
 
-- [ ] `MNO-404` Improve parser coverage.
+- [x] `MNO-404` Improve parser coverage.
   - Current Go extraction appears incomplete despite Go being listed as supported.
   - Improve TypeScript/JavaScript extraction beyond top-level functions.
 
 ### Local Distribution
 
-- [ ] `MNO-501` Prepare PyPI release.
+- [x] `MNO-501` Prepare PyPI release.
   - Versioning, changelog, build workflow, package metadata.
   - Done when `pip install mnemo` installs a working release.
 
-- [ ] `MNO-502` Prototype single binary.
+- [x] `MNO-502` Prototype single binary.
   - Build Windows, macOS, and Linux artifacts using PyInstaller or Nuitka.
   - Done when Mnemo runs without a local Python installation.
 
-- [ ] `MNO-503` Design VS Code extension MVP.
+- [x] `MNO-503` Design VS Code extension MVP.
   - Detect Mnemo install.
   - Run init on workspace open.
   - Show index/MCP status.
@@ -220,4 +221,4 @@ Goal: support regulated, large-scale, self-hosted or managed enterprise deployme
 
 ## Current Next Task
 
-Next task: `MNO-002` - verify packaging/runtime basics in an environment with Python available.
+Next task: `MNO-601` - implement `mnemo serve` for team usage (MNO-003 intentionally deferred).

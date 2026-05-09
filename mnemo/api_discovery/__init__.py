@@ -6,7 +6,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+from ..chunking import api_endpoint_chunk
 from ..config import IGNORE_DIRS, mnemo_path
+from ..retrieval import index_chunks, semantic_query
 
 
 def _should_ignore(path: Path) -> bool:
@@ -152,6 +154,8 @@ def discover_apis(repo_root: Path) -> str:
     """Discover all APIs in the repo and return as markdown."""
     lines = ["# API Discovery\n"]
 
+    endpoint_chunks = []
+
     # Try OpenAPI specs first
     specs = _find_openapi_specs(repo_root)
     if specs:
@@ -167,6 +171,14 @@ def discover_apis(repo_root: Path) -> str:
                     req = f" ← {ep['request_schema']}" if ep.get("request_schema") else ""
                     resp = f" → {ep['response_schema']}" if ep.get("response_schema") else ""
                     lines.append(f"- `{ep['method']} {ep['path']}` {ep['summary']}{req}{resp}")
+                    endpoint_chunks.append(
+                        api_endpoint_chunk(
+                            path=str(spec_path.relative_to(repo_root)),
+                            method=ep["method"],
+                            endpoint=ep["path"],
+                            summary=ep.get("summary", ""),
+                        )
+                    )
                 lines.append("")
 
     # Detect from controllers
@@ -185,7 +197,19 @@ def discover_apis(repo_root: Path) -> str:
             lines.append(f"\n### {svc}")
             for ep in by_service[svc]:
                 lines.append(f"- `{ep['method']} {ep['path']}` → {ep['handler']}()")
+                endpoint_chunks.append(
+                    api_endpoint_chunk(
+                        path=f"{svc}/controller",
+                        method=ep["method"],
+                        endpoint=ep["path"],
+                        summary=f"Handler: {ep['handler']}",
+                        service=svc,
+                    )
+                )
         lines.append("")
+
+    if endpoint_chunks:
+        index_chunks(repo_root, "api", endpoint_chunks)
 
     if len(lines) <= 2:
         return "No APIs discovered. Add OpenAPI specs or check controller annotations."
@@ -196,6 +220,14 @@ def discover_apis(repo_root: Path) -> str:
 def search_api(repo_root: Path, query: str) -> str:
     """Search for a specific API endpoint or schema."""
     full_report = discover_apis(repo_root)
+    semantic_results = semantic_query(repo_root, "api", query, limit=8)
+    if semantic_results:
+        lines = [f"# API Search: '{query}'\n", "## Semantic Matches"]
+        for result in semantic_results:
+            meta = result.get("metadata", {})
+            lines.append(f"- `{meta.get('symbol', '')}` ({meta.get('path', '')})")
+            lines.append(f"  {result.get('content', '')[:240]}")
+        return "\n".join(lines)
     query_lower = query.lower()
 
     # Filter lines that match

@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from .config import IGNORE_DIRS, SUPPORTED_EXTENSIONS, mnemo_path, REPO_MAP_FILE
+from .chunking import make_code_chunks
+from .retrieval import index_chunks
 from .storage import Collections, get_storage
 
 CHANGELOG_FILE = "changelog.json"
@@ -155,12 +157,62 @@ def _extract_python(source: bytes, parser) -> dict:
 
 def _extract_js(source: bytes, parser) -> dict:
     tree = parser.parse(source)
-    result: dict = {"functions": []}
+    result: dict = {"functions": [], "classes": []}
+
+    def walk(node):
+        if node.type == "function_declaration":
+            name = _get_node_text(node.child_by_field_name("name"))
+            if name:
+                result["functions"].append(name)
+        elif node.type == "lexical_declaration":
+            text = node.text.decode(errors="replace")
+            if "=>" in text:
+                result["functions"].append(text.split("=")[0].replace("const", "").replace("let", "").replace("var", "").strip())
+        elif node.type == "method_definition":
+            name = _get_node_text(node.child_by_field_name("name"))
+            if name:
+                result["functions"].append(name)
+        elif node.type == "class_declaration":
+            cname = _get_node_text(node.child_by_field_name("name")) or "AnonymousClass"
+            methods = []
+            for child in node.children:
+                if child.type == "class_body":
+                    for member in child.children:
+                        if member.type == "method_definition":
+                            mname = _get_node_text(member.child_by_field_name("name"))
+                            if mname:
+                                methods.append(mname)
+            result["classes"].append({"name": cname, "methods": methods})
+        for child in node.children:
+            walk(child)
+
+    walk(tree.root_node)
+    result["functions"] = sorted(set(result["functions"]))
+    return {k: v for k, v in result.items() if v}
+
+
+def _extract_go(source: bytes, parser) -> dict:
+    tree = parser.parse(source)
+    result: dict = {"functions": [], "classes": []}
     for node in tree.root_node.children:
         if node.type == "function_declaration":
             name = _get_node_text(node.child_by_field_name("name"))
             if name:
                 result["functions"].append(name)
+        elif node.type == "method_declaration":
+            name = _get_node_text(node.child_by_field_name("name"))
+            receiver = _get_node_text(node.child_by_field_name("receiver"))
+            if name:
+                symbol = f"{receiver}.{name}" if receiver else name
+                result["functions"].append(symbol)
+        elif node.type == "type_declaration":
+            text = node.text.decode(errors="replace")
+            for line in text.splitlines():
+                line = line.strip()
+                if line.startswith("type ") and " struct" in line:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        result["classes"].append({"name": parts[1], "methods": []})
     return {k: v for k, v in result.items() if v}
 
 
@@ -175,6 +227,8 @@ def _extract_file(source: bytes, language: str) -> dict | None:
             return _extract_python(source, parser)
         elif language in ("javascript", "typescript"):
             return _extract_js(source, parser)
+        elif language == "go":
+            return _extract_go(source, parser)
         return None
     except Exception:
         return None
@@ -223,8 +277,9 @@ def has_changes(repo_root: Path) -> bool:
 
 def generate_summary(repo_root: Path) -> str:
     """Generate a compact markdown summary of the repo structure."""
-    tree: dict[str, list[str]] = {}
+    tree: dict[str, dict[str, list[str]]] = {}
     hashes: dict[str, str] = {}
+    all_chunks = []
 
     for ext, language in SUPPORTED_EXTENSIONS.items():
         for filepath in repo_root.rglob(f"*{ext}"):
@@ -239,12 +294,17 @@ def generate_summary(repo_root: Path) -> str:
             hashes[rel] = hashlib.md5(source).hexdigest()
 
             parts = rel.split("/")
-            top = parts[0] if len(parts) > 1 else "."
-            if top not in tree:
-                tree[top] = []
+            module = parts[0] if len(parts) > 1 else "."
+            submodule = parts[1] if len(parts) > 2 else "_root"
+            if module not in tree:
+                tree[module] = {}
+            if submodule not in tree[module]:
+                tree[module][submodule] = []
 
             info = _extract_file(source, language)
             rel_short = "/".join(parts[1:]) or rel
+            if info:
+                all_chunks.extend(make_code_chunks(rel, language, info))
 
             if info and info.get("classes"):
                 class_names = []
@@ -252,21 +312,25 @@ def generate_summary(repo_root: Path) -> str:
                     name = cls["name"]
                     impl = f" : {cls['implements']}" if cls.get("implements") else ""
                     class_names.append(f"`{name}{impl}`")
-                tree[top].append(f"  {rel_short} → {', '.join(class_names)}")
+                tree[module][submodule].append(f"  {rel_short} → {', '.join(class_names)}")
             elif info and info.get("functions"):
-                tree[top].append(f"  {rel_short} ({len(info['functions'])} functions)")
+                tree[module][submodule].append(f"  {rel_short} ({len(info['functions'])} functions)")
             else:
-                tree[top].append(f"  {rel_short}")
+                tree[module][submodule].append(f"  {rel_short}")
 
     # Save hashes
     _save_hashes(repo_root, hashes)
 
     # Build markdown
     lines = []
-    for service in sorted(tree.keys()):
-        lines.append(f"**{service}/**")
-        for entry in sorted(tree[service]):
-            lines.append(entry)
+    for module in sorted(tree.keys()):
+        lines.append(f"**{module}/**")
+        for submodule in sorted(tree[module].keys()):
+            if submodule != "_root":
+                lines.append(f"  - {submodule}/")
+            for entry in sorted(tree[module][submodule]):
+                lines.append(entry)
+    index_chunks(repo_root, "code", all_chunks)
     return "\n".join(lines)
 
 
@@ -274,7 +338,7 @@ def save_summary(repo_root: Path) -> Path:
     """Generate and save the markdown summary."""
     summary = generate_summary(repo_root)
     out = mnemo_path(repo_root) / "summary.md"
-    out.write_text(summary)
+    out.write_text(summary, encoding="utf-8")
     return out
 
 

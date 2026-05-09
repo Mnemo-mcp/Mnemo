@@ -2,6 +2,24 @@
 
 Persistent memory, code intelligence, and API discovery for AI coding assistants. One command gives Amazon Q, Cursor, Claude Code, and other MCP clients project context across chat sessions - no re-reading files, no lost context.
 
+## Mnemo in Simple Words
+
+Mnemo is your AI agent's project memory.
+
+- It remembers important decisions and past fixes.
+- It keeps a map of your codebase so the agent can navigate quickly.
+- It helps the agent answer questions about architecture, APIs, tests, and patterns.
+- It works across chats, so you do not repeat project context every time.
+
+## Mnemo in Technical Terms
+
+Mnemo is a local-first MCP server (`mnemo-mcp`) plus repo-side data/indexing.
+
+- It exposes MCP tools for memory, retrieval, architecture analysis, API discovery, task context, incidents, reviews, and diagnostics.
+- It builds and updates a structured repo summary and hash index in `.mnemo/`.
+- It supports semantic retrieval (optional ChromaDB) with keyword fallback.
+- It injects client instructions/context files (for supported AI clients) and updates them as memory changes.
+
 ## What it does
 
 - **Persistent Memory** — Stores decisions, patterns, preferences, and chat summaries across sessions
@@ -11,6 +29,22 @@ Persistent memory, code intelligence, and API discovery for AI coding assistants
 - **API Discovery** — Parses OpenAPI/Swagger specs and controller annotations to build a complete API catalog
 - **Auto-refresh** — Detects file changes (via content hash), renames (via git), and deletions
 - **Zero friction** — One `mnemo init` and it works forever
+
+## How Smooth Is It?
+
+For day-to-day work, it is designed to feel close to "install once, forget forever":
+
+1. Run `mnemo init` once in a repo.
+2. Restart your AI client.
+3. Ask normal questions in plain language.
+4. Mnemo tools are called automatically when needed.
+
+In practice, the experience is smooth when:
+- Python and `mnemo-mcp` are on PATH.
+- Your client MCP config is present.
+- You run `mnemo map` after large refactors (or let normal recall refresh run).
+
+If anything is off, `mnemo doctor --client all` gives actionable diagnostics.
 
 ## Installation
 
@@ -86,6 +120,40 @@ Every new AI chat with a configured client will now:
 4. Have access to all stored decisions and memory
 5. Auto-save conversation summaries for future sessions
 
+## Using Mnemo With AI Agents
+
+You can work naturally with your AI assistant; you do not need to memorize tool names.
+
+### Setup per agent/client
+
+- `mnemo init --client amazonq`
+- `mnemo init --client cursor`
+- `mnemo init --client claude-code`
+- `mnemo init --client kiro`
+- `mnemo init --client copilot`
+- `mnemo init --client generic`
+- `mnemo init --client all` (configure everything in one run)
+
+### Recommended first-chat prompt
+
+Use this once after setup/restart:
+
+```text
+Use Mnemo context for this repo first, then help me with my task.
+```
+
+### Daily workflow
+
+1. Start task context:
+   - "I'm working on ABC-123: migrate auth token validation."
+2. Ask implementation/analysis questions naturally:
+   - "Show me similar handlers and where to plug a new one."
+3. Persist important outcomes:
+   - "Remember we chose Redis cache-aside for token introspection."
+4. Capture delivery hygiene:
+   - "Store this review summary."
+   - "Record this production incident."
+
 ---
 
 ## MCP Tools
@@ -107,6 +175,7 @@ Every new AI chat with a configured client will now:
 | `mnemo_map` | Regenerate the repo map after code changes |
 | `mnemo_intelligence` | Full code intelligence report (architecture, patterns, dependencies, ownership) |
 | `mnemo_similar` | Find similar implementations to follow as patterns |
+| `mnemo_context_for_task` | Retrieve semantic context scoped to the active task |
 
 ### Knowledge & APIs
 
@@ -177,6 +246,20 @@ Every new AI chat with a configured client will now:
 | `mnemo_incidents` | Search or list production incidents |
 
 ---
+
+## Optional Extras
+
+- `pip install "mnemo[semantic]"` enables ChromaDB-backed semantic indexing.
+- `pip install "mnemo[binary]"` installs PyInstaller tooling for binary builds.
+- Use `scripts/build_binary.ps1` (Windows) or `pyinstaller pyinstaller.spec` directly.
+
+## VS Code Extension MVP
+
+A starter extension is available under `vscode-extension/` with commands to:
+- detect Mnemo installation
+- initialize workspace (`mnemo init`)
+- show status (`mnemo doctor`)
+- refresh index (`mnemo map`)
 
 ## What Amazon Q Sees
 
@@ -281,6 +364,36 @@ You don't need to mention "mnemo" — just ask naturally:
 
 ---
 
+## Feature Guide: Simple + Technical
+
+### 1) Memory and decisions
+- Simple: your agent remembers project decisions and team preferences.
+- Technical: persisted in `.mnemo/memory.json`, `.mnemo/decisions.json`, `.mnemo/context.json` via `mnemo_recall`, `mnemo_remember`, `mnemo_decide`, `mnemo_context`.
+
+### 2) Repo understanding
+- Simple: your agent can explain "where things are" quickly.
+- Technical: Mnemo parses supported languages and generates `.mnemo/summary.md` plus `.mnemo/hashes.json` for change detection; tools include `mnemo_map`, `mnemo_lookup`.
+
+### 3) Semantic code retrieval
+- Simple: "find me code similar to this feature" works by meaning, not just exact name.
+- Technical: semantic index is available with `mnemo[semantic]`; fallback keyword retrieval still works without ChromaDB.
+
+### 4) Knowledge base search
+- Simple: your internal runbooks/standards become searchable by the agent.
+- Technical: markdown in `.mnemo/knowledge/` is chunked by headings and queried through `mnemo_knowledge`.
+
+### 5) API discovery
+- Simple: your agent can list endpoints and find relevant APIs quickly.
+- Technical: OpenAPI specs and controller annotations are parsed; `mnemo_discover_apis` and `mnemo_search_api` expose structured and searchable API context.
+
+### 6) Task-aware context
+- Simple: when you set a task, the agent focuses on relevant code automatically.
+- Technical: `mnemo_task` sets active task metadata and `mnemo_context_for_task` performs task-scoped retrieval.
+
+### 7) Engineering memory beyond code
+- Simple: your agent remembers incidents, errors, reviews, ownership, and health signals.
+- Technical: dedicated MCP tools persist/query this operational memory (`mnemo_add_error`, `mnemo_incidents`, `mnemo_reviews`, `mnemo_team`, `mnemo_health`, etc.).
+
 ## Knowledge Base
 
 Add markdown files to `.mnemo/knowledge/` for team knowledge that Q should know:
@@ -365,7 +478,7 @@ Q can search these with `mnemo_knowledge`.
 
 - Python 3.10+
 - Git (for rename/delete detection)
-- Amazon Q IDE extension with MCP support
+- Any AI client with MCP support (Amazon Q, Cursor, Claude Code, Kiro, Copilot, or generic MCP client)
 
 ---
 

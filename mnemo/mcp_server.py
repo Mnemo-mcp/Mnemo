@@ -10,7 +10,7 @@ from pathlib import Path
 from .init import init
 from .memory import add_memory, add_decision, save_context, recall, lookup
 from .repo_map import save_repo_map
-from .intelligence import generate_intelligence, find_similar
+from .intelligence import generate_intelligence, find_similar, context_for_active_task
 from .knowledge import search_knowledge, list_knowledge, init_knowledge
 from .api_discovery import discover_apis, search_api
 from .code_review import add_review, format_reviews
@@ -23,6 +23,7 @@ from .health import calculate_health
 from .team_graph import get_experts, who_last_touched
 from .incidents import add_incident, search_incidents, format_incidents
 from .config import MNEMO_DIR
+from . import __version__
 
 
 def _find_repo_root(start: Path | None = None) -> Path | None:
@@ -98,6 +99,11 @@ def handle_tool_call(tool_name: str, arguments: dict) -> dict:
         for r in results:
             lines.append(f"- **{r['file']}** — `{r['class']}`")
         return {"content": [{"type": "text", "text": "\n".join(lines)}]}
+
+    elif tool_name == "mnemo_context_for_task":
+        query = arguments.get("query", "")
+        result = context_for_active_task(repo_root, query)
+        return {"content": [{"type": "text", "text": result}]}
 
     elif tool_name == "mnemo_knowledge":
         query = arguments.get("query", "")
@@ -311,6 +317,17 @@ TOOLS = [
         },
     },
     {
+        "name": "mnemo_context_for_task",
+        "description": "Return context relevant to the active mnemo_task using semantic retrieval with fallback behavior.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "repo_path": {"type": "string", "description": "Path to repository root (auto-detected if omitted)"},
+                "query": {"type": "string", "description": "Optional extra focus query (e.g. endpoint, module, feature)"},
+            },
+        },
+    },
+    {
         "name": "mnemo_knowledge",
         "description": "Search the project knowledge base (runbooks, architecture docs, standards, gotchas). Without a query, lists all available knowledge files.",
         "inputSchema": {
@@ -379,7 +396,7 @@ def run_stdio():
                 "result": {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {"tools": {"listChanged": False}},
-                    "serverInfo": {"name": "mnemo", "version": "0.1.0"},
+                    "serverInfo": {"name": "mnemo", "version": __version__},
                 },
             }
         elif method == "tools/list":

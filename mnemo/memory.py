@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import CONTEXT_FILE, DECISIONS_FILE, MEMORY_FILE, mnemo_path
+from .retrieval import semantic_query
 from .storage import Collections, get_storage
 
 MAX_OUTPUT_CHARS = 75000  # Hard limit for MCP response
@@ -177,6 +178,29 @@ def recall(repo_root: Path) -> str:
         for item in memory:
             cat = f" [{item['category']}]" if item.get("category") != "general" else ""
             sections.append(f"- {item['content']}{cat}")
+        sections.append("")
+
+    tasks = _as_list(storage.read_collection(Collections.TASKS))
+    active_tasks = [task for task in tasks if task.get("status") == "active"]
+    if active_tasks:
+        sections.append("# Active Task Context")
+        active = active_tasks[-1]
+        sections.append(f"- **{active.get('task_id', '')}**: {active.get('description', '')}")
+        task_query = " ".join(
+            filter(
+                None,
+                [
+                    str(active.get("task_id", "")),
+                    str(active.get("description", "")),
+                    " ".join(active.get("files", [])),
+                    str(active.get("notes", "")),
+                ],
+            )
+        )
+        hits = semantic_query(repo_root, "code", task_query, limit=5)
+        for hit in hits:
+            meta = hit.get("metadata", {})
+            sections.append(f"- Relevant: `{meta.get('path', '')}` :: `{meta.get('symbol', '')}`")
         sections.append("")
 
     changelog_path = base / CHANGELOG_FILE
