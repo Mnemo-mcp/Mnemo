@@ -38,8 +38,6 @@ def detect_service_calls(repo_root: Path) -> dict[str, list[str]]:
 
         # Detect outbound HTTP calls
         urls = re.findall(r'["\']https?://[^"\']+["\']', content)
-        base_urls = re.findall(r'BaseAddress\s*=\s*[^;]+', content)
-        http_clients = re.findall(r'HttpClient|IHttpClientFactory|RestClient', content)
 
         for url in urls:
             # Try to identify target service from URL
