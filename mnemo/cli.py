@@ -96,14 +96,90 @@ def reset(path: str):
     import shutil
 
     from .config import mnemo_path
+    from .clients import CLIENTS, context_path
 
     repo_root = Path(path).resolve()
     base = mnemo_path(repo_root)
+
+    # Remove .mnemo/ data
     if base.exists():
         shutil.rmtree(base)
-        click.echo(".mnemo/ deleted. Run `mnemo init` to start fresh.")
+        click.echo(".mnemo/ deleted.")
     else:
         click.echo("Nothing to reset - .mnemo/ not found.")
+        return
+
+    # Remove client context files
+    for target in CLIENTS.values():
+        ctx = context_path(repo_root, target)
+        if ctx and ctx.exists():
+            ctx.unlink()
+            click.echo(f"Removed {ctx.relative_to(repo_root)}")
+
+    click.echo("Run `mnemo init` to start fresh.")
+
+
+@cli.command()
+@click.argument("path", default=".", type=click.Path(exists=True))
+def status(path: str):
+    """Quick check: is Mnemo initialized and MCP server responding?"""
+    from .config import mnemo_path
+    from .clients import find_mnemo_mcp_command
+    from .doctor import _check_mcp_alive
+
+    repo_root = Path(path).resolve()
+    base = mnemo_path(repo_root)
+
+    if not base.exists():
+        click.echo("❌ Not initialized. Run: mnemo init")
+        return
+
+    command = find_mnemo_mcp_command()
+    alive = _check_mcp_alive(command)
+
+    if alive:
+        click.echo("✅ Mnemo active — MCP server responding")
+    else:
+        click.echo("⚠️  Mnemo initialized but MCP server not responding — restart your IDE")
+
+
+@cli.command()
+@click.argument("target", required=False)
+@click.option("--discover", "-d", type=click.Path(exists=True), help="Auto-discover all repos under a directory.")
+@click.option("--init", "auto_init", is_flag=True, help="Auto-initialize discovered repos that haven't been set up.")
+@click.argument("path", default=".", type=click.Path(exists=True))
+def link(target: str | None, discover: str | None, auto_init: bool, path: str):
+    """Link a sibling repo for cross-repo queries. Use --discover to auto-find repos."""
+    from .workspace import link_repo, discover_repos
+
+    repo_root = Path(path).resolve()
+    if discover:
+        result = discover_repos(repo_root, Path(discover), auto_init=auto_init)
+    elif target:
+        result = link_repo(repo_root, Path(target))
+    else:
+        click.echo("Provide a repo path or use --discover <dir>")
+        return
+    click.echo(result)
+
+
+@cli.command()
+@click.argument("name")
+@click.argument("path", default=".", type=click.Path(exists=True))
+def unlink(name: str, path: str):
+    """Remove a linked repo."""
+    from .workspace import unlink_repo
+
+    click.echo(unlink_repo(Path(path).resolve(), name))
+
+
+@cli.command()
+@click.argument("path", default=".", type=click.Path(exists=True))
+def links(path: str):
+    """Show all linked repos and their status."""
+    from .workspace import format_links
+
+    click.echo(format_links(Path(path).resolve()))
 
 
 if __name__ == "__main__":

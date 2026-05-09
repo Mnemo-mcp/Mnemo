@@ -275,11 +275,19 @@ def has_changes(repo_root: Path) -> bool:
 
 # --- Summary generation ---
 
-def generate_summary(repo_root: Path) -> str:
+def generate_summary(repo_root: Path, index: bool = True) -> str:
     """Generate a compact markdown summary of the repo structure."""
     tree: dict[str, dict[str, list[str]]] = {}
     hashes: dict[str, str] = {}
     all_chunks = []
+
+    # Try Roslyn for C# if .NET SDK is available
+    from .analyzers import roslyn_available, run_roslyn_analyzer, roslyn_to_mnemo_format
+    roslyn_data: dict[str, dict] = {}
+    if roslyn_available(repo_root):
+        results = run_roslyn_analyzer(repo_root)
+        if results:
+            roslyn_data = roslyn_to_mnemo_format(results, repo_root)
 
     for ext, language in SUPPORTED_EXTENSIONS.items():
         for filepath in repo_root.rglob(f"*{ext}"):
@@ -301,7 +309,8 @@ def generate_summary(repo_root: Path) -> str:
             if submodule not in tree[module]:
                 tree[module][submodule] = []
 
-            info = _extract_file(source, language)
+            # Use Roslyn data if available for this file, else tree-sitter
+            info = roslyn_data.get(rel) or _extract_file(source, language)
             rel_short = "/".join(parts[1:]) or rel
             if info:
                 all_chunks.extend(make_code_chunks(rel, language, info))
@@ -330,19 +339,19 @@ def generate_summary(repo_root: Path) -> str:
                 lines.append(f"  - {submodule}/")
             for entry in sorted(tree[module][submodule]):
                 lines.append(entry)
-    index_chunks(repo_root, "code", all_chunks)
+    if index and all_chunks:
+        index_chunks(repo_root, "code", all_chunks)
     return "\n".join(lines)
 
 
-def save_summary(repo_root: Path) -> Path:
+def save_summary(repo_root: Path, index: bool = True) -> Path:
     """Generate and save the markdown summary."""
-    summary = generate_summary(repo_root)
+    summary = generate_summary(repo_root, index=index)
     out = mnemo_path(repo_root) / "summary.md"
     out.write_text(summary, encoding="utf-8")
     return out
 
 
-# Also keep save_repo_map for backward compat with init
-def save_repo_map(repo_root: Path) -> Path:
+def save_repo_map(repo_root: Path, index: bool = True) -> Path:
     """Generate summary (replaces old JSON map)."""
-    return save_summary(repo_root)
+    return save_summary(repo_root, index=index)

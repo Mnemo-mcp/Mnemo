@@ -1,24 +1,23 @@
 {
   "name": "mnemo-vscode",
-  "displayName": "Mnemo",
-  "description": "Mnemo helper extension for local setup and index management.",
+  "displayName": "Mnemo — AI Project Memory",
+  "description": "Persistent memory and code intelligence for AI coding assistants. Zero-config setup.",
   "version": "0.0.1",
-  "publisher": "mnemo",
+  "publisher": "nikhil1057",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nikhil1057/Mnemo"
+  },
   "engines": {
     "vscode": "^1.92.0"
   },
-  "categories": ["Other"],
-  "activationEvents": [
-    "onStartupFinished",
-    "onCommand:mnemo.detectInstall",
-    "onCommand:mnemo.initWorkspace",
-    "onCommand:mnemo.showStatus",
-    "onCommand:mnemo.refreshIndex"
-  ],
+  "categories": ["AI", "Other"],
+  "keywords": ["mnemo", "mcp", "ai", "memory", "code-intelligence"],
+  "activationEvents": ["onStartupFinished"],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
-      {"command": "mnemo.detectInstall", "title": "Mnemo: Detect Install"},
+      {"command": "mnemo.detectInstall", "title": "Mnemo: Check Installation"},
       {"command": "mnemo.initWorkspace", "title": "Mnemo: Initialize Workspace"},
       {"command": "mnemo.showStatus", "title": "Mnemo: Show Status"},
       {"command": "mnemo.refreshIndex", "title": "Mnemo: Refresh Index"}

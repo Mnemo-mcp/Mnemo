@@ -96,9 +96,12 @@ def save_context(repo_root: Path, context: dict[str, Any]) -> None:
 def lookup(repo_root: Path, query: str) -> str:
     """Look up detailed info for a specific file or folder - parses on demand."""
     from .repo_map import MAX_FILE_SIZE, SUPPORTED_EXTENSIONS, _extract_file, _should_ignore
+    from .chunking import make_code_chunks
+    from .retrieval import index_chunks
 
     query_lower = query.lower().strip("/")
     matches: list[tuple[str, dict[str, Any]]] = []
+    discovered_chunks = []
 
     for ext, language in SUPPORTED_EXTENSIONS.items():
         for filepath in repo_root.rglob(f"*{ext}"):
@@ -114,6 +117,14 @@ def lookup(repo_root: Path, query: str) -> str:
             info = _extract_file(source, language)
             if info:
                 matches.append((rel, info))
+                discovered_chunks.extend(make_code_chunks(rel, language, info))
+
+    # Feed discovered code into the index for future queries
+    if discovered_chunks:
+        try:
+            index_chunks(repo_root, "code", discovered_chunks)
+        except Exception:
+            pass
 
     if not matches:
         return f"No files matching '{query}' found."
@@ -144,14 +155,14 @@ def lookup(repo_root: Path, query: str) -> str:
 
 def recall(repo_root: Path) -> str:
     """Recall project memory as a compact markdown document."""
-    from .repo_map import CHANGELOG_FILE, has_changes, save_summary
+    from .repo_map import CHANGELOG_FILE, has_changes, save_repo_map
 
     base = mnemo_path(repo_root)
     if not base.exists():
         return ""
 
     if has_changes(repo_root):
-        save_summary(repo_root)
+        save_repo_map(repo_root, index=False)
 
     storage = get_storage(repo_root)
     sections: list[str] = []

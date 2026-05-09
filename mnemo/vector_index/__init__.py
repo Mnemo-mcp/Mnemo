@@ -2,12 +2,43 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
 from ..chunking import Chunk
 from ..embeddings import KeywordEmbeddingProvider
+
+
+_CHROMA_INSTALL_ATTEMPTED = False
+
+
+def _auto_install_chromadb() -> bool:
+    """Attempt to install chromadb automatically. Only tries once per process."""
+    global _CHROMA_INSTALL_ATTEMPTED
+    if _CHROMA_INSTALL_ATTEMPTED:
+        return False
+    _CHROMA_INSTALL_ATTEMPTED = True
+
+    if getattr(sys, "frozen", False):
+        return False
+
+    # Only auto-install if triggered by `mnemo init`, not on every recall
+    if os.environ.get("MNEMO_AUTO_INSTALL") != "1":
+        return False
+
+    try:
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "chromadb>=0.5", "--quiet"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return True
+    except Exception:
+        return False
 
 
 class VectorIndex(Protocol):
@@ -48,6 +79,15 @@ class LocalVectorIndex:
     def _init_chroma(self) -> None:
         try:
             import chromadb
+        except ImportError:
+            if not _auto_install_chromadb():
+                self._chroma_ready = False
+                return
+            try:
+                import chromadb
+            except ImportError:
+                self._chroma_ready = False
+                return
         except Exception:
             self._chroma_ready = False
             return

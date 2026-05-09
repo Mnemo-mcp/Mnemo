@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 from importlib.metadata import PackageNotFoundError, version
@@ -29,6 +30,22 @@ def _check_mcp_config(target: ClientTarget) -> tuple[bool, str]:
     return True, str(target.mcp_config_path)
 
 
+def _check_mcp_alive(command: str) -> bool:
+    """Send a ping to the MCP server to check if it responds."""
+    init_msg = json.dumps({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize",
+        "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "doctor"}}
+    })
+    try:
+        result = subprocess.run(
+            [command, "mcp"] if command != "mnemo-mcp" else [command],
+            input=init_msg, capture_output=True, text=True, timeout=5,
+        )
+        return '"serverInfo"' in result.stdout
+    except Exception:
+        return False
+
+
 def _check_context_file(repo_root: Path, target: ClientTarget) -> tuple[bool, str]:
     path = context_path(repo_root, target)
     if path is None:
@@ -53,9 +70,19 @@ def doctor(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
     except PackageNotFoundError:
         lines.append("[WARN] Mnemo package: not installed as a package")
 
+    try:
+        import chromadb
+        lines.append(f"[OK] Semantic search: chromadb {chromadb.__version__}")
+    except ImportError:
+        lines.append("[OK] Semantic search: keyword fallback (chromadb will auto-install on first use)")
+
     command = find_mnemo_mcp_command()
     command_ok = command != "mnemo-mcp"
     lines.append(f"[{_status(command_ok)}] mnemo-mcp command: {command}")
+
+    # Live MCP server check
+    mcp_alive = _check_mcp_alive(command)
+    lines.append(f"[{_status(mcp_alive)}] MCP server responds: {'yes' if mcp_alive else 'no — restart your IDE'}")
 
     base = mnemo_path(repo_root)
     initialized = base.exists()

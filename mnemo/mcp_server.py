@@ -11,6 +11,7 @@ from .init import init
 from .memory import add_memory, add_decision, save_context, recall, lookup
 from .repo_map import save_repo_map
 from .intelligence import generate_intelligence, find_similar, context_for_active_task
+from .workspace import cross_repo_semantic_query, cross_repo_impact, format_links, get_linked_repos
 from .knowledge import search_knowledge, list_knowledge, init_knowledge
 from .api_discovery import discover_apis, search_api
 from .code_review import add_review, format_reviews
@@ -98,6 +99,8 @@ def handle_tool_call(tool_name: str, arguments: dict) -> dict:
         lines = [f"# Similar to '{query}'\n"]
         for r in results:
             lines.append(f"- **{r['file']}** — `{r['class']}`")
+            if r.get("content"):
+                lines.append(f"  ```\n  {r['content']}\n  ```")
         return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
     elif tool_name == "mnemo_context_for_task":
@@ -204,6 +207,32 @@ def handle_tool_call(tool_name: str, arguments: dict) -> dict:
         if query:
             return {"content": [{"type": "text", "text": search_incidents(repo_root, query)}]}
         return {"content": [{"type": "text", "text": format_incidents(repo_root)}]}
+
+    # --- Multi-Repo Workspace ---
+    elif tool_name == "mnemo_links":
+        return {"content": [{"type": "text", "text": format_links(repo_root)}]}
+
+    elif tool_name == "mnemo_cross_search":
+        query = arguments.get("query", "")
+        namespace = arguments.get("namespace", "code")
+        if not query:
+            return {"content": [{"type": "text", "text": "Provide a search query."}], "isError": True}
+        results = cross_repo_semantic_query(repo_root, namespace, query, limit=15)
+        if not results:
+            return {"content": [{"type": "text", "text": f"No cross-repo results for '{query}'"}]}
+        lines = [f"# Cross-Repo Search: '{query}'\n"]
+        for r in results:
+            meta = r.get("metadata", {})
+            lines.append(f"- **[{r.get('repo', '?')}]** `{meta.get('path', '')}` :: `{meta.get('symbol', '')}`")
+            if r.get("content"):
+                lines.append(f"  {r['content'][:200]}")
+        return {"content": [{"type": "text", "text": "\n".join(lines)}]}
+
+    elif tool_name == "mnemo_cross_impact":
+        query = arguments.get("query", "")
+        if not query:
+            return {"content": [{"type": "text", "text": "Provide a service or file name."}], "isError": True}
+        return {"content": [{"type": "text", "text": cross_repo_impact(repo_root, query)}]}
 
     return {"content": [{"type": "text", "text": f"Unknown tool: {tool_name}"}], "isError": True}
 
@@ -375,6 +404,9 @@ TOOLS = [
     {"name": "mnemo_who_touched", "description": "Find who last modified a specific file.", "inputSchema": {"type": "object", "properties": {"repo_path": {"type": "string"}, "query": {"type": "string", "description": "File path or name"}}, "required": ["query"]}},
     {"name": "mnemo_add_incident", "description": "Record a production incident with root cause and fix.", "inputSchema": {"type": "object", "properties": {"repo_path": {"type": "string"}, "title": {"type": "string"}, "what_happened": {"type": "string"}, "root_cause": {"type": "string"}, "fix": {"type": "string"}, "prevention": {"type": "string"}, "severity": {"type": "string", "description": "low, medium, high, critical"}, "services": {"type": "array", "items": {"type": "string"}}}, "required": ["title", "what_happened", "root_cause", "fix"]}},
     {"name": "mnemo_incidents", "description": "Search or list production incidents.", "inputSchema": {"type": "object", "properties": {"repo_path": {"type": "string"}, "query": {"type": "string", "description": "Search term (omit to list all)"}}}},
+    {"name": "mnemo_links", "description": "Show all linked repos in the multi-repo workspace.", "inputSchema": {"type": "object", "properties": {"repo_path": {"type": "string"}}}},
+    {"name": "mnemo_cross_search", "description": "Search across this repo AND all linked repos. Use when looking for code, APIs, or patterns that may live in sibling services.", "inputSchema": {"type": "object", "properties": {"repo_path": {"type": "string"}, "query": {"type": "string", "description": "What to search for across all repos"}, "namespace": {"type": "string", "description": "Search namespace: code, api, or knowledge (default: code)"}}, "required": ["query"]}},
+    {"name": "mnemo_cross_impact", "description": "Cross-repo impact analysis — find what breaks across ALL linked repos if you change a service, file, or API.", "inputSchema": {"type": "object", "properties": {"repo_path": {"type": "string"}, "query": {"type": "string", "description": "Service, file, or API to analyze impact for"}}, "required": ["query"]}},
 ]
 
 

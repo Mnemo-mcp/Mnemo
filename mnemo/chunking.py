@@ -27,7 +27,8 @@ def _hash(text: str) -> str:
 
 
 def _chunk_id(chunk_type: str, path: str, symbol: str) -> str:
-    return f"{chunk_type}:{path}:{_hash(symbol)}"
+    raw = f"{chunk_type}:{path}:{symbol}"
+    return hashlib.sha256(raw.encode("utf-8", errors="replace")).hexdigest()[:24]
 
 
 def make_code_chunks(path: str, language: str, info: dict[str, Any]) -> list[Chunk]:
@@ -52,12 +53,17 @@ def make_code_chunks(path: str, language: str, info: dict[str, Any]) -> list[Chu
             )
         )
 
+    seen_ids: set[str] = set()
     for fn in info.get("functions", []):
         text = str(fn)
         symbol = text.split("(")[0].replace("def ", "").strip()
+        chunk_id = _chunk_id("code", path, f"function:{symbol}:{_hash(text)}")
+        if chunk_id in seen_ids:
+            continue
+        seen_ids.add(chunk_id)
         chunks.append(
             Chunk(
-                id=_chunk_id("code", path, f"function:{symbol}"),
+                id=chunk_id,
                 chunk_type="code",
                 path=path,
                 language=language,

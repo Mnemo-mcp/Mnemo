@@ -202,6 +202,7 @@ def find_similar(repo_root: Path, query: str) -> list[dict[str, str]]:
                 {
                     "file": str(meta.get("path", "")),
                     "class": str(meta.get("symbol", "")),
+                    "content": hit.get("content", "")[:300],
                 }
             )
         return results
