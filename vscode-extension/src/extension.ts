@@ -150,7 +150,19 @@ export function activate(context: vscode.ExtensionContext): void {
         .then(async (choice) => {
           if (choice === "Yes") {
             try {
-              await runMnemo(context, ["init"], root);
+              // Detect which clients are available and only configure those
+              const clients: string[] = [];
+              const amazonqExt = vscode.extensions.getExtension("amazonwebservices.amazon-q-vscode");
+              const cursorConfig = path.join(os.homedir(), ".cursor");
+              const claudeConfig = path.join(os.homedir(), ".claude");
+              
+              if (amazonqExt) { clients.push("amazonq"); }
+              if (existsSync(cursorConfig)) { clients.push("cursor"); }
+              if (existsSync(claudeConfig)) { clients.push("claude-code"); }
+              if (clients.length === 0) { clients.push("generic"); }
+              
+              const clientArg = clients.length > 1 ? "all" : clients[0];
+              await runMnemo(context, ["init", "--client", clientArg], root);
               statusBar.text = "$(database) Mnemo: Active";
               statusBar.show();
               vscode.window.showInformationMessage("Mnemo initialized.");
@@ -167,7 +179,19 @@ export function activate(context: vscode.ExtensionContext): void {
       const cwd = workspaceRoot();
       if (!cwd) { vscode.window.showWarningMessage("Open a workspace folder first."); return; }
       try {
-        const out = await runMnemo(context, ["init"], cwd);
+        // Detect which clients are available
+        const clients: string[] = [];
+        const amazonqExt = vscode.extensions.getExtension("amazonwebservices.amazon-q-vscode");
+        const cursorConfig = path.join(os.homedir(), ".cursor");
+        const claudeConfig = path.join(os.homedir(), ".claude");
+        
+        if (amazonqExt) { clients.push("amazonq"); }
+        if (existsSync(cursorConfig)) { clients.push("cursor"); }
+        if (existsSync(claudeConfig)) { clients.push("claude-code"); }
+        if (clients.length === 0) { clients.push("generic"); }
+        
+        const clientArg = clients.length > 1 ? "all" : clients[0];
+        const out = await runMnemo(context, ["init", "--client", clientArg], cwd);
         statusBar.text = "$(database) Mnemo: Active";
         statusBar.show();
         vscode.window.showInformationMessage(out || "Mnemo initialized.");
