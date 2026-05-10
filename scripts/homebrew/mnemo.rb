@@ -8,13 +8,8 @@ class Mnemo < Formula
   version "0.1.0"
 
   on_macos do
-    if Hardware::CPU.arm?
-      url "https://github.com/nikhil1057/Mnemo/releases/download/v#{version}/mnemo-darwin-arm64"
-      sha256 "PLACEHOLDER_SHA256"
-    else
-      url "https://github.com/nikhil1057/Mnemo/releases/download/v#{version}/mnemo-darwin-x64"
-      sha256 "PLACEHOLDER_SHA256"
-    end
+    url "https://github.com/nikhil1057/Mnemo/releases/download/v#{version}/mnemo-darwin-arm64"
+    sha256 "PLACEHOLDER_SHA256"
   end
 
   on_linux do

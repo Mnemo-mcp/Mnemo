@@ -10,10 +10,7 @@ detect_platform() {
 
   case "$OS" in
     Darwin)
-      case "$ARCH" in
-        arm64) PLATFORM="darwin-arm64" ;;
-        *)     PLATFORM="darwin-x64" ;;
-      esac
+      PLATFORM="darwin-arm64"
       ;;
     Linux)
       PLATFORM="linux-x64"

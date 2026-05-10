@@ -14,9 +14,8 @@ const BINARY_NAME = os.platform() === "win32" ? "mnemo.exe" : "mnemo";
 
 function getPlatformArtifact(): string {
   const platform = os.platform();
-  const arch = os.arch();
   if (platform === "darwin") {
-    return arch === "arm64" ? "mnemo-darwin-arm64" : "mnemo-darwin-x64";
+    return "mnemo-darwin-arm64";
   }
   if (platform === "linux") {
     return "mnemo-linux-x64";
@@ -79,30 +78,46 @@ async function ensureBinary(context: vscode.ExtensionContext): Promise<string> {
     return bin;
   }
 
-  // Check if mnemo is already on PATH
+  // Try downloading binary from GitHub Releases (no Python needed)
+  try {
+    await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title: "Mnemo: Downloading..." },
+      async () => {
+        const dir = binDir(context);
+        await mkdir(dir, { recursive: true });
+        const version = await getLatestVersion();
+        const artifact = getPlatformArtifact();
+        const url = `https://github.com/${REPO}/releases/download/${version}/${artifact}`;
+        await downloadFile(url, bin);
+        if (os.platform() !== "win32") {
+          chmodSync(bin, 0o755);
+        }
+      }
+    );
+    return bin;
+  } catch { /* binary not available yet, try PATH fallbacks */ }
+
+  // Check if mnemo is on PATH (pip install or manual)
   try {
     const { stdout } = await execFileAsync("mnemo", ["--help"]);
     if (stdout.includes("Usage")) {
       return "mnemo";
     }
-  } catch { /* not on PATH, download it */ }
+  } catch { /* not on PATH */ }
 
-  await vscode.window.withProgress(
-    { location: vscode.ProgressLocation.Notification, title: "Mnemo: Installing..." },
-    async () => {
-      const dir = binDir(context);
-      await mkdir(dir, { recursive: true });
-      const version = await getLatestVersion();
-      const artifact = getPlatformArtifact();
-      const url = `https://github.com/${REPO}/releases/download/${version}/${artifact}`;
-      await downloadFile(url, bin);
-      if (os.platform() !== "win32") {
-        chmodSync(bin, 0o755);
-      }
+  // Check common pip install locations as last resort
+  const pipPaths = [
+    path.join(os.homedir(), "Library", "Python", "3.12", "bin", "mnemo"),
+    path.join(os.homedir(), "Library", "Python", "3.11", "bin", "mnemo"),
+    path.join(os.homedir(), ".local", "bin", "mnemo"),
+  ];
+  for (const p of pipPaths) {
+    if (existsSync(p)) {
+      return p;
     }
-  );
+  }
 
-  return bin;
+  throw new Error("Mnemo not available. Binary download failed and mnemo not found on PATH. Install with: pip install mnemo");
 }
 
 async function runMnemo(context: vscode.ExtensionContext, args: string[], cwd: string): Promise<string> {
