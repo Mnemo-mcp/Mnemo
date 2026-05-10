@@ -71,10 +71,15 @@ CROSS-REPO AWARENESS:
 # Repo Map
 (use mnemo_lookup for method-level details)
 
+**./**
+  entry.py
+**analyzers/**
+  - roslyn/
+  roslyn/Program.cs
 **mnemo/**
   __init__.py
   chunking.py → `Chunk`
-  cli.py (11 functions)
+  cli.py (12 functions)
   clients.py → `ClientTarget`
   config.py (1 functions)
   doctor.py (5 functions)
@@ -84,6 +89,8 @@ CROSS-REPO AWARENESS:
   repo_map.py (15 functions)
   retrieval.py (3 functions)
   storage.py → `Collections`, `StorageAdapter`, `JSONFileAdapter`
+  - analyzers/
+  analyzers/__init__.py (5 functions)
   - api_discovery/
   api_discovery/__init__.py (6 functions)
   - code_review/

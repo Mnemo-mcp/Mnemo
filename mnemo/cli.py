@@ -191,5 +191,12 @@ def links(path: str):
     click.echo(format_links(Path(path).resolve()))
 
 
+@cli.command("mcp-server", hidden=True)
+def mcp_server():
+    """Run the MCP server over stdio (used by AI clients)."""
+    from .mcp_server import run_stdio
+    run_stdio()
+
+
 if __name__ == "__main__":
     cli()

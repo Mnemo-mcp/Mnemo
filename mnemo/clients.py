@@ -84,6 +84,7 @@ def resolve_clients(selection: str) -> list[ClientTarget]:
 def find_mnemo_mcp_command() -> str:
     """Find the installed mnemo-mcp executable, falling back to PATH lookup by name."""
     if getattr(sys, "frozen", False):
+        # Running as PyInstaller binary — use self with mcp-server subcommand
         return str(Path(sys.executable))
 
     mnemo_bin = shutil.which("mnemo-mcp")
@@ -104,6 +105,12 @@ def find_mnemo_mcp_command() -> str:
     for candidate in candidates:
         if candidate.exists():
             return str(candidate)
+
+    # Fallback: check if single binary `mnemo` exists (supports `mnemo mcp-server`)
+    mnemo_cli = shutil.which("mnemo")
+    if mnemo_cli:
+        return mnemo_cli
+
     return "mnemo-mcp"
 
 
@@ -126,9 +133,16 @@ def setup_mcp_config(target: ClientTarget, command: str | None = None) -> bool:
             config = {}
 
     config.setdefault("mcpServers", {})
+
+    cmd = command or find_mnemo_mcp_command()
+    # If the command is the single binary (not mnemo-mcp), add mcp-server arg
+    args: list[str] = []
+    if not cmd.endswith("mnemo-mcp") and not cmd.endswith("mnemo-mcp.exe"):
+        args = ["mcp-server"]
+
     server = {
-        "command": command or find_mnemo_mcp_command(),
-        "args": [],
+        "command": cmd,
+        "args": args,
         "env": {},
     }
 
