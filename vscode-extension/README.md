@@ -94,9 +94,18 @@ The AI saves important findings automatically:
 1. Install this extension
 2. Open a project folder
 3. Click "Yes" when prompted to initialize Mnemo
-4. Start chatting — your AI now has full project context
+4. If no AI client is detected, you'll be asked which one you use
+5. Start chatting — your AI now has full project context
 
 No terminal commands. No config files. No setup friction.
+
+### Resetting
+
+To wipe all memory and start fresh:
+- Open command palette (`Ctrl+Shift+P` / `Cmd+Shift+P`)
+- Run **Mnemo: Reset (Wipe All Memory)**
+- Confirm the reset
+- Run **Mnemo: Initialize Workspace** to start over
 
 ---
 
@@ -141,6 +150,7 @@ You don't need special syntax — just ask naturally:
 | **Mnemo: Initialize Workspace** | Set up Mnemo in your current project |
 | **Mnemo: Show Status** | Run diagnostics, check MCP server health |
 | **Mnemo: Refresh Index** | Rebuild code index after major changes |
+| **Mnemo: Reset (Wipe All Memory)** | Delete all Mnemo data and start fresh |
 | **Mnemo: Check Installation** | Verify Mnemo is available |
 
 ---

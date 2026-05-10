@@ -249,6 +249,24 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
 
+    vscode.commands.registerCommand("mnemo.resetWorkspace", async () => {
+      const cwd = workspaceRoot();
+      if (!cwd) { vscode.window.showWarningMessage("Open a workspace folder first."); return; }
+      const confirm = await vscode.window.showWarningMessage(
+        "This will delete all Mnemo memory for this workspace. Are you sure?",
+        { modal: true },
+        "Reset"
+      );
+      if (confirm !== "Reset") { return; }
+      try {
+        const out = await runMnemo(context, ["reset", "--yes"], cwd);
+        statusBar.text = "$(database) Mnemo";
+        vscode.window.showInformationMessage(out || "Mnemo reset complete. Run Initialize to start fresh.");
+      } catch (e) {
+        vscode.window.showErrorMessage(`Mnemo reset failed: ${String(e)}`);
+      }
+    }),
+
     vscode.commands.registerCommand("mnemo.detectInstall", async () => {
       try {
         const bin = await ensureBinary(context);
