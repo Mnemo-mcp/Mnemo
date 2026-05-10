@@ -159,9 +159,21 @@ export function activate(context: vscode.ExtensionContext): void {
               if (amazonqExt) { clients.push("amazonq"); }
               if (existsSync(cursorConfig)) { clients.push("cursor"); }
               if (existsSync(claudeConfig)) { clients.push("claude-code"); }
-              if (clients.length === 0) { clients.push("generic"); }
               
-              const clientArg = clients.length > 1 ? "all" : clients[0];
+              let clientArg: string;
+              if (clients.length > 1) {
+                clientArg = "all";
+              } else if (clients.length === 1) {
+                clientArg = clients[0];
+              } else {
+                // No client detected — ask the user
+                const pick = await vscode.window.showQuickPick(
+                  ["amazonq", "cursor", "claude-code", "kiro", "copilot", "generic", "all"],
+                  { placeHolder: "Which AI client do you use?" }
+                );
+                if (!pick) { return; }
+                clientArg = pick;
+              }
               await runMnemo(context, ["init", "--client", clientArg], root);
               statusBar.text = "$(database) Mnemo: Active";
               statusBar.show();
@@ -188,9 +200,20 @@ export function activate(context: vscode.ExtensionContext): void {
         if (amazonqExt) { clients.push("amazonq"); }
         if (existsSync(cursorConfig)) { clients.push("cursor"); }
         if (existsSync(claudeConfig)) { clients.push("claude-code"); }
-        if (clients.length === 0) { clients.push("generic"); }
         
-        const clientArg = clients.length > 1 ? "all" : clients[0];
+        let clientArg: string;
+        if (clients.length > 1) {
+          clientArg = "all";
+        } else if (clients.length === 1) {
+          clientArg = clients[0];
+        } else {
+          const pick = await vscode.window.showQuickPick(
+            ["amazonq", "cursor", "claude-code", "kiro", "copilot", "generic", "all"],
+            { placeHolder: "Which AI client do you use?" }
+          );
+          if (!pick) { return; }
+          clientArg = pick;
+        }
         const out = await runMnemo(context, ["init", "--client", clientArg], cwd);
         statusBar.text = "$(database) Mnemo: Active";
         statusBar.show();
