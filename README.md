@@ -64,7 +64,7 @@ The extension auto-downloads the binary, initializes the repo, and configures MC
 ### Option B: Homebrew (macOS/Linux)
 
 ```bash
-brew tap nikhil1057/tap
+brew tap Mnemo-mcp/tap
 brew install mnemo
 ```
 
@@ -84,7 +84,7 @@ pip install mnemo
 Or from source:
 
 ```bash
-git clone https://github.com/nikhil1057/Mnemo.git
+git clone https://github.com/Mnemo-mcp/Mnemo.git
 cd Mnemo
 pip install -e .
 ```
@@ -112,7 +112,7 @@ mnemo init
 
 ### Option D: Standalone binary (no Python needed)
 
-Download from [GitHub Releases](https://github.com/nikhil1057/Mnemo/releases):
+Download from [GitHub Releases](https://github.com/Mnemo-mcp/Mnemo/releases):
 
 | Platform | Download |
 |----------|----------|
@@ -125,10 +125,10 @@ Or use the install script:
 
 ```bash
 # macOS/Linux
-curl -fsSL https://raw.githubusercontent.com/nikhil1057/Mnemo/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Mnemo-mcp/Mnemo/main/scripts/install.sh | sh
 
 # Windows (PowerShell)
-irm https://raw.githubusercontent.com/nikhil1057/Mnemo/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/Mnemo-mcp/Mnemo/main/scripts/install.ps1 | iex
 ```
 
 Then:
