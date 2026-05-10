@@ -12,8 +12,6 @@ jobs:
         include:
           - os: macos-latest
             artifact: mnemo-darwin-arm64
-          - os: macos-13
-            artifact: mnemo-darwin-x64
           - os: ubuntu-latest
             artifact: mnemo-linux-x64
           - os: windows-latest
