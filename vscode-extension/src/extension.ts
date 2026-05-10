@@ -150,7 +150,31 @@ export function activate(context: vscode.ExtensionContext): void {
         .then(async (choice) => {
           if (choice === "Yes") {
             try {
-              await runMnemo(context, ["init"], root);
+              // Detect which clients are available and only configure those
+              const clients: string[] = [];
+              const amazonqExt = vscode.extensions.getExtension("amazonwebservices.amazon-q-vscode");
+              const cursorConfig = path.join(os.homedir(), ".cursor");
+              const claudeConfig = path.join(os.homedir(), ".claude");
+              
+              if (amazonqExt) { clients.push("amazonq"); }
+              if (existsSync(cursorConfig)) { clients.push("cursor"); }
+              if (existsSync(claudeConfig)) { clients.push("claude-code"); }
+              
+              let clientArg: string;
+              if (clients.length > 1) {
+                clientArg = "all";
+              } else if (clients.length === 1) {
+                clientArg = clients[0];
+              } else {
+                // No client detected — ask the user
+                const pick = await vscode.window.showQuickPick(
+                  ["amazonq", "cursor", "claude-code", "kiro", "copilot", "generic", "all"],
+                  { placeHolder: "Which AI client do you use?" }
+                );
+                if (!pick) { return; }
+                clientArg = pick;
+              }
+              await runMnemo(context, ["init", "--client", clientArg], root);
               statusBar.text = "$(database) Mnemo: Active";
               statusBar.show();
               vscode.window.showInformationMessage("Mnemo initialized.");
@@ -167,7 +191,30 @@ export function activate(context: vscode.ExtensionContext): void {
       const cwd = workspaceRoot();
       if (!cwd) { vscode.window.showWarningMessage("Open a workspace folder first."); return; }
       try {
-        const out = await runMnemo(context, ["init"], cwd);
+        // Detect which clients are available
+        const clients: string[] = [];
+        const amazonqExt = vscode.extensions.getExtension("amazonwebservices.amazon-q-vscode");
+        const cursorConfig = path.join(os.homedir(), ".cursor");
+        const claudeConfig = path.join(os.homedir(), ".claude");
+        
+        if (amazonqExt) { clients.push("amazonq"); }
+        if (existsSync(cursorConfig)) { clients.push("cursor"); }
+        if (existsSync(claudeConfig)) { clients.push("claude-code"); }
+        
+        let clientArg: string;
+        if (clients.length > 1) {
+          clientArg = "all";
+        } else if (clients.length === 1) {
+          clientArg = clients[0];
+        } else {
+          const pick = await vscode.window.showQuickPick(
+            ["amazonq", "cursor", "claude-code", "kiro", "copilot", "generic", "all"],
+            { placeHolder: "Which AI client do you use?" }
+          );
+          if (!pick) { return; }
+          clientArg = pick;
+        }
+        const out = await runMnemo(context, ["init", "--client", clientArg], cwd);
         statusBar.text = "$(database) Mnemo: Active";
         statusBar.show();
         vscode.window.showInformationMessage(out || "Mnemo initialized.");
@@ -199,6 +246,24 @@ export function activate(context: vscode.ExtensionContext): void {
       } catch (e) {
         statusBar.text = "$(database) Mnemo: Active";
         vscode.window.showErrorMessage(`Mnemo map failed: ${String(e)}`);
+      }
+    }),
+
+    vscode.commands.registerCommand("mnemo.resetWorkspace", async () => {
+      const cwd = workspaceRoot();
+      if (!cwd) { vscode.window.showWarningMessage("Open a workspace folder first."); return; }
+      const confirm = await vscode.window.showWarningMessage(
+        "This will delete all Mnemo memory for this workspace. Are you sure?",
+        { modal: true },
+        "Reset"
+      );
+      if (confirm !== "Reset") { return; }
+      try {
+        const out = await runMnemo(context, ["reset", "--yes"], cwd);
+        statusBar.text = "$(database) Mnemo";
+        vscode.window.showInformationMessage(out || "Mnemo reset complete. Run Initialize to start fresh.");
+      } catch (e) {
+        vscode.window.showErrorMessage(`Mnemo reset failed: ${String(e)}`);
       }
     }),
 

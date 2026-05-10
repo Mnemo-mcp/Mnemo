@@ -53,7 +53,29 @@ If anything is off, `mnemo doctor --client all` gives actionable diagnostics.
 
 ## Installation
 
-### Step 1: Install Mnemo
+### Option A: VS Code Extension (easiest)
+
+1. Install the **Mnemo** extension from the VS Code Marketplace
+2. Open a project → extension prompts "Initialize Mnemo?"
+3. Click Yes → done
+
+The extension auto-downloads the binary, initializes the repo, and configures MCP. No Python needed.
+
+### Option B: Homebrew (macOS/Linux)
+
+```bash
+brew tap nikhil1057/tap
+brew install mnemo
+```
+
+Then in your repo:
+
+```bash
+cd your-project
+mnemo init
+```
+
+### Option C: pip (all platforms)
 
 ```bash
 pip install mnemo
@@ -62,9 +84,16 @@ pip install mnemo
 Or from source:
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/nikhil1057/Mnemo.git
 cd Mnemo
 pip install -e .
+```
+
+Then in your repo:
+
+```bash
+cd your-project
+mnemo init
 ```
 
 > **Note (macOS):** If you get a warning about scripts not being on PATH:
@@ -81,7 +110,37 @@ pip install -e .
 
 > **Note (Windows):** If `mnemo` is not found after install, add your Python Scripts directory to PATH. Common locations are `$env:APPDATA\Python\Python312\Scripts`, `$env:APPDATA\Python\Python311\Scripts`, and `$env:APPDATA\Python\Python310\Scripts`.
 
-### Step 2: Initialize in your repo
+### Option D: Standalone binary (no Python needed)
+
+Download from [GitHub Releases](https://github.com/nikhil1057/Mnemo/releases):
+
+| Platform | Download |
+|----------|----------|
+| macOS (Apple Silicon) | `mnemo-macos-arm64` |
+| macOS (Intel) | `mnemo-macos-x64` |
+| Linux | `mnemo-linux-x64` |
+| Windows | `mnemo-windows-x64.exe` |
+
+Or use the install script:
+
+```bash
+# macOS/Linux
+curl -fsSL https://raw.githubusercontent.com/nikhil1057/Mnemo/main/scripts/install.sh | sh
+
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/nikhil1057/Mnemo/main/scripts/install.ps1 | iex
+```
+
+Then:
+
+```bash
+cd your-project
+mnemo init
+```
+
+### Initialize your repo
+
+After installing via any method above:
 
 ```bash
 cd your-project
@@ -107,7 +166,7 @@ That's it. This command:
 6. Installs the right client context file, such as `.amazonq/rules/mnemo.md`, `.cursorrules`, or `CLAUDE.md`
 7. Configures the MCP server in the selected client's MCP config
 
-### Step 3: Restart your IDE
+### Restart your IDE
 
 Restart your IDE or reload your AI client extension to pick up the new MCP server.
 
@@ -117,7 +176,7 @@ If setup does not look right, run:
 mnemo doctor --client all
 ```
 
-### Step 4: Check status
+### Check status
 
 ```bash
 mnemo status
