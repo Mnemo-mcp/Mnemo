@@ -9,12 +9,12 @@ class Mnemo < Formula
 
   on_macos do
     url "https://github.com/nikhil1057/Mnemo/releases/download/v#{version}/mnemo-darwin-arm64"
-    sha256 "PLACEHOLDER_SHA256"
+    sha256 "d747a3491c3109f1a15ead4d3dd9f4a8af68d4a9d19f2ac693fdaad88c92c94b"
   end
 
   on_linux do
     url "https://github.com/nikhil1057/Mnemo/releases/download/v#{version}/mnemo-linux-x64"
-    sha256 "PLACEHOLDER_SHA256"
+    sha256 "ff8793fdcc86d26c4bd8fb15576ce0dfe3b535bc84aea61a3d763dd5f0ee0395"
   end
 
   def install
