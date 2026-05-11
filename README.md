@@ -24,7 +24,7 @@ Mnemo is a local-first MCP server (`mnemo-mcp`) plus repo-side data/indexing.
 
 ## What it does
 
-- **Persistent Memory** — Stores decisions, patterns, preferences, and chat summaries across sessions
+- **Persistent Memory** — Stores decisions, patterns, preferences, and chat summaries across sessions with tiered retrieval (never loses context, never overloads it)
 - **Repo Map** — Parses your entire codebase and stores class structures, interfaces, and relationships
 - **Code Intelligence** — Detects architecture, dependencies, patterns, ownership, and similar implementations
 - **Semantic Search** — Finds code by meaning, not just filename (powered by ChromaDB)
@@ -314,8 +314,9 @@ Use Mnemo context for this repo first, then help me with my task.
 
 | Tool | Description |
 |------|-------------|
-| `mnemo_recall` | Load all stored memory, decisions, context, and repo map |
-| `mnemo_remember` | Save important information for future chat sessions |
+| `mnemo_recall` | Load decisions, preferences, active task, and recent memories (token-budgeted) |
+| `mnemo_remember` | Save important information (auto-categorized and vector-indexed) |
+| `mnemo_search_memory` | Search all memories semantically (auto-detects category from query) |
 | `mnemo_decide` | Record an architectural or design decision with reasoning |
 | `mnemo_context` | Save/update project metadata (tech stack, conventions) |
 
@@ -420,6 +421,7 @@ You don't need to mention "mnemo" — just ask naturally:
 | APIs | "What API endpoints exist?" |
 | Knowledge | "What's in the knowledge base?" |
 | Save context | "Remember that we decided to use Redis for caching" |
+| Search memory | "What do we know about auth token handling?" |
 | Code health | "What's the code health of this project?" |
 | Test coverage | "What tests cover AuthorizationService?" |
 | Team expertise | "Who knows about the payment service?" |
@@ -444,7 +446,8 @@ You don't need to mention "mnemo" — just ask naturally:
 | `mnemo status` | Quick check — is Mnemo active and MCP responding? |
 | `mnemo recall` | Show all stored memory (what Q sees) |
 | `mnemo map` | Manually refresh the repo map and semantic index |
-| `mnemo remember "text"` | Store a note in memory |
+| `mnemo remember "text"` | Store a note in memory (auto-categorized) |
+| `mnemo update` | Update Mnemo to the latest version (standalone binary) |
 | `mnemo reset` | Wipe all Mnemo data and client context files |
 | `mnemo link <path>` | Link a sibling repo for cross-repo queries |
 | `mnemo link --discover <dir>` | Auto-discover and link all repos under a directory |
@@ -457,8 +460,8 @@ You don't need to mention "mnemo" — just ask naturally:
 ## Feature Guide: Simple + Technical
 
 ### 1) Memory and decisions
-- Simple: your agent remembers project decisions and team preferences.
-- Technical: persisted in `.mnemo/memory.json`, `.mnemo/decisions.json`, `.mnemo/context.json` via `mnemo_recall`, `mnemo_remember`, `mnemo_decide`, `mnemo_context`.
+- Simple: your agent remembers project decisions and team preferences. Memory grows forever without eating context.
+- Technical: memories are persisted in `.mnemo/memory.json` (never deleted), auto-categorized (bug/architecture/preference/todo/pattern/general), and vector-indexed in ChromaDB. Retrieval is tiered: `mnemo_recall` returns only hot memories (decisions + preferences + last 7 days) within a token budget. Older memories are searchable via `mnemo_search_memory` which auto-detects category from query text. No memory is ever deleted or requires manual intervention.
 
 ### 2) Repo understanding
 - Simple: your agent can explain "where things are" quickly.
