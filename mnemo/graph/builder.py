@@ -221,7 +221,6 @@ def incremental_update(repo_root: Path, changed_files: list[str]) -> LocalGraph:
             graph.remove_node(file_id)
             continue
 
-        parts = file_path.split("/")
         language = None
         for ext, lang in SUPPORTED_EXTENSIONS.items():
             if file_path.endswith(ext):

@@ -60,4 +60,4 @@ def run_check(repo_root: Path) -> str:
     if not issues:
         return f"✅ {len(staged)} files checked — no issues found."
 
-    return f"⚠️ Issues found in staged files:\n\n" + "\n".join(issues)
+    return "⚠️ Issues found in staged files:\n\n" + "\n".join(issues)

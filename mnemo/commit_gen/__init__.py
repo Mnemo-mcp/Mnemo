@@ -83,10 +83,10 @@ def _classify_change(diff: str, stat: str) -> str:
 
 def _extract_scope(stat: str) -> str:
     """Infer scope from changed file paths."""
-    lines = [l for l in stat.splitlines() if "|" in l]
+    lines = [line for line in stat.splitlines() if "|" in line]
     if not lines:
         return ""
-    paths = [l.split("|")[0].strip() for l in lines]
+    paths = [line.split("|")[0].strip() for line in lines]
     # Find common directory
     parts_list = [p.split("/") for p in paths if "/" in p]
     if not parts_list:
@@ -117,7 +117,7 @@ def generate_commit_message(repo_root: Path) -> str:
     # Build the message
     scope_str = f"({scope})" if scope else ""
     lines = stat.splitlines()
-    file_count = len([l for l in lines if "|" in l])
+    file_count = len([line for line in lines if "|" in line])
 
     # Summary line
     # Extract what actually changed from the diff
