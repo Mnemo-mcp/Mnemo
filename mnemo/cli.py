@@ -279,7 +279,7 @@ def update():
         target.chmod(target.stat().st_mode | stat.S_IEXEC)
         click.echo(f"✅ Updated to v{latest}")
     except PermissionError:
-        click.echo(f"Permission denied. Try: sudo mnemo update")
+        click.echo("Permission denied. Try: sudo mnemo update")
     except Exception as e:
         click.echo(f"Failed to replace binary: {e}")
 
