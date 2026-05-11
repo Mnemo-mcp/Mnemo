@@ -247,7 +247,7 @@ def start_server(repo_root: Path, port: int = 7890, open_browser: bool = True):
     url = f"http://localhost:{port}"
     print(f"🧠 Mnemo Dashboard running at {url}")
     print(f"   Repo: {repo_root}")
-    print(f"   Press Ctrl+C to stop\n")
+    print("   Press Ctrl+C to stop\n")
 
     if open_browser:
         webbrowser.open(url)

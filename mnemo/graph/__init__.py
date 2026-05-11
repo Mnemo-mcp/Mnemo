@@ -42,5 +42,5 @@ class GraphStore(Protocol):
 
 
 # Re-export implementations
-from .local import LocalGraph
-from .workspace import WorkspaceGraph
+from .local import LocalGraph  # noqa: E402
+from .workspace import WorkspaceGraph  # noqa: E402

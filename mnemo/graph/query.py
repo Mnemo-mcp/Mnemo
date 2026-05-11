@@ -50,7 +50,7 @@ def _resolve_node_id(graph: LocalGraph, name: str) -> str | None:
 
 def _format_stats(graph: LocalGraph) -> str:
     s = graph.stats()
-    lines = [f"# Knowledge Graph Stats\n", f"- **Nodes:** {s['nodes']}", f"- **Edges:** {s['edges']}\n", "## Node Types"]
+    lines = ["# Knowledge Graph Stats\n", f"- **Nodes:** {s['nodes']}", f"- **Edges:** {s['edges']}\n", "## Node Types"]
     for t, count in sorted(s.get("node_types", {}).items(), key=lambda x: x[1], reverse=True):
         lines.append(f"- {t}: {count}")
     lines.append("\n## Edge Types")

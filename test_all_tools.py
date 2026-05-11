@@ -121,7 +121,7 @@ TEST_CASES = [
 def run_tests():
     """Run all tool tests and report results."""
     print(f"{'='*70}")
-    print(f"  MNEMO TOOL TEST SUITE")
+    print("  MNEMO TOOL TEST SUITE")
     print(f"  Repo: {REPO}")
     print(f"  Tools to test: {len(TEST_CASES)}")
     print(f"{'='*70}\n")
@@ -176,7 +176,7 @@ def run_tests():
     print(f"{'='*70}")
 
     if errors:
-        print(f"\n  FAILURES:")
+        print("\n  FAILURES:")
         for tool, desc, msg in errors:
             print(f"    ❌ {tool}: {desc}")
             print(f"       {msg}")
@@ -184,7 +184,7 @@ def run_tests():
 
     # Slowest tools
     timings.sort(key=lambda x: x[1], reverse=True)
-    print(f"\n  SLOWEST TOOLS (top 5):")
+    print("\n  SLOWEST TOOLS (top 5):")
     for tool, t in timings[:5]:
         print(f"    {t:.3f}s — {tool}")
 
