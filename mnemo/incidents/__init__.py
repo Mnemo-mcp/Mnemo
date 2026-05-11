@@ -29,8 +29,9 @@ def add_incident(
 ) -> dict:
     """Store a production incident."""
     incidents = _load_incidents(repo_root)
+    next_id = max((i.get("id", 0) for i in incidents), default=0) + 1
     entry = {
-        "id": len(incidents) + 1,
+        "id": next_id,
         "timestamp": time.time(),
         "title": title,
         "what_happened": what_happened,
@@ -77,14 +78,19 @@ def search_incidents(repo_root: Path, query: str) -> str:
     return "\n".join(lines)
 
 
-def format_incidents(repo_root: Path) -> str:
-    """Format all incidents as markdown."""
+def format_incidents(repo_root: Path, limit: int = 20, offset: int = 0) -> str:
+    """Format all incidents as markdown with pagination."""
     incidents = _load_incidents(repo_root)
     if not incidents:
         return "No incidents recorded."
 
-    lines = ["# Incident History\n"]
-    for incident in incidents:
+    total = len(incidents)
+    page = incidents[offset:offset + limit]
+
+    lines = [f"# Incident History ({total} total)\n"]
+    for incident in page:
         severity = f"[{incident['severity']}]" if incident.get("severity") else ""
         lines.append(f"- {severity} **{incident['title']}** - {incident['root_cause'][:80]}")
+    if total > offset + limit:
+        lines.append(f"\n*Showing {len(page)} of {total}. Use offset={offset + limit} for more.*")
     return "\n".join(lines)

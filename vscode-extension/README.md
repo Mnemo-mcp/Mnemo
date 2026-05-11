@@ -1,6 +1,6 @@
 # Mnemo
 
-Persistent memory, semantic code search, cross-repo intelligence, and architecture awareness for AI coding assistants. One install gives your AI agent full project context across every chat session.
+Persistent memory, knowledge graph, and code intelligence for AI coding assistants. One install gives your AI agent full project context across every chat session.
 
 ## The Problem
 
@@ -8,7 +8,7 @@ Every time you start a new AI chat, your assistant forgets everything — what y
 
 ## The Solution
 
-Mnemo gives your AI agent a persistent brain. It remembers decisions, maps your codebase, searches code by meaning, and works across multiple repositories — automatically.
+Mnemo gives your AI agent a persistent brain. It builds a knowledge graph of your codebase, remembers decisions, tracks plans, and proactively surfaces relevant context — automatically.
 
 ---
 
@@ -19,18 +19,39 @@ Your AI remembers across chat sessions — with smart retrieval that never overl
 - Architectural decisions and reasoning
 - Bug fixes and their root causes
 - Team preferences and conventions
-- TODO items and follow-ups
 - Production incidents and resolutions
-- Auto-categorized (bug, architecture, preference, todo, pattern)
-- Tiered retrieval: recent + important memories load automatically, older ones searchable on demand
+- Auto-categorized, deduplicated, tiered retrieval
 - No memory is ever deleted — grows forever without eating your context window
+
+### 🕸️ Knowledge Graph
+Your AI understands code relationships instantly:
+- Services, classes, interfaces, methods, packages, people as nodes
+- Structural edges: implements, inherits, calls, depends_on, owns
+- Query: neighbors, traverse, path, find, hubs
+- Federated across linked repos (WorkspaceGraph)
+- Auto-links memories and decisions to code entities
+
+### 📋 Plan Mode
+Work gets tracked automatically:
+- Auto-creates plans when you describe work with steps
+- Auto-marks tasks done when matching work is remembered
+- Proactive hints in every response ("Next: MNO-003 — Update models")
+- Syncs to TASKS.md
+
+### 🔔 Response Enrichment
+Every tool response includes proactive context:
+- Active plan next task
+- Regression warnings on risky files
+- Related architectural decisions
+- No extra tool calls needed — Mnemo injects it automatically
 
 ### 🗺️ Code Intelligence
 Your AI understands your codebase without reading every file:
-- Full repo map with class structures, interfaces, and relationships
+- Compact repo tree with equal representation for all services
 - Architecture pattern detection (Clean Architecture, CQRS, Hexagonal, Microservices)
 - Dependency graph and impact analysis
 - Code health reports (complexity hotspots, large files)
+- Dead code detection (in-memory scan, <0.3s)
 - Smart analyzer selection (Roslyn for C# when .NET SDK available, tree-sitter otherwise)
 
 ### 🔍 Semantic Code Search
@@ -119,15 +140,20 @@ You don't need special syntax — just ask naturally:
 | What you want | What to say |
 |---|---|
 | Project overview | "What do you know about this project?" |
+| Code relationships | "What implements IPayerHandler?" |
+| Impact analysis | "What breaks if I change CosmosDbService?" |
+| Plan work | "We need to migrate to SOAP — steps: ..." |
+| Plan status | "What's the plan status?" |
 | Find code | "Show me the AuthorizationService methods" |
 | Follow patterns | "Show me existing handlers I can follow" |
 | Architecture | "What's the architecture of this project?" |
 | APIs | "What API endpoints exist?" |
 | Save context | "Remember we chose Redis for caching" |
 | Search memory | "What do we know about auth tokens?" |
-| Impact analysis | "What breaks if I change AuthService?" |
 | Cross-repo | "Find authentication code across all services" |
 | Code health | "What's the code health?" |
+| Dead code | "Find unused code" |
+| Security | "Run a security scan" |
 | Tests | "What tests cover this file?" |
 | Team | "Who knows about the payment service?" |
 | Errors | "Have we seen this error before?" |
@@ -161,11 +187,25 @@ You don't need special syntax — just ask naturally:
 
 ## Supported Languages
 
-- C# (.cs) — Enhanced with Roslyn when .NET SDK available
+**Core (14 languages):**
 - Python (.py)
 - JavaScript (.js, .jsx)
 - TypeScript (.ts, .tsx)
 - Go (.go)
+- C# (.cs) — Enhanced with Roslyn when .NET SDK available
+- Java (.java)
+- Rust (.rs)
+
+**Optional (install with `pip install mnemo[all-languages]`):**
+- Ruby (.rb)
+- PHP (.php)
+- C (.c, .h)
+- C++ (.cpp, .cc, .hpp)
+- Kotlin (.kt, .kts)
+- Swift (.swift)
+- Scala (.scala, .sc)
+
+Optional languages are gracefully skipped if not installed — no errors.
 
 ---
 

@@ -37,7 +37,8 @@ def _auto_install_chromadb() -> bool:
             stderr=subprocess.DEVNULL,
         )
         return True
-    except Exception:
+    except Exception as exc:
+        print(f"[mnemo] chromadb auto-install failed: {exc}", file=sys.stderr)
         return False
 
 
@@ -88,13 +89,15 @@ class LocalVectorIndex:
             except ImportError:
                 self._chroma_ready = False
                 return
-        except Exception:
+        except Exception as exc:
+            print(f"[mnemo] chromadb import error: {exc}", file=sys.stderr)
             self._chroma_ready = False
             return
         try:
             self._chroma_client = chromadb.PersistentClient(path=str(self.index_dir / "chroma"))
             self._chroma_ready = True
-        except Exception:
+        except Exception as exc:
+            print(f"[mnemo] chromadb client init failed: {exc}", file=sys.stderr)
             self._chroma_ready = False
 
     def _collection(self, namespace: str):
@@ -110,7 +113,7 @@ class LocalVectorIndex:
         return self._chroma_ready
 
     def upsert(self, namespace: str, chunks: list[Chunk]) -> None:
-        self._memory_store[namespace] = [
+        records = [
             _MemoryRecord(
                 id=chunk.id,
                 text=f"{chunk.path} {chunk.symbol}\n{chunk.content}",
@@ -118,13 +121,25 @@ class LocalVectorIndex:
             )
             for chunk in chunks
         ]
+        # Extend existing records, replacing any with the same ID
+        existing = self._memory_store.get(namespace, [])
+        existing_ids = {r.id for r in records}
+        kept = [r for r in existing if r.id not in existing_ids]
+        kept.extend(records)
+        self._memory_store[namespace] = kept
+
         collection = self._collection(namespace)
         if not collection:
             return
         if chunks:
+            # Deduplicate by ID (ChromaDB rejects duplicate IDs in a single batch)
+            seen: dict[str, Chunk] = {}
+            for chunk in chunks:
+                seen[chunk.id] = chunk
+            unique = list(seen.values())
             collection.upsert(
-                ids=[chunk.id for chunk in chunks],
-                documents=[f"{chunk.path} {chunk.symbol}\n{chunk.content}" for chunk in chunks],
+                ids=[chunk.id for chunk in unique],
+                documents=[f"{chunk.path} {chunk.symbol}\n{chunk.content}" for chunk in unique],
                 metadatas=[
                     {
                         "path": chunk.path,
@@ -133,7 +148,7 @@ class LocalVectorIndex:
                         "chunk_type": chunk.chunk_type,
                         **chunk.metadata,
                     }
-                    for chunk in chunks
+                    for chunk in unique
                 ],
             )
 
@@ -168,7 +183,8 @@ class LocalVectorIndex:
                 {"id": doc_id, "score": 1.0 - float(dist), "content": doc, "metadata": meta}
                 for doc_id, doc, dist, meta in zip(ids, docs, distances, metas)
             ]
-        except Exception:
+        except Exception as exc:
+            print(f"[mnemo] ChromaDB query failed, using fallback: {exc}", file=sys.stderr)
             return self._query_fallback(namespace, query, limit, filters)
 
     def clear(self, namespace: str | None = None) -> None:

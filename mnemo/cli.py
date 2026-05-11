@@ -284,11 +284,84 @@ def update():
         click.echo(f"Failed to replace binary: {e}")
 
 
+@cli.command()
+@click.argument("path", default=".", type=click.Path(exists=True))
+def commit(path: str):
+    """Generate a commit message from staged changes + memory context."""
+    from .commit_gen import generate_commit_message
+
+    result = generate_commit_message(Path(path).resolve())
+    click.echo(result)
+
+
+@cli.command()
+@click.argument("path", default=".", type=click.Path(exists=True))
+def pr(path: str):
+    """Generate a PR description from branch diff + task context + memory."""
+    from .pr_gen import generate_pr_description
+
+    result = generate_pr_description(Path(path).resolve())
+    click.echo(result)
+
+
+@cli.command()
+@click.argument("path", default=".", type=click.Path(exists=True))
+def velocity(path: str):
+    """Show development velocity metrics from git history."""
+    from .velocity import calculate_velocity
+
+    click.echo(calculate_velocity(Path(path).resolve()))
+
+
+@cli.command()
+@click.argument("path", default=".", type=click.Path(exists=True))
+def check(path: str):
+    """Run pre-commit validations (security scan on staged files)."""
+    from .hooks import run_check
+
+    result = run_check(Path(path).resolve())
+    click.echo(result)
+
+
+@cli.group()
+def hooks():
+    """Manage git hooks."""
+    pass
+
+
+@hooks.command()
+@click.argument("path", default=".", type=click.Path(exists=True))
+def install(path: str):
+    """Install Mnemo pre-commit hook."""
+    from .hooks import install_hooks
+
+    click.echo(install_hooks(Path(path).resolve()))
+
+
+cli.add_command(hooks)
+
+
 @cli.command("mcp-server", hidden=True)
 def mcp_server():
     """Run the MCP server over stdio (used by AI clients)."""
     from .mcp_server import run_stdio
     run_stdio()
+
+
+@cli.command()
+@click.option("--port", "-p", default=7890, help="Port to serve on.")
+@click.option("--no-open", is_flag=True, help="Don't auto-open browser.")
+@click.argument("path", default=".", type=click.Path(exists=True))
+def ui(path: str, port: int, no_open: bool):
+    """Open the Mnemo dashboard in your browser."""
+    from .config import mnemo_path
+    from .ui import start_server
+
+    repo_root = Path(path).resolve()
+    if not mnemo_path(repo_root).exists():
+        click.echo("Not initialized. Run `mnemo init` first.")
+        return
+    start_server(repo_root, port=port, open_browser=not no_open)
 
 
 if __name__ == "__main__":

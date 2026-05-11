@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import sys
 import time
 from pathlib import Path
 from typing import Any
 
-from .config import IGNORE_DIRS, SUPPORTED_EXTENSIONS, mnemo_path, REPO_MAP_FILE
+from .config import IGNORE_DIRS, SUPPORTED_EXTENSIONS, mnemo_path, REPO_MAP_FILE, should_ignore
 from .chunking import make_code_chunks
 from .retrieval import index_chunks
 from .storage import Collections, get_storage
@@ -18,7 +19,7 @@ MAX_FILE_SIZE = 100_000
 
 
 def _should_ignore(path: Path) -> bool:
-    return any(part in IGNORE_DIRS for part in path.parts)
+    return should_ignore(path)
 
 
 def _file_hash(path: Path) -> str:
@@ -26,24 +27,62 @@ def _file_hash(path: Path) -> str:
 
 
 def _get_parser(language: str):
-    import tree_sitter_python
-    import tree_sitter_javascript
-    import tree_sitter_typescript
-    import tree_sitter_go
-    import tree_sitter_c_sharp
     from tree_sitter import Language, Parser
 
-    lang_map = {
-        "python": tree_sitter_python.language(),
-        "javascript": tree_sitter_javascript.language(),
-        "typescript": tree_sitter_typescript.language_typescript(),
-        "go": tree_sitter_go.language(),
-        "csharp": tree_sitter_c_sharp.language(),
-    }
-    lang = lang_map.get(language)
+    lang = _resolve_language(language)
     if not lang:
         return None
     return Parser(Language(lang))
+
+
+def _resolve_language(language: str):
+    """Resolve a language string to a tree-sitter language object."""
+    try:
+        if language == "python":
+            import tree_sitter_python
+            return tree_sitter_python.language()
+        elif language == "javascript":
+            import tree_sitter_javascript
+            return tree_sitter_javascript.language()
+        elif language == "typescript":
+            import tree_sitter_typescript
+            return tree_sitter_typescript.language_typescript()
+        elif language == "go":
+            import tree_sitter_go
+            return tree_sitter_go.language()
+        elif language == "csharp":
+            import tree_sitter_c_sharp
+            return tree_sitter_c_sharp.language()
+        elif language == "java":
+            import tree_sitter_java
+            return tree_sitter_java.language()
+        elif language == "rust":
+            import tree_sitter_rust
+            return tree_sitter_rust.language()
+        elif language == "ruby":
+            import tree_sitter_ruby
+            return tree_sitter_ruby.language()
+        elif language == "php":
+            import tree_sitter_php
+            return tree_sitter_php.language()
+        elif language == "c":
+            import tree_sitter_c
+            return tree_sitter_c.language()
+        elif language == "cpp":
+            import tree_sitter_cpp
+            return tree_sitter_cpp.language()
+        elif language == "kotlin":
+            import tree_sitter_kotlin
+            return tree_sitter_kotlin.language()
+        elif language == "swift":
+            import tree_sitter_swift
+            return tree_sitter_swift.language()
+        elif language == "scala":
+            import tree_sitter_scala
+            return tree_sitter_scala.language()
+    except ImportError:
+        return None
+    return None
 
 
 def _get_node_text(node) -> str:
@@ -216,6 +255,295 @@ def _extract_go(source: bytes, parser) -> dict:
     return {k: v for k, v in result.items() if v}
 
 
+def _extract_java(source: bytes, parser) -> dict:
+    tree = parser.parse(source)
+    result: dict = {"imports": [], "classes": []}
+
+    def walk(node):
+        for child in node.children:
+            if child.type == "import_declaration":
+                result["imports"].append(child.text.decode().strip())
+            elif child.type in ("class_declaration", "interface_declaration", "enum_declaration"):
+                result["classes"].append(_extract_java_class(child))
+            elif child.type == "program" or child.type == "package_declaration":
+                pass
+            walk(child)
+
+    def _extract_java_class(node) -> dict:
+        name = _get_node_text(node.child_by_field_name("name"))
+        implements = ""
+        methods = []
+        for child in node.children:
+            if child.type == "superclass":
+                implements = child.text.decode().lstrip("extends ").strip()
+            elif child.type == "super_interfaces":
+                impl_text = child.text.decode().lstrip("implements ").strip()
+                implements = f"{implements}, {impl_text}".strip(", ") if implements else impl_text
+            elif child.type == "class_body" or child.type == "interface_body" or child.type == "enum_body":
+                for member in child.children:
+                    if member.type == "method_declaration":
+                        mname = _get_node_text(member.child_by_field_name("name"))
+                        mparams = _get_node_text(member.child_by_field_name("parameters"))
+                        mtype = _get_node_text(member.child_by_field_name("type"))
+                        if mname:
+                            sig = f"{mtype + ' ' if mtype else ''}{mname}{mparams}"
+                            methods.append(sig.strip())
+                    elif member.type == "constructor_declaration":
+                        mname = _get_node_text(member.child_by_field_name("name"))
+                        mparams = _get_node_text(member.child_by_field_name("parameters"))
+                        if mname:
+                            methods.append(f"{mname}{mparams}")
+        entry = {"name": name}
+        if implements:
+            entry["implements"] = implements
+        if methods:
+            entry["methods"] = methods
+        return entry
+
+    walk(tree.root_node)
+    return {k: v for k, v in result.items() if v}
+
+
+def _extract_rust(source: bytes, parser) -> dict:
+    tree = parser.parse(source)
+    result: dict = {"functions": [], "classes": []}
+
+    for node in tree.root_node.children:
+        if node.type == "function_item":
+            name = _get_node_text(node.child_by_field_name("name"))
+            params = _get_node_text(node.child_by_field_name("parameters"))
+            ret = _get_node_text(node.child_by_field_name("return_type"))
+            if name:
+                sig = f"fn {name}{params}"
+                if ret:
+                    sig += f" -> {ret}"
+                result["functions"].append(sig)
+        elif node.type == "struct_item":
+            name = _get_node_text(node.child_by_field_name("name"))
+            if name:
+                result["classes"].append({"name": name})
+        elif node.type == "enum_item":
+            name = _get_node_text(node.child_by_field_name("name"))
+            if name:
+                result["classes"].append({"name": name})
+        elif node.type == "trait_item":
+            name = _get_node_text(node.child_by_field_name("name"))
+            if name:
+                result["classes"].append({"name": name, "implements": "trait"})
+        elif node.type == "impl_item":
+            type_node = node.child_by_field_name("type")
+            trait_node = node.child_by_field_name("trait")
+            type_name = _get_node_text(type_node)
+            methods = []
+            for child in node.children:
+                if child.type == "declaration_list":
+                    for member in child.children:
+                        if member.type == "function_item":
+                            mname = _get_node_text(member.child_by_field_name("name"))
+                            if mname:
+                                methods.append(mname)
+            if type_name and methods:
+                entry = {"name": type_name, "methods": methods}
+                if trait_node:
+                    entry["implements"] = _get_node_text(trait_node)
+                result["classes"].append(entry)
+
+    return {k: v for k, v in result.items() if v}
+
+
+def _extract_ruby(source: bytes, parser) -> dict:
+    tree = parser.parse(source)
+    result: dict = {"classes": [], "functions": []}
+
+    def walk(node):
+        if node.type == "class":
+            name = _get_node_text(node.child_by_field_name("name"))
+            superclass = _get_node_text(node.child_by_field_name("superclass"))
+            methods = []
+            for child in node.children:
+                if child.type == "body_statement":
+                    for member in child.children:
+                        if member.type == "method":
+                            mname = _get_node_text(member.child_by_field_name("name"))
+                            if mname:
+                                methods.append(mname)
+            entry = {"name": name}
+            if superclass:
+                entry["implements"] = superclass.lstrip("< ").strip()
+            if methods:
+                entry["methods"] = methods
+            result["classes"].append(entry)
+        elif node.type == "module":
+            name = _get_node_text(node.child_by_field_name("name"))
+            if name:
+                result["classes"].append({"name": name})
+        elif node.type == "method" and node.parent and node.parent.type == "program":
+            name = _get_node_text(node.child_by_field_name("name"))
+            if name:
+                result["functions"].append(name)
+        for child in node.children:
+            walk(child)
+
+    walk(tree.root_node)
+    return {k: v for k, v in result.items() if v}
+
+
+def _extract_php(source: bytes, parser) -> dict:
+    tree = parser.parse(source)
+    result: dict = {"classes": [], "functions": []}
+
+    def walk(node):
+        if node.type == "class_declaration":
+            name = _get_node_text(node.child_by_field_name("name"))
+            methods = []
+            base = ""
+            for child in node.children:
+                if child.type == "base_clause":
+                    base = child.text.decode().replace("extends", "").strip()
+                elif child.type == "declaration_list":
+                    for member in child.children:
+                        if member.type == "method_declaration":
+                            mname = _get_node_text(member.child_by_field_name("name"))
+                            if mname:
+                                methods.append(mname)
+            entry = {"name": name}
+            if base:
+                entry["implements"] = base
+            if methods:
+                entry["methods"] = methods
+            result["classes"].append(entry)
+        elif node.type == "function_definition":
+            name = _get_node_text(node.child_by_field_name("name"))
+            if name:
+                result["functions"].append(name)
+        for child in node.children:
+            walk(child)
+
+    walk(tree.root_node)
+    return {k: v for k, v in result.items() if v}
+
+
+def _extract_c_cpp(source: bytes, parser) -> dict:
+    tree = parser.parse(source)
+    result: dict = {"functions": [], "classes": []}
+
+    for node in tree.root_node.children:
+        if node.type == "function_definition":
+            declarator = node.child_by_field_name("declarator")
+            if declarator:
+                name = _get_node_text(declarator.child_by_field_name("declarator")) or _get_node_text(declarator)
+                if name and "(" in name:
+                    name = name.split("(")[0]
+                if name:
+                    result["functions"].append(name.strip())
+        elif node.type in ("struct_specifier", "class_specifier"):
+            name = _get_node_text(node.child_by_field_name("name"))
+            if name:
+                result["classes"].append({"name": name})
+
+    return {k: v for k, v in result.items() if v}
+
+
+def _extract_kotlin(source: bytes, parser) -> dict:
+    tree = parser.parse(source)
+    result: dict = {"imports": [], "classes": [], "functions": []}
+
+    def walk(node):
+        if node.type == "import_header":
+            result["imports"].append(node.text.decode().strip())
+        elif node.type in ("class_declaration", "object_declaration"):
+            name = _get_node_text(node.child_by_field_name("name")) or ""
+            methods = []
+            supertype = ""
+            for child in node.children:
+                if child.type == "delegation_specifier":
+                    supertype = child.text.decode().strip()
+                elif child.type == "class_body":
+                    for member in child.children:
+                        if member.type == "function_declaration":
+                            mname = _get_node_text(member.child_by_field_name("name"))
+                            if mname:
+                                methods.append(mname)
+            if name:
+                entry = {"name": name}
+                if supertype:
+                    entry["implements"] = supertype
+                if methods:
+                    entry["methods"] = methods
+                result["classes"].append(entry)
+        elif node.type == "function_declaration" and node.parent and node.parent.type == "source_file":
+            name = _get_node_text(node.child_by_field_name("name"))
+            if name:
+                result["functions"].append(name)
+        for child in node.children:
+            walk(child)
+
+    walk(tree.root_node)
+    return {k: v for k, v in result.items() if v}
+
+
+def _extract_swift(source: bytes, parser) -> dict:
+    tree = parser.parse(source)
+    result: dict = {"classes": [], "functions": []}
+
+    def walk(node):
+        if node.type in ("class_declaration", "struct_declaration", "protocol_declaration", "enum_declaration"):
+            name = _get_node_text(node.child_by_field_name("name"))
+            methods = []
+            for child in node.children:
+                if child.type == "class_body" or child.type == "protocol_body":
+                    for member in child.children:
+                        if member.type == "function_declaration":
+                            mname = _get_node_text(member.child_by_field_name("name"))
+                            if mname:
+                                methods.append(mname)
+            if name:
+                entry = {"name": name}
+                if methods:
+                    entry["methods"] = methods
+                result["classes"].append(entry)
+        elif node.type == "function_declaration" and node.parent and node.parent.type == "source_file":
+            name = _get_node_text(node.child_by_field_name("name"))
+            if name:
+                result["functions"].append(name)
+        for child in node.children:
+            walk(child)
+
+    walk(tree.root_node)
+    return {k: v for k, v in result.items() if v}
+
+
+def _extract_scala(source: bytes, parser) -> dict:
+    tree = parser.parse(source)
+    result: dict = {"classes": [], "functions": []}
+
+    def walk(node):
+        if node.type in ("class_definition", "trait_definition", "object_definition"):
+            name = _get_node_text(node.child_by_field_name("name"))
+            methods = []
+            for child in node.children:
+                if child.type == "template_body":
+                    for member in child.children:
+                        if member.type == "function_definition":
+                            mname = _get_node_text(member.child_by_field_name("name"))
+                            if mname:
+                                methods.append(mname)
+            if name:
+                entry = {"name": name}
+                if methods:
+                    entry["methods"] = methods
+                result["classes"].append(entry)
+        elif node.type == "function_definition" and node.parent and node.parent.type == "compilation_unit":
+            name = _get_node_text(node.child_by_field_name("name"))
+            if name:
+                result["functions"].append(name)
+        for child in node.children:
+            walk(child)
+
+    walk(tree.root_node)
+    return {k: v for k, v in result.items() if v}
+
+
 def _extract_file(source: bytes, language: str) -> dict | None:
     parser = _get_parser(language)
     if not parser:
@@ -229,8 +557,25 @@ def _extract_file(source: bytes, language: str) -> dict | None:
             return _extract_js(source, parser)
         elif language == "go":
             return _extract_go(source, parser)
+        elif language == "java":
+            return _extract_java(source, parser)
+        elif language == "rust":
+            return _extract_rust(source, parser)
+        elif language == "ruby":
+            return _extract_ruby(source, parser)
+        elif language == "php":
+            return _extract_php(source, parser)
+        elif language in ("c", "cpp"):
+            return _extract_c_cpp(source, parser)
+        elif language == "kotlin":
+            return _extract_kotlin(source, parser)
+        elif language == "swift":
+            return _extract_swift(source, parser)
+        elif language == "scala":
+            return _extract_scala(source, parser)
         return None
-    except Exception:
+    except Exception as exc:
+        print(f"[mnemo] Failed to parse {language} file: {exc}", file=sys.stderr)
         return None
 
 
@@ -248,28 +593,21 @@ def _save_hashes(repo_root: Path, hashes: dict[str, str]):
 
 
 def has_changes(repo_root: Path) -> bool:
-    """Quick check if any files changed since last map generation."""
-    old_hashes = _load_hashes(repo_root)
-    if not old_hashes:
+    """Quick check if any files changed since last map generation using mtime."""
+    summary_path = mnemo_path(repo_root) / "summary.md"
+    if not summary_path.exists():
         return True
+    last_map_time = summary_path.stat().st_mtime
 
-    for ext, language in SUPPORTED_EXTENSIONS.items():
+    for ext in SUPPORTED_EXTENSIONS:
         for filepath in repo_root.rglob(f"*{ext}"):
             if _should_ignore(filepath) or filepath.stat().st_size > MAX_FILE_SIZE:
                 continue
-            rel = str(filepath.relative_to(repo_root))
             try:
-                h = _file_hash(filepath)
-            except (OSError, PermissionError):
+                if filepath.stat().st_mtime > last_map_time:
+                    return True
+            except OSError:
                 continue
-            if old_hashes.get(rel) != h:
-                return True
-
-    # Check for deletions
-    for rel in old_hashes:
-        if not (repo_root / rel).exists():
-            return True
-
     return False
 
 
@@ -349,9 +687,73 @@ def save_summary(repo_root: Path, index: bool = True) -> Path:
     summary = generate_summary(repo_root, index=index)
     out = mnemo_path(repo_root) / "summary.md"
     out.write_text(summary, encoding="utf-8")
+    # Also generate compact tree for recall/context files
+    compact = generate_compact_tree(repo_root)
+    compact_out = mnemo_path(repo_root) / "tree.md"
+    compact_out.write_text(compact, encoding="utf-8")
     return out
 
 
 def save_repo_map(repo_root: Path, index: bool = True) -> Path:
-    """Generate summary (replaces old JSON map)."""
-    return save_summary(repo_root, index=index)
+    """Generate summary, compact tree, and knowledge graph."""
+    result = save_summary(repo_root, index=index)
+    # Build knowledge graph
+    try:
+        from .graph.builder import build_graph
+        build_graph(repo_root)
+    except Exception as exc:
+        import sys
+        print(f"[mnemo] Graph build failed (non-fatal): {exc}", file=sys.stderr)
+    return result
+
+
+def generate_compact_tree(repo_root: Path) -> str:
+    """Generate a compact tree showing structure + key classes per module (for recall)."""
+    modules: dict[str, dict] = {}
+
+    for ext, language in SUPPORTED_EXTENSIONS.items():
+        for filepath in repo_root.rglob(f"*{ext}"):
+            if _should_ignore(filepath) or filepath.stat().st_size > MAX_FILE_SIZE:
+                continue
+            try:
+                source = filepath.read_bytes()
+            except (OSError, PermissionError):
+                continue
+
+            rel = str(filepath.relative_to(repo_root))
+            parts = rel.split("/")
+            module = parts[0] if len(parts) > 1 else "."
+            submodule = parts[1] if len(parts) > 2 else "_root"
+
+            if module not in modules:
+                modules[module] = {"subs": {}, "classes": [], "funcs": 0}
+            if submodule not in modules[module]["subs"]:
+                modules[module]["subs"][submodule] = 0
+            modules[module]["subs"][submodule] += 1
+
+            info = _extract_file(source, language)
+            if info:
+                for cls in info.get("classes", []):
+                    name = cls["name"]
+                    impl = cls.get("implements", "")
+                    entry = f"{name} : {impl}" if impl else name
+                    modules[module]["classes"].append(entry)
+                modules[module]["funcs"] += len(info.get("functions", []))
+
+    lines = []
+    for module in sorted(modules.keys()):
+        total = sum(modules[module]["subs"].values())
+        lines.append(f"{module}/ ({total} files)")
+        for sub in sorted(modules[module]["subs"].keys()):
+            if sub != "_root":
+                lines.append(f"  {sub}/")
+        classes = sorted(set(modules[module]["classes"]))
+        if classes:
+            shown = classes[:8]
+            lines.append(f"  Key classes: {', '.join(shown)}")
+            if len(classes) > 8:
+                lines.append(f"  ... +{len(classes) - 8} more classes")
+        if modules[module]["funcs"]:
+            lines.append(f"  Functions: {modules[module]['funcs']}")
+
+    return "\n".join(lines)

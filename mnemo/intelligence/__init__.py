@@ -7,13 +7,13 @@ import re
 from pathlib import Path
 from typing import Any
 
-from ..config import IGNORE_DIRS, mnemo_path
+from ..config import IGNORE_DIRS, SUPPORTED_EXTENSIONS, mnemo_path, should_ignore
 from ..retrieval import semantic_query
 from ..sprint import get_current_task
 
 
 def _should_ignore(path: Path) -> bool:
-    return any(part in IGNORE_DIRS for part in path.parts)
+    return should_ignore(path)
 
 
 # --- Architecture Graph (service-to-service calls) ---
@@ -207,22 +207,26 @@ def find_similar(repo_root: Path, query: str) -> list[dict[str, str]]:
 
     similar: list[dict[str, str]] = []
 
-    # Find files matching the pattern
-    for cs_file in repo_root.rglob("*.cs"):
-        if _should_ignore(cs_file):
-            continue
-        name = cs_file.stem.lower()
-        # Match by suffix pattern (e.g. "Handler" finds all *Handler.cs)
-        if query_lower in name:
-            rel = str(cs_file.relative_to(repo_root))
-            try:
-                content = cs_file.read_text(errors="replace")
-                # Get class declaration line
-                match = re.search(r'(public\s+class\s+\w+[^{]*)', content)
-                sig = match.group(1).strip() if match else ""
-                similar.append({"file": rel, "class": sig})
-            except (OSError, PermissionError):
-                similar.append({"file": rel, "class": ""})
+    # Find files matching the pattern across all supported languages
+    for ext in SUPPORTED_EXTENSIONS:
+        for src_file in repo_root.rglob(f"*{ext}"):
+            if _should_ignore(src_file):
+                continue
+            name = src_file.stem.lower()
+            if query_lower in name:
+                rel = str(src_file.relative_to(repo_root))
+                try:
+                    content = src_file.read_text(errors="replace")
+                    # Get class declaration line (language-agnostic patterns)
+                    match = (
+                        re.search(r'(public\s+class\s+\w+[^{]*)', content)
+                        or re.search(r'(class\s+\w+[^:]*:)', content)
+                        or re.search(r'(func\s+\w+\s*\()', content)
+                    )
+                    sig = match.group(1).strip() if match else ""
+                    similar.append({"file": rel, "class": sig})
+                except (OSError, PermissionError):
+                    similar.append({"file": rel, "class": ""})
 
     return similar[:20]
 

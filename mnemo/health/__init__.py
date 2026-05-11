@@ -3,23 +3,46 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
-from ..config import IGNORE_DIRS
+from ..config import IGNORE_DIRS, SUPPORTED_EXTENSIONS, should_ignore
 
 
 def _should_ignore(path: Path) -> bool:
-    return any(part in IGNORE_DIRS for part in path.parts)
+    return should_ignore(path)
 
 
 def _count_methods(content: str) -> int:
-    """Count methods in a C# file."""
-    return len(re.findall(r'(public|private|protected|internal)\s+(static\s+)?(async\s+)?\S+\s+\w+\s*\(', content))
+    """Count methods/functions in a source file (multi-language)."""
+    # C#/Java style
+    cs_methods = len(re.findall(r'(public|private|protected|internal)\s+(static\s+)?(async\s+)?\S+\s+\w+\s*\(', content))
+    # Python style
+    py_methods = len(re.findall(r'^\s*def\s+\w+\s*\(', content, re.MULTILINE))
+    # JS/TS style
+    js_methods = len(re.findall(r'(function\s+\w+\s*\(|\w+\s*\([^)]*\)\s*{|\w+\s*=\s*\([^)]*\)\s*=>)', content))
+    # Go style
+    go_methods = len(re.findall(r'^func\s+', content, re.MULTILINE))
+    return max(cs_methods, py_methods, js_methods, go_methods)
 
 
-def _estimate_complexity(content: str) -> int:
+def _estimate_complexity(content: str, language: str = "") -> int:
     """Rough cyclomatic complexity estimate based on branching keywords."""
-    keywords = ["if ", "else ", "switch ", "case ", "for ", "foreach ", "while ", "catch ", "&&", "||", "??", "?.", "=>"]
+    common = ["if ", "else ", "for ", "while ", "catch ", "&&", "||", "=>"]
+    csharp_extra = ["switch ", "case ", "foreach ", "??", "?."]
+    python_extra = ["elif ", "except ", "for ", "with "]
+    js_extra = ["switch ", "case ", "? ", "catch "]
+
+    keywords = list(common)
+    if language in ("csharp",):
+        keywords.extend(csharp_extra)
+    elif language in ("python",):
+        keywords.extend(python_extra)
+    elif language in ("javascript", "typescript"):
+        keywords.extend(js_extra)
+    else:
+        keywords.extend(csharp_extra)  # default broad set
+
     return sum(content.count(k) for k in keywords)
 
 
@@ -31,7 +54,8 @@ def _get_git_churn(repo_root: Path, filepath: Path) -> int:
         rel = str(filepath.relative_to(repo_root))
         commits = list(repo.iter_commits(paths=rel, max_count=100))
         return len(commits)
-    except Exception:
+    except Exception as exc:
+        print(f"[mnemo] Git churn lookup failed: {exc}", file=sys.stderr)
         return 0
 
 
@@ -41,23 +65,24 @@ def calculate_health(repo_root: Path) -> str:
 
     hotspots: list[tuple[str, int, int, int]] = []  # (file, complexity, methods, lines)
 
-    for cs_file in repo_root.rglob("*.cs"):
-        if _should_ignore(cs_file) or "Test" in str(cs_file):
-            continue
-        try:
-            content = cs_file.read_text(errors="replace")
-        except (OSError, PermissionError):
-            continue
+    for ext, language in SUPPORTED_EXTENSIONS.items():
+        for src_file in repo_root.rglob(f"*{ext}"):
+            if _should_ignore(src_file) or "test" in str(src_file).lower():
+                continue
+            try:
+                content = src_file.read_text(errors="replace")
+            except (OSError, PermissionError):
+                continue
 
-        if len(content) < 100:
-            continue
+            if len(content) < 100:
+                continue
 
-        rel = str(cs_file.relative_to(repo_root))
-        complexity = _estimate_complexity(content)
-        methods = _count_methods(content)
-        line_count = content.count("\n")
+            rel = str(src_file.relative_to(repo_root))
+            complexity = _estimate_complexity(content, language)
+            methods = _count_methods(content)
+            line_count = content.count("\n")
 
-        hotspots.append((rel, complexity, methods, line_count))
+            hotspots.append((rel, complexity, methods, line_count))
 
     if not hotspots:
         return "No source files found for health analysis."

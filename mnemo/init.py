@@ -40,22 +40,31 @@ SAVING MEMORY:
 - When in doubt, SAVE. It is better to remember too much than to forget something useful.
 - RULE: If you called `mnemo_lookup`, `mnemo_similar`, or `mnemo_who_touched` AND produced a summary or analysis from the results, you MUST call `mnemo_remember` with a concise summary before ending your response.
 
-AVAILABLE TOOLS:
-- `mnemo_lookup` - get method-level details for a file or folder
-- `mnemo_similar` - find similar implementations to follow as patterns
-- `mnemo_intelligence` - architecture graph, patterns, dependencies
-- `mnemo_discover_apis` - discover all API endpoints
-- `mnemo_search_api` - search for a specific endpoint
-- `mnemo_knowledge` - search team knowledge base
-- `mnemo_decide` - record a decision
-- `mnemo_context` - save project metadata
-- `mnemo_map` - refresh code map after changes
-- `mnemo_cross_search` - search across ALL linked repos (use when code might live in a sibling service)
-- `mnemo_cross_impact` - cross-repo impact analysis (what breaks in other repos if you change something here)
-- `mnemo_links` - show linked repos
+WHEN TO USE WHAT:
+- Understanding code structure → `mnemo_lookup` or `mnemo_graph action=neighbors`
+- Finding patterns/similar code → `mnemo_similar` or `mnemo_graph action=find`
+- Impact of a change → `mnemo_graph action=traverse direction=incoming` or `mnemo_cross_impact`
+- Code relationships/path between entities → `mnemo_graph action=path`
+- Code health/quality → `mnemo_health`, `mnemo_dead_code`, `mnemo_check_security`
+- Team/ownership → `mnemo_team`, `mnemo_who_touched`
+- History/context → `mnemo_search_memory`, `mnemo_search_errors`, `mnemo_incidents`
+- APIs → `mnemo_discover_apis`, `mnemo_search_api`
+- Knowledge base → `mnemo_knowledge`
+- Record decisions → `mnemo_decide`
+- Refresh after code changes → `mnemo_map`
+- Cross-repo search → `mnemo_cross_search`
+- Cross-repo impact → `mnemo_cross_impact`
+
+PLAN MODE:
+- When the user asks to plan a feature, break work into tasks, or track progress → use `mnemo_plan`
+- `mnemo_plan action=create` — create a new plan with tasks
+- `mnemo_plan action=done` — mark a task complete (with summary)
+- `mnemo_plan action=status` — show current plan progress
+- After completing any work that matches an open plan item, AUTOMATICALLY call `mnemo_plan action=done`
+- When starting a new chat, if plan status shows open tasks, mention what's next
 
 CROSS-REPO AWARENESS:
-- This repo has linked sibling repos. Use `mnemo_links` to see them.
+- This repo may have linked sibling repos. Use `mnemo_links` to see them.
 - ALWAYS call `mnemo_cross_search` BEFORE using grep or reading files when:
   - The user asks about code that does not exist in this repo
   - The user mentions a service, project, or module name that is not a folder in this repo

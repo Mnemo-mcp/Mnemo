@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -18,8 +18,12 @@ class Chunk:
     language: str
     symbol: str
     content: str
-    hash: str
-    metadata: dict[str, Any]
+    metadata: dict[str, Any] = field(default_factory=dict)
+    hash: str = ""
+
+    def __post_init__(self):
+        if not self.hash:
+            object.__setattr__(self, "hash", _hash(self.content))
 
 
 def _hash(text: str) -> str:
@@ -32,7 +36,7 @@ def _chunk_id(chunk_type: str, path: str, symbol: str) -> str:
 
 
 def make_code_chunks(path: str, language: str, info: dict[str, Any]) -> list[Chunk]:
-    """Build code chunks from parsed file info."""
+    """Build code chunks from parsed file info (class-level + method-level)."""
     chunks: list[Chunk] = []
 
     for cls in info.get("classes", []):
@@ -52,6 +56,24 @@ def make_code_chunks(path: str, language: str, info: dict[str, Any]) -> list[Chu
                 metadata={"kind": "class", "method_count": len(methods)},
             )
         )
+        # Method-level chunks for better search granularity
+        for method in methods:
+            mname = method.split("(")[0].split()[-1] if method else ""
+            if not mname or mname.startswith("_"):
+                continue
+            method_content = f"class {name}\n  {method}"
+            chunks.append(
+                Chunk(
+                    id=_chunk_id("code", path, f"method:{name}.{mname}"),
+                    chunk_type="code",
+                    path=path,
+                    language=language,
+                    symbol=f"{name}.{mname}",
+                    content=method_content,
+                    hash=_hash(method_content),
+                    metadata={"kind": "method", "class": name},
+                )
+            )
 
     seen_ids: set[str] = set()
     for fn in info.get("functions", []):
