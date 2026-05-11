@@ -15,12 +15,15 @@ Mnemo gives your AI agent a persistent brain. It remembers decisions, maps your 
 ## Capabilities
 
 ### 🧠 Persistent Memory
-Your AI remembers across chat sessions:
+Your AI remembers across chat sessions — with smart retrieval that never overloads context:
 - Architectural decisions and reasoning
 - Bug fixes and their root causes
 - Team preferences and conventions
 - TODO items and follow-ups
 - Production incidents and resolutions
+- Auto-categorized (bug, architecture, preference, todo, pattern)
+- Tiered retrieval: recent + important memories load automatically, older ones searchable on demand
+- No memory is ever deleted — grows forever without eating your context window
 
 ### 🗺️ Code Intelligence
 Your AI understands your codebase without reading every file:
@@ -121,6 +124,7 @@ You don't need special syntax — just ask naturally:
 | Architecture | "What's the architecture of this project?" |
 | APIs | "What API endpoints exist?" |
 | Save context | "Remember we chose Redis for caching" |
+| Search memory | "What do we know about auth tokens?" |
 | Impact analysis | "What breaks if I change AuthService?" |
 | Cross-repo | "Find authentication code across all services" |
 | Code health | "What's the code health?" |
@@ -186,6 +190,6 @@ No Python required on your machine. No PATH configuration. The extension handles
 
 ## Links
 
-- [GitHub](https://github.com/nikhil1057/Mnemo)
-- [Full Documentation](https://github.com/nikhil1057/Mnemo#readme)
-- [Report Issues](https://github.com/nikhil1057/Mnemo/issues)
+- [GitHub](https://github.com/Mnemo-mcp/Mnemo)
+- [Full Documentation](https://github.com/Mnemo-mcp/Mnemo#readme)
+- [Report Issues](https://github.com/Mnemo-mcp/Mnemo/issues)

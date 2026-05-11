@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from .init import init
-from .memory import add_memory, add_decision, save_context, recall, lookup
+from .memory import add_memory, add_decision, save_context, recall, lookup, search_memory
 from .repo_map import save_repo_map
 from .intelligence import generate_intelligence, find_similar, context_for_active_task
 from .workspace import cross_repo_semantic_query, cross_repo_impact, format_links, get_linked_repos
@@ -72,6 +72,14 @@ def handle_tool_call(tool_name: str, arguments: dict) -> dict:
     elif tool_name == "mnemo_remember":
         entry = add_memory(repo_root, arguments["content"], arguments.get("category", "general"))
         return {"content": [{"type": "text", "text": f"Stored memory #{entry['id']}: {entry['content']}"}]}
+
+    elif tool_name == "mnemo_search_memory":
+        query = arguments.get("query", "")
+        if not query:
+            return {"content": [{"type": "text", "text": "Provide a search query."}], "isError": True}
+        deep = arguments.get("deep", False)
+        result = search_memory(repo_root, query, deep=deep)
+        return {"content": [{"type": "text", "text": result}]}
 
     elif tool_name == "mnemo_decide":
         entry = add_decision(repo_root, arguments["decision"], arguments.get("reasoning", ""))
@@ -407,6 +415,7 @@ TOOLS = [
     {"name": "mnemo_links", "description": "Show all linked repos in the multi-repo workspace.", "inputSchema": {"type": "object", "properties": {"repo_path": {"type": "string"}}}},
     {"name": "mnemo_cross_search", "description": "Search across this repo AND all linked repos. Use when looking for code, APIs, or patterns that may live in sibling services.", "inputSchema": {"type": "object", "properties": {"repo_path": {"type": "string"}, "query": {"type": "string", "description": "What to search for across all repos"}, "namespace": {"type": "string", "description": "Search namespace: code, api, or knowledge (default: code)"}}, "required": ["query"]}},
     {"name": "mnemo_cross_impact", "description": "Cross-repo impact analysis — find what breaks across ALL linked repos if you change a service, file, or API.", "inputSchema": {"type": "object", "properties": {"repo_path": {"type": "string"}, "query": {"type": "string", "description": "Service, file, or API to analyze impact for"}}, "required": ["query"]}},
+    {"name": "mnemo_search_memory", "description": "Search stored memories semantically. Use when mnemo_recall does not have enough context. Auto-detects relevant category from your query.", "inputSchema": {"type": "object", "properties": {"repo_path": {"type": "string", "description": "Path to the repository root (auto-detected if omitted)"}, "query": {"type": "string", "description": "What to search for in memory (e.g. auth token bug, caching decision)"}, "deep": {"type": "boolean", "description": "Set true for more results (15 instead of 7)"}}, "required": ["query"]}},
 ]
 
 

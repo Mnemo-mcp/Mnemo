@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mnemo-dev"
-version = "0.1.0"
+version = "0.2.0"
 description = "Persistent memory and repo map for AI coding assistants"
 readme = "README.md"
 license = {text = "MIT"}

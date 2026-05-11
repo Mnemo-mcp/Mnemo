@@ -191,6 +191,99 @@ def links(path: str):
     click.echo(format_links(Path(path).resolve()))
 
 
+@cli.command()
+def update():
+    """Update Mnemo to the latest version."""
+    import platform
+    import shutil
+    import stat
+    import tempfile
+    import urllib.request
+    import json as json_mod
+
+    from . import __version__
+
+    REPO = "Mnemo-mcp/Mnemo"
+    API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
+
+    # Fetch latest release info
+    click.echo("Checking for updates...")
+    try:
+        with urllib.request.urlopen(API_URL, timeout=10) as resp:
+            release = json_mod.loads(resp.read())
+    except Exception as e:
+        click.echo(f"Failed to check for updates: {e}")
+        return
+
+    latest = release.get("tag_name", "").lstrip("v")
+    if not latest:
+        click.echo("Could not determine latest version.")
+        return
+
+    if latest == __version__:
+        click.echo(f"Already on latest version ({__version__}).")
+        return
+
+    click.echo(f"Current: {__version__} → Latest: {latest}")
+
+    # Determine which binary to download
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+
+    if system == "darwin":
+        asset_name = "mnemo-darwin-arm64" if "arm" in machine else "mnemo-darwin-x64"
+    elif system == "linux":
+        asset_name = "mnemo-linux-x64"
+    elif system == "windows":
+        asset_name = "mnemo-win-x64.exe"
+    else:
+        click.echo(f"Unsupported platform: {system}. Use pip install --upgrade mnemo instead.")
+        return
+
+    # Find download URL
+    download_url = None
+    for asset in release.get("assets", []):
+        if asset["name"] == asset_name:
+            download_url = asset["browser_download_url"]
+            break
+
+    if not download_url:
+        click.echo(f"Binary '{asset_name}' not found in release. Use pip install --upgrade mnemo instead.")
+        return
+
+    # Download
+    click.echo(f"Downloading {asset_name}...")
+    try:
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".tmp")
+        urllib.request.urlretrieve(download_url, tmp.name)
+    except Exception as e:
+        click.echo(f"Download failed: {e}")
+        return
+
+    # Replace current binary
+    current_exe = shutil.which("mnemo")
+    if not current_exe:
+        current_exe = sys.executable if getattr(sys, "frozen", False) else None
+
+    if not current_exe or not getattr(sys, "frozen", False):
+        # Not running as binary — suggest pip
+        import os
+        os.unlink(tmp.name)
+        click.echo("Not running as standalone binary. Use: pip install --upgrade mnemo")
+        return
+
+    try:
+        target = Path(current_exe)
+        # Replace in place
+        shutil.move(tmp.name, str(target))
+        target.chmod(target.stat().st_mode | stat.S_IEXEC)
+        click.echo(f"✅ Updated to v{latest}")
+    except PermissionError:
+        click.echo(f"Permission denied. Try: sudo mnemo update")
+    except Exception as e:
+        click.echo(f"Failed to replace binary: {e}")
+
+
 @cli.command("mcp-server", hidden=True)
 def mcp_server():
     """Run the MCP server over stdio (used by AI clients)."""
