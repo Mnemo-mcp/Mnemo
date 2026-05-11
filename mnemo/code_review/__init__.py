@@ -26,8 +26,9 @@ def add_review(
 ) -> dict:
     """Store a code review summary."""
     reviews = _load_reviews(repo_root)
+    next_id = max((r.get("id", 0) for r in reviews), default=0) + 1
     entry = {
-        "id": len(reviews) + 1,
+        "id": next_id,
         "timestamp": time.time(),
         "summary": summary,
         "files": files or [],
@@ -51,18 +52,23 @@ def get_rejected_suggestions(repo_root: Path) -> list[dict]:
     return [review for review in reviews if review.get("outcome") == "rejected"]
 
 
-def format_reviews(repo_root: Path) -> str:
-    """Format review history as markdown."""
+def format_reviews(repo_root: Path, limit: int = 20, offset: int = 0) -> str:
+    """Format review history as markdown with pagination."""
     reviews = _load_reviews(repo_root)
     if not reviews:
         return "No code review history stored."
 
-    lines = ["# Code Review History\n"]
-    for review in reviews[-20:]:
+    total = len(reviews)
+    page = reviews[offset:offset + limit]
+
+    lines = [f"# Code Review History ({total} total)\n"]
+    for review in page:
         status = f"[{review['outcome']}]" if review.get("outcome") else ""
         lines.append(f"- {review['summary']} {status}")
         if review.get("feedback"):
             lines.append(f"  Feedback: {review['feedback']}")
         if review.get("files"):
             lines.append(f"  Files: {', '.join(review['files'])}")
+    if total > offset + limit:
+        lines.append(f"\n*Showing {len(page)} of {total}. Use offset={offset + limit} for more.*")
     return "\n".join(lines)

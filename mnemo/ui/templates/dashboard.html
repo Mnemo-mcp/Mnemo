@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mnemo Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+    }
+  },
+  plugins: [],
+}
+// Tailwind typography prose overrides for dark mode
+const proseStyle = document.createElement('style');
+proseStyle.textContent = `
+  .prose { color: #d4d4d8; }
+  .prose h1, .prose h2, .prose h3 { color: #fff; font-weight: 600; margin-top: 1.2em; margin-bottom: 0.5em; }
+  .prose h1 { font-size: 1.25rem; }
+  .prose h2 { font-size: 1.1rem; }
+  .prose h3 { font-size: 0.95rem; }
+  .prose strong { color: #e4e4e7; }
+  .prose code { color: #a5b4fc; background: rgba(99,102,241,0.1); padding: 2px 5px; border-radius: 4px; font-size: 0.85em; }
+  .prose pre { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 12px; overflow-x: auto; }
+  .prose pre code { background: none; padding: 0; }
+  .prose ul, .prose ol { padding-left: 1.5em; margin: 0.5em 0; }
+  .prose li { margin: 0.25em 0; }
+  .prose p { margin: 0.5em 0; }
+  .prose a { color: #818cf8; }
+  .prose hr { border-color: rgba(255,255,255,0.06); }
+  .prose table { width: 100%; border-collapse: collapse; }
+  .prose th, .prose td { border: 1px solid rgba(255,255,255,0.08); padding: 6px 10px; text-align: left; }
+  .prose th { background: rgba(255,255,255,0.03); color: #fff; }
+`;
+document.head.appendChild(proseStyle);
+</script>
+<style>
+body { font-family: 'Inter', sans-serif; background: #0a0a0f; color: #e4e4e7; }
+.glass { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); backdrop-filter: blur(12px); }
+.glass:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
+.stat-card { background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.04)); border: 1px solid rgba(99,102,241,0.15); }
+.nav-item.active { background: rgba(99,102,241,0.12); border-color: rgba(99,102,241,0.3); color: #a5b4fc; }
+.nav-item { transition: all 0.15s ease; }
+.badge { font-size: 0.65rem; padding: 2px 8px; border-radius: 9999px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+.badge-architecture { background: rgba(139,92,246,0.15); color: #c4b5fd; }
+.badge-bug { background: rgba(239,68,68,0.15); color: #fca5a5; }
+.badge-preference { background: rgba(59,130,246,0.15); color: #93c5fd; }
+.badge-general { background: rgba(107,114,128,0.2); color: #9ca3af; }
+.badge-pattern { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+.badge-todo { background: rgba(245,158,11,0.15); color: #fcd34d; }
+.badge-critical { background: rgba(239,68,68,0.2); color: #fca5a5; }
+.badge-high { background: rgba(249,115,22,0.2); color: #fdba74; }
+.badge-medium { background: rgba(245,158,11,0.15); color: #fcd34d; }
+.badge-low { background: rgba(34,197,94,0.15); color: #86efac; }
+.page { display: none; animation: fadeIn 0.2s ease; }
+.page.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+</style>
+</head>
+<body class="min-h-screen flex">
+
+<!-- SIDEBAR -->
+<aside class="w-56 fixed h-screen border-r border-white/5 flex flex-col py-5 px-3 bg-[#0d0d14]">
+  <div class="flex items-center gap-2 px-3 mb-8">
+    <div class="w-7 h-7 rounded-lg bg-indigo-500/20 flex items-center justify-center"><i data-lucide="brain" class="w-4 h-4 text-indigo-400"></i></div>
+    <span class="font-semibold text-sm text-white">Mnemo</span>
+  </div>
+  <nav class="flex flex-col gap-1 flex-1" id="nav">
+    <a href="#overview" class="nav-item active flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="overview"><i data-lucide="layout-dashboard" class="w-4 h-4"></i>Overview</a>
+    <a href="#graph" class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="graph"><i data-lucide="share-2" class="w-4 h-4"></i>Knowledge Graph</a>
+    <a href="#memory" class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="memory"><i data-lucide="database" class="w-4 h-4"></i>Memory</a>
+    <a href="#links" class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="links"><i data-lucide="git-branch" class="w-4 h-4"></i>Linked Repos</a>
+    <a href="#tasks" class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="tasks"><i data-lucide="check-square" class="w-4 h-4"></i>Tasks</a>
+    <a href="#health" class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="health"><i data-lucide="heart-pulse" class="w-4 h-4"></i>Health</a>
+    <a href="#apis" class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="apis"><i data-lucide="plug" class="w-4 h-4"></i>APIs</a>
+    <a href="#team" class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="team"><i data-lucide="users" class="w-4 h-4"></i>Team</a>
+    <a href="#incidents" class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="incidents"><i data-lucide="alert-triangle" class="w-4 h-4"></i>Incidents</a>
+    <a href="#knowledge" class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="knowledge"><i data-lucide="book-open" class="w-4 h-4"></i>Knowledge</a>
+  </nav>
+  <div class="px-3 text-xs text-zinc-600">Mnemo Dashboard</div>
+</aside>
+
+<main class="ml-56 flex-1 p-8">
+
+<!-- OVERVIEW -->
+<div id="page-overview" class="page active">
+  <h1 class="text-2xl font-semibold text-white mb-6">Overview</h1>
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8" id="stat-cards"></div>
+  <div class="glass rounded-xl p-5">
+    <h2 class="text-sm font-medium text-zinc-400 mb-4">Recent Activity</h2>
+    <div id="activity-list" class="space-y-3"></div>
+  </div>
+</div>
+
+<!-- GRAPH -->
+<div id="page-graph" class="page">
+  <h1 class="text-2xl font-semibold text-white mb-4">Knowledge Graph</h1>
+  <div class="flex gap-3 mb-4">
+    <input id="graph-search" type="text" placeholder="Search nodes..." class="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm flex-1 outline-none focus:border-indigo-500/50">
+    <select id="graph-filter" class="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm outline-none">
+      <option value="">All types</option>
+    </select>
+  </div>
+  <div class="glass rounded-xl overflow-hidden" style="height:calc(100vh - 180px); min-height:500px">
+    <div id="graph-container" style="width:100%;height:100%"></div>
+  </div>
+  <div id="graph-stats" class="mt-3 text-xs text-zinc-500"></div>
+</div>
+
+<!-- MEMORY -->
+<div id="page-memory" class="page">
+  <h1 class="text-2xl font-semibold text-white mb-4">Memory & Decisions</h1>
+  <div class="flex gap-2 mb-4 flex-wrap" id="memory-filters"></div>
+  <div id="memory-list" class="space-y-3"></div>
+  <h2 class="text-lg font-medium text-white mt-8 mb-4">Decisions</h2>
+  <div id="decisions-list" class="space-y-3"></div>
+</div>
+
+<!-- LINKS -->
+<div id="page-links" class="page">
+  <h1 class="text-2xl font-semibold text-white mb-4">Linked Repos</h1>
+  <div id="links-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+</div>
+
+<!-- TASKS -->
+<div id="page-tasks" class="page">
+  <h1 class="text-2xl font-semibold text-white mb-4">Tasks</h1>
+  <div id="tasks-list" class="space-y-3"></div>
+</div>
+
+<!-- HEALTH -->
+<div id="page-health" class="page">
+  <h1 class="text-2xl font-semibold text-white mb-4">Code Health</h1>
+  <div id="health-content" class="glass rounded-xl p-5 text-sm text-zinc-300 prose prose-invert prose-sm max-w-none"></div>
+</div>
+
+<!-- APIS -->
+<div id="page-apis" class="page">
+  <h1 class="text-2xl font-semibold text-white mb-4">API Catalog</h1>
+  <div id="apis-content" class="glass rounded-xl p-5 text-sm text-zinc-300 prose prose-invert prose-sm max-w-none"></div>
+</div>
+
+<!-- TEAM -->
+<div id="page-team" class="page">
+  <h1 class="text-2xl font-semibold text-white mb-4">Team Expertise</h1>
+  <div id="team-content" class="glass rounded-xl p-5 text-sm text-zinc-300 prose prose-invert prose-sm max-w-none"></div>
+</div>
+
+<!-- INCIDENTS -->
+<div id="page-incidents" class="page">
+  <h1 class="text-2xl font-semibold text-white mb-4">Incidents & Errors</h1>
+  <h2 class="text-sm font-medium text-zinc-400 mb-3">Incidents</h2>
+  <div id="incidents-list" class="space-y-3 mb-8"></div>
+  <h2 class="text-sm font-medium text-zinc-400 mb-3">Known Errors</h2>
+  <div id="errors-list" class="space-y-3"></div>
+</div>
+
+<!-- KNOWLEDGE -->
+<div id="page-knowledge" class="page">
+  <h1 class="text-2xl font-semibold text-white mb-4">Knowledge Base</h1>
+  <div id="knowledge-list" class="space-y-4"></div>
+</div>
+
+</main>
+
+<!-- SCRIPT -->
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+async function api(path) {
+  const r = await fetch('/api/' + path);
+  return r.json();
+}
+
+function timeAgo(ts) {
+  const s = Math.floor(Date.now()/1000 - ts);
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s/60) + 'm ago';
+  if (s < 86400) return Math.floor(s/3600) + 'h ago';
+  return Math.floor(s/86400) + 'd ago';
+}
+
+// Router
+function navigate(page) {
+  $$('.page').forEach(p => p.classList.remove('active'));
+  $$('.nav-item').forEach(n => n.classList.remove('active'));
+  const el = $(`#page-${page}`);
+  if (el) el.classList.add('active');
+  const nav = $(`[data-page="${page}"]`);
+  if (nav) nav.classList.add('active');
+  if (loaders[page]) loaders[page]();
+}
+
+$$('.nav-item').forEach(n => n.addEventListener('click', e => {
+  e.preventDefault();
+  navigate(n.dataset.page);
+}));
+
+// Overview
+async function loadOverview() {
+  const d = await api('overview');
+  const stats = [
+    { label: 'Memories', value: d.memory_count, icon: 'database' },
+    { label: 'Graph Nodes', value: d.graph_nodes, icon: 'share-2' },
+    { label: 'Linked Repos', value: d.links_count, icon: 'git-branch' },
+    { label: 'Tasks', value: d.tasks_count, icon: 'check-square' },
+    { label: 'Decisions', value: d.decisions_count, icon: 'lightbulb' },
+  ];
+  $('#stat-cards').innerHTML = stats.map(s => `
+    <div class="stat-card rounded-xl p-4 flex flex-col gap-1">
+      <div class="text-xs text-zinc-500 flex items-center gap-1.5"><i data-lucide="${s.icon}" class="w-3 h-3"></i>${s.label}</div>
+      <div class="text-2xl font-semibold text-white">${s.value}</div>
+    </div>
+  `).join('');
+
+  $('#activity-list').innerHTML = d.activity.map(a => `
+    <div class="flex items-start gap-3 text-sm">
+      <div class="w-1.5 h-1.5 rounded-full mt-2 ${a.type === 'task' ? 'bg-indigo-400' : 'bg-zinc-500'}"></div>
+      <div class="flex-1">
+        <span class="text-zinc-300">${a.content}</span>
+        ${a.category ? `<span class="badge badge-${a.category} ml-2">${a.category}</span>` : ''}
+      </div>
+      <span class="text-xs text-zinc-600 whitespace-nowrap">${timeAgo(a.timestamp)}</span>
+    </div>
+  `).join('');
+  lucide.createIcons();
+}
+
+const loaders = { overview: loadOverview, graph: loadGraph, memory: loadMemory, links: loadLinks, tasks: loadTasks, health: loadHealth, apis: loadApis, team: loadTeam, incidents: loadIncidents, knowledge: loadKnowledge };
+
+const NODE_COLORS = { class:'#6366f1', service:'#10b981', interface:'#a855f7', file:'#6b7280', method:'#3b82f6', package:'#f59e0b', person:'#f97316', endpoint:'#ec4899', pattern:'#14b8a6', decision:'#8b5cf6', memory:'#6366f1', incident:'#ef4444', error:'#f59e0b', function:'#3b82f6', unknown:'#52525b' };
+
+let _graphTimer = null;
+function debounce(fn, ms) { return (...args) => { clearTimeout(_graphTimer); _graphTimer = setTimeout(() => fn(...args), ms); }; }
+
+async function loadGraph() {
+  const d = await api('graph');
+  if (!d.nodes.length) { $('#graph-container').innerHTML='<div class="flex items-center justify-center h-full text-zinc-500">No graph data. Run mnemo map.</div>'; return; }
+
+  const types = [...new Set(d.nodes.map(n=>n.type))].sort();
+  $('#graph-filter').innerHTML = '<option value="">All types</option>' + types.map(t=>`<option value="${t}">${t} (${d.nodes.filter(n=>n.type===t).length})</option>`).join('');
+  $('#graph-stats').textContent = `${d.nodes.length} nodes · ${d.edges.length} edges · ${types.length} types`;
+
+  const nodes = new vis.DataSet(d.nodes.map(n => ({ id:n.id, label:n.name, group:n.type, color:{ background: NODE_COLORS[n.type]||'#52525b', border:'transparent', highlight:{background: NODE_COLORS[n.type]||'#52525b', border:'#fff'} }, font:{color:'#e4e4e7', size:11} })));
+  const edges = new vis.DataSet(d.edges.map((e,i) => ({ id:i, from:e.source, to:e.target, title:e.type, color:{color:'rgba(140,140,255,0.25)', highlight:'#818cf8'}, arrows:{to:{scaleFactor:0.5}}, smooth:{enabled:true, type:'curvedCW', roundness:0.15} })));
+
+  const network = new vis.Network($('#graph-container'), {nodes, edges}, {
+    physics: { solver:'forceAtlas2Based', forceAtlas2Based:{gravitationalConstant:-50, springLength:150, springConstant:0.04, damping:0.5}, stabilization:{iterations:200, fit:true} },
+    interaction: { hover:true, tooltipDelay:50, zoomView:true, dragView:true },
+    nodes: { shape:'dot', size:10, borderWidth:0 },
+    edges: { width:1.2, selectionWidth:2 },
+    layout: { improvedLayout: true }
+  });
+
+  network.once('stabilizationIterationsDone', () => { network.setOptions({physics:{enabled:false}}); });
+
+  const filterGraph = debounce((q, type) => {
+    const updates = d.nodes.map(n => {
+      let hidden = false;
+      if (type && n.type !== type) hidden = true;
+      if (q && !n.name.toLowerCase().includes(q)) hidden = true;
+      return {id: n.id, hidden};
+    });
+    nodes.update(updates);
+  }, 200);
+
+  let _q = '', _t = '';
+  $('#graph-search').oninput = e => { _q = e.target.value.toLowerCase(); filterGraph(_q, _t); };
+  $('#graph-filter').onchange = e => { _t = e.target.value; filterGraph(_q, _t); };
+}
+
+async function loadMemory() {
+  const d = await api('memory');
+  const cats = [...new Set(d.memories.map(m=>m.category))];
+  $('#memory-filters').innerHTML = `<button class="badge badge-general cursor-pointer" onclick="filterMem('')">all</button>` + cats.map(c=>`<button class="badge badge-${c} cursor-pointer" onclick="filterMem('${c}')">${c}</button>`).join('');
+
+  window._memories = d.memories;
+  renderMemories(d.memories);
+
+  $('#decisions-list').innerHTML = d.decisions.map(dec => `
+    <div class="glass rounded-lg p-4">
+      <p class="text-sm text-zinc-200">${dec.decision}</p>
+      <p class="text-xs text-zinc-500 mt-2">Reasoning: ${dec.reasoning || 'N/A'}</p>
+    </div>
+  `).join('') || '<p class="text-sm text-zinc-500">No decisions recorded.</p>';
+}
+
+function filterMem(cat) {
+  renderMemories(cat ? window._memories.filter(m=>m.category===cat) : window._memories);
+}
+
+function renderMemories(mems) {
+  $('#memory-list').innerHTML = mems.slice().reverse().map(m => `
+    <div class="glass rounded-lg p-4">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="badge badge-${m.category}">${m.category}</span>
+        <span class="text-xs text-zinc-600">${timeAgo(m.timestamp)}</span>
+      </div>
+      <p class="text-sm text-zinc-300">${m.content}</p>
+    </div>
+  `).join('') || '<p class="text-sm text-zinc-500">No memories stored.</p>';
+}
+
+async function loadLinks() {
+  const d = await api('links');
+  $('#links-list').innerHTML = d.map(l => `
+    <div class="glass rounded-xl p-5">
+      <div class="flex items-center gap-3 mb-2">
+        <div class="w-8 h-8 rounded-lg ${l.indexed ? 'bg-green-500/15' : 'bg-zinc-500/15'} flex items-center justify-center">
+          <i data-lucide="${l.indexed ? 'check-circle' : 'circle'}" class="w-4 h-4 ${l.indexed ? 'text-green-400' : 'text-zinc-500'}"></i>
+        </div>
+        <div>
+          <div class="text-sm font-medium text-white">${l.name}</div>
+          <div class="text-xs text-zinc-500 font-mono">${l.path}</div>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-3">
+        <span class="badge ${l.indexed ? 'badge-pattern' : 'badge-general'}">${l.indexed ? 'indexed' : 'not indexed'}</span>
+        <span class="badge ${l.exists ? 'badge-low' : 'badge-bug'}">${l.exists ? 'exists' : 'missing'}</span>
+      </div>
+    </div>
+  `).join('') || '<p class="text-sm text-zinc-500">No linked repos.</p>';
+  lucide.createIcons();
+}
+async function loadTasks() {
+  const d = await api('tasks');
+  $('#tasks-list').innerHTML = d.map(t => `
+    <div class="glass rounded-lg p-4 flex items-center gap-4">
+      <div class="w-3 h-3 rounded-full ${t.status==='active' ? 'bg-indigo-400 animate-pulse' : 'bg-green-400'}"></div>
+      <div class="flex-1">
+        <div class="text-sm font-medium text-white">${t.task_id}</div>
+        <div class="text-xs text-zinc-400">${t.description || ''}</div>
+        ${t.files?.length ? `<div class="text-xs text-zinc-600 font-mono mt-1">${t.files.join(', ')}</div>` : ''}
+      </div>
+      <span class="badge ${t.status==='active' ? 'badge-architecture' : 'badge-pattern'}">${t.status}</span>
+    </div>
+  `).join('') || '<p class="text-sm text-zinc-500">No tasks recorded.</p>';
+}
+
+async function loadHealth() {
+  const d = await api('health');
+  $('#health-content').innerHTML = marked.parse(d.markdown || 'No health data.');
+}
+
+async function loadApis() {
+  const d = await api('apis');
+  $('#apis-content').innerHTML = marked.parse(d.markdown || 'No APIs discovered.');
+}
+
+async function loadTeam() {
+  const d = await api('team');
+  $('#team-content').innerHTML = marked.parse(d.markdown || 'No team data.');
+}
+
+async function loadIncidents() {
+  const incidents = await api('incidents');
+  const errors = await api('errors');
+
+  $('#incidents-list').innerHTML = incidents.map(i => `
+    <div class="glass rounded-lg p-4">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="badge badge-${i.severity || 'medium'}">${i.severity || 'medium'}</span>
+        <span class="text-sm font-medium text-white">${i.title}</span>
+      </div>
+      <p class="text-xs text-zinc-400">${i.what_happened}</p>
+      <p class="text-xs text-zinc-500 mt-1">Fix: ${i.fix}</p>
+    </div>
+  `).join('') || '<p class="text-sm text-zinc-500">No incidents recorded.</p>';
+
+  $('#errors-list').innerHTML = errors.map(e => `
+    <div class="glass rounded-lg p-4">
+      <div class="text-sm text-red-300 font-mono">${e.error}</div>
+      <p class="text-xs text-zinc-400 mt-1">Cause: ${e.cause}</p>
+      <p class="text-xs text-green-300/70 mt-1">Fix: ${e.fix}</p>
+    </div>
+  `).join('') || '<p class="text-sm text-zinc-500">No errors recorded.</p>';
+}
+
+async function loadKnowledge() {
+  const d = await api('knowledge');
+  $('#knowledge-list').innerHTML = d.map(k => `
+    <div class="glass rounded-xl p-5">
+      <h3 class="text-sm font-medium text-white mb-2">${k.name}</h3>
+      <div class="text-xs text-zinc-400 prose prose-invert prose-xs max-w-none">${marked.parse(k.content)}</div>
+    </div>
+  `).join('') || '<p class="text-sm text-zinc-500">No knowledge files. Add .md files to .mnemo/knowledge/</p>';
+}
+
+loadOverview();
+lucide.createIcons();
+</script>
+
+</body>
+</html>

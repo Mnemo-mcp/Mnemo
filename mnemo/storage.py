@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -200,7 +203,25 @@ class JSONFileAdapter:
     def _save(self, collection: str, data: Any) -> None:
         path = self.collection_path(collection)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        content = json.dumps(data, indent=2) + "\n"
+        # Atomic write: write to temp file then rename
+        try:
+            fd = tempfile.NamedTemporaryFile(
+                mode="w", dir=str(path.parent), suffix=".tmp",
+                delete=False, encoding="utf-8",
+            )
+            fd.write(content)
+            fd.flush()
+            os.fsync(fd.fileno())
+            fd.close()
+            os.replace(fd.name, str(path))
+        except OSError:
+            # Fallback: direct write (Windows edge cases)
+            try:
+                os.unlink(fd.name)
+            except OSError:
+                pass
+            path.write_text(content, encoding="utf-8")
 
     @staticmethod
     def _item_key(item: dict[str, Any]) -> str:

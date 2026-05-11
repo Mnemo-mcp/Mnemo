@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mnemo-dev"
-version = "0.2.0"
+version = "0.3.0"
 description = "Persistent memory and repo map for AI coding assistants"
 readme = "README.md"
 license = {text = "MIT"}
@@ -18,7 +18,10 @@ dependencies = [
     "tree-sitter-typescript>=0.21",
     "tree-sitter-c-sharp>=0.21",
     "tree-sitter-go>=0.21",
+    "tree-sitter-java>=0.21",
+    "tree-sitter-rust>=0.21",
     "gitpython>=3.1",
+    "networkx>=3.0",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -46,6 +49,15 @@ semantic = [
 ]
 binary = [
     "pyinstaller>=6.0",
+]
+all-languages = [
+    "tree-sitter-ruby>=0.21",
+    "tree-sitter-php>=0.22",
+    "tree-sitter-c>=0.21",
+    "tree-sitter-cpp>=0.21",
+    "tree-sitter-kotlin>=0.21",
+    "tree-sitter-swift>=0.21",
+    "tree-sitter-scala>=0.21",
 ]
 
 [project.scripts]

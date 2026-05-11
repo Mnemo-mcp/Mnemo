@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from collections import defaultdict
 
@@ -17,7 +18,8 @@ def build_team_graph(repo_root: Path) -> dict[str, dict]:
     try:
         from git import Repo
         repo = Repo(repo_root)
-    except Exception:
+    except Exception as exc:
+        print(f"[mnemo] Git repo access failed: {exc}", file=sys.stderr)
         return {}
 
     # author → {service: commit_count}
@@ -36,8 +38,8 @@ def build_team_graph(repo_root: Path) -> dict[str, dict]:
                 expertise[author][service] += 1
                 if file_path not in last_touch:
                     last_touch[file_path] = author
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"[mnemo] Git history iteration failed: {exc}", file=sys.stderr)
 
     return {
         "expertise": dict(expertise),

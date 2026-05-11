@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -173,7 +174,8 @@ def cross_repo_semantic_query(
             for r in linked_results:
                 r["repo"] = linked.name
             results.extend(linked_results)
-        except Exception:
+        except Exception as exc:
+            print(f"[mnemo] Failed to query linked repo {linked.name}: {exc}", file=sys.stderr)
             continue
 
     # Sort by score descending, deduplicate by id
@@ -218,7 +220,7 @@ def cross_repo_impact(repo_root: Path, query: str) -> str:
                     lines.append(f"- `{meta.get('path', '')}` :: `{meta.get('symbol', '')}`")
             else:
                 lines.append("- No matches")
-        except Exception:
-            lines.append("- ⚠ Could not query (run `mnemo init` in that repo)")
+        except Exception as exc:
+            lines.append(f"- ⚠ Could not query (run `mnemo init` in that repo): {exc}")
 
     return "\n".join(lines)

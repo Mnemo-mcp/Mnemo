@@ -1,39 +1,46 @@
 # Mnemo
 
-Persistent memory, code intelligence, and API discovery for AI coding assistants. One command gives Amazon Q, Cursor, Claude Code, and other MCP clients project context across chat sessions - no re-reading files, no lost context.
+Persistent memory, knowledge graph, and code intelligence for AI coding assistants. One command gives Amazon Q, Cursor, Claude Code, and other MCP clients project context across chat sessions — no re-reading files, no lost context.
 
 ## Mnemo in Simple Words
 
-Mnemo is your AI agent's project memory.
+Mnemo is your AI agent's project brain.
 
 - It remembers important decisions and past fixes.
-- It keeps a map of your codebase so the agent can navigate quickly.
+- It builds a knowledge graph of your codebase (classes, services, relationships).
 - It helps the agent answer questions about architecture, APIs, tests, and patterns.
 - It works across chats, so you do not repeat project context every time.
 - It searches across multiple repos so the agent knows your full platform.
+- It tracks plans and auto-updates progress as work happens.
+- It proactively surfaces warnings, decisions, and next steps in every response.
 
 ## Mnemo in Technical Terms
 
 Mnemo is a local-first MCP server (`mnemo-mcp`) plus repo-side data/indexing.
 
-- It exposes MCP tools for memory, retrieval, architecture analysis, API discovery, task context, incidents, reviews, and diagnostics.
-- It builds and updates a structured repo summary and hash index in `.mnemo/`.
+- It exposes 48 MCP tools for memory, knowledge graph, retrieval, architecture analysis, API discovery, plan tracking, task context, incidents, reviews, and diagnostics.
+- It builds a knowledge graph (NetworkX) with structural relationships (implements, inherits, calls, depends_on, owns).
 - It supports semantic retrieval (ChromaDB auto-installed on first use) with keyword fallback.
-- It supports multi-repo workspaces with cross-repo search and impact analysis.
-- It injects client instructions/context files (for supported AI clients) and updates them as memory changes.
+- It supports multi-repo workspaces with cross-repo graph queries and impact analysis.
+- It enriches every tool response with proactive context (plan status, regression warnings, related decisions).
+- It auto-detects plans from memories/decisions and auto-marks tasks done.
 
 ## What it does
 
+- **Knowledge Graph** — Builds a graph of services, classes, interfaces, methods, packages, and people with structural relationships (886 nodes, 1459 edges on a typical microservices repo)
 - **Persistent Memory** — Stores decisions, patterns, preferences, and chat summaries across sessions with tiered retrieval (never loses context, never overloads it)
-- **Repo Map** — Parses your entire codebase and stores class structures, interfaces, and relationships
+- **Plan Mode** — Auto-creates trackable plans from memories/decisions, auto-marks tasks done, syncs to TASKS.md
+- **Response Enrichment** — Every tool response includes proactive hints (next plan task, regression warnings, related decisions)
+- **Repo Map** — Compact tree showing all services equally, with key classes per module
 - **Code Intelligence** — Detects architecture, dependencies, patterns, ownership, and similar implementations
 - **Semantic Search** — Finds code by meaning, not just filename (powered by ChromaDB)
-- **Multi-Repo Workspace** — Search across linked repos, cross-repo impact analysis
+- **Multi-Repo Workspace** — Federated graph queries across linked repos, cross-repo impact analysis
 - **Knowledge Base** — Searchable team knowledge from markdown files (runbooks, standards, gotchas)
 - **API Discovery** — Parses OpenAPI/Swagger specs and controller annotations to build a complete API catalog
 - **Auto-Remember** — Automatically saves meaningful findings to memory for future chats
-- **Auto-refresh** — Detects file changes (via content hash), renames (via git), and deletions
+- **Auto-refresh** — Detects file changes (via mtime), renames (via git), and deletions
 - **Zero friction** — One `mnemo init` and it works forever
+- **Dashboard UI** — Visual web dashboard showing knowledge graph, memory, repos, health, and more (`mnemo ui`)
 
 ## How Smooth Is It?
 
@@ -108,7 +115,7 @@ mnemo init
 > source ~/.bashrc
 > ```
 
-> **Note (Windows):** If `mnemo` is not found after install, add your Python Scripts directory to PATH. Common locations are `$env:APPDATA\Python\Python312\Scripts`, `$env:APPDATA\Python\Python311\Scripts`, and `$env:APPDATA\Python\Python310\Scripts`.
+> **Note (Windows):** If `mnemo` is not found after install, add your Python Scripts directory to PATH.
 
 ### Option D: Standalone binary (no Python needed)
 
@@ -140,14 +147,12 @@ mnemo init
 
 ### Initialize your repo
 
-After installing via any method above:
-
 ```bash
 cd your-project
 mnemo init
 ```
 
-By default this configures Amazon Q. You can target another client, or configure every supported client at once:
+By default this configures Amazon Q. Target another client or all:
 
 ```bash
 mnemo init --client cursor
@@ -155,103 +160,177 @@ mnemo init --client claude-code
 mnemo init --client all
 ```
 
-Supported values are `amazonq`, `cursor`, `claude-code`, `kiro`, `copilot`, `generic`, and `all`.
+Supported: `amazonq`, `cursor`, `claude-code`, `kiro`, `copilot`, `generic`, `all`.
 
-That's it. This command:
+This command:
 1. Creates `.mnemo/` folder (added to `.gitignore` automatically)
-2. Generates a compact repo map of your entire codebase
+2. Generates a compact repo map + knowledge graph
 3. Indexes code into semantic search (ChromaDB auto-installs on first use)
 4. Detects code patterns and conventions
 5. Creates a knowledge base directory
-6. Installs the right client context file, such as `.amazonq/rules/mnemo.md`, `.cursorrules`, or `CLAUDE.md`
+6. Installs the right client context file
 7. Configures the MCP server in the selected client's MCP config
 
 ### Restart your IDE
 
 Restart your IDE or reload your AI client extension to pick up the new MCP server.
 
-If setup does not look right, run:
-
 ```bash
-mnemo doctor --client all
+mnemo doctor --client all  # if setup doesn't look right
+mnemo status               # quick check
 ```
 
-### Check status
+---
 
-```bash
-mnemo status
+## Knowledge Graph
+
+Mnemo builds a knowledge graph of your codebase during `mnemo init` / `mnemo map`.
+
+### What it captures
+
+| Node Type | Examples |
+|-----------|----------|
+| service | isAuthRequiredService, providerSearchService |
+| class | AetnaHandler, CosmosDbService |
+| interface | IPayerHandler, ICacheService |
+| method | AetnaHandler.BuildResponse |
+| file | Services/PayerHandlers/AetnaHandler.cs |
+| package | Azure.Cosmos, Moq |
+| person | Nikhil, Ayushy (from git) |
+| decision | "Use Redis for caching" |
+| memory | Stored context from chats |
+| incident | Production issues |
+
+### Relationships (edges)
+
+| Edge | Meaning |
+|------|---------|
+| contains | service → file |
+| defines | file → class/interface |
+| implements | class → interface |
+| inherits | class → base class |
+| calls | file → class (usage) |
+| has_method | class → method |
+| depends_on | service → package |
+| owns | person → service |
+| references | decision/memory → code entity |
+| affects | incident → service |
+
+### Query examples
+
+```
+"What implements IPayerHandler?"     → graph traverse
+"What depends on CosmosDbService?"   → graph neighbors incoming
+"Path from AetnaHandler to CosmosDB" → graph path
+"Most connected code in the repo"    → graph hubs
 ```
 
-Output:
-- `✅ Mnemo active — MCP server responding`
-- `⚠️  Mnemo initialized but MCP server not responding — restart your IDE`
-- `❌ Not initialized. Run: mnemo init`
+### Architecture: Local → Workspace → Enterprise
 
-## That's it
+```
+┌─────────────────────────────────────────────────┐
+│  Tier 3: Organization (future — mnemo serve)    │
+│  ┌───────────────────────────────────────────┐  │
+│  │  Tier 2: Workspace (federated)            │  │
+│  │  ┌─────────────────────────────────────┐  │  │
+│  │  │  Tier 1: Local (per repo)           │  │  │
+│  │  │  NetworkX graph → .mnemo/graph.json │  │  │
+│  │  └─────────────────────────────────────┘  │  │
+│  │  Queries fan out to all linked repos      │  │
+│  └───────────────────────────────────────────┘  │
+│  Same GraphStore protocol — just wraps lower    │
+└─────────────────────────────────────────────────┘
+```
 
-Every new AI chat with a configured client will now:
-1. Automatically recall project context before answering
-2. Know the full code structure without reading files
-3. Remember what happened in previous chats
-4. Have access to all stored decisions and memory
-5. Auto-save meaningful findings for future sessions
-6. Search across linked repos when code lives elsewhere
+---
+
+## Plan Mode
+
+Mnemo automatically tracks plans and progress.
+
+### How it works
+
+You don't need to explicitly create plans. When you tell the AI about work to do:
+
+```
+User: "We need to migrate Service Review and Eligibility to SOAP APIs.
+       Steps: convert controllers, add WSDL, update models, update tests"
+
+AI calls mnemo_remember or mnemo_decide with this content
+
+Mnemo auto-detects it's a plan → creates tracked tasks:
+  📋 Auto-created plan:
+  - [ ] MNO-001 Convert controllers to SOAP endpoints
+  - [ ] MNO-002 Add WSDL definitions for each service
+  - [ ] MNO-003 Update models with XML serialization
+  - [ ] MNO-004 Update tests with XML payloads
+```
+
+### Auto-completion
+
+When the AI later remembers completing work that matches a task:
+
+```
+AI calls mnemo_remember "Implemented WSDL definitions for eligibility and service review"
+
+Mnemo auto-detects match → marks MNO-002 done
+Response includes: "✅ Auto-completed MNO-002: Add WSDL definitions"
+```
+
+### Proactive hints
+
+Every tool response includes the next task:
+
+```
+📋 Plan 'SOAP Migration' (2/4) — next: MNO-003 Update models with XML serialization
+```
+
+Plans sync to `TASKS.md` automatically.
+
+---
+
+## Response Enrichment
+
+Every tool response is enriched with proactive context. The AI doesn't need to call extra tools — Mnemo injects relevant information automatically.
+
+| When you call... | Mnemo also shows... |
+|---|---|
+| `mnemo_lookup "PayerHandler"` | ⚠️ Regression risk + 📌 Related decision + 📋 Next plan task |
+| `mnemo_remember "fixed the bug"` | ✅ Auto-completed matching plan task |
+| `mnemo_similar "Handler"` | 📋 Next plan task |
+| `mnemo_health` | 📋 Next plan task |
+
+This means the AI always has context about what's important right now, without needing to remember to check.
 
 ---
 
 ## Multi-Repo Workspace
 
-Mnemo can search across multiple repositories. This is useful when your platform spans several repos (auth-service, order-service, frontend, etc.).
+Mnemo searches across multiple repositories with federated graph queries.
 
 ### Link repos
 
 ```bash
-# Link a specific repo
 mnemo link ../auth-service
-
-# Auto-discover and link all repos under a directory
 mnemo link --discover ~/CodeRepo
-
-# Auto-discover AND initialize all found repos
 mnemo link --discover ~/CodeRepo --init
-
-# Remove a link
 mnemo unlink auth-service
-
-# Show linked repos and their status
 mnemo links
 ```
 
-### What it enables in chat
+### What it enables
 
 | What you ask | What happens |
 |---|---|
-| "Find authentication code across all services" | Searches this repo + all linked repos |
-| "What breaks if I change the token format?" | Cross-repo impact analysis |
-| "What APIs does the auth service expose?" | Searches linked auth-service's API index |
-| "Show me linked repos" | Lists all linked repos with status |
-
-### How it works
-
-Each repo keeps its own `.mnemo/` index. When you query, Mnemo searches the local index first, then fans out to linked repos' indexes. Results are merged and ranked by relevance.
-
-```
-your-project/.mnemo/links.json → ["../auth-service", "../order-service"]
-```
-
-### IDE Setup for cross-repo file reading
-
-If your AI client needs to read actual source files in linked repos (not just index data), enable read access outside your workspace:
-
-**VS Code (Amazon Q):** Settings → "Allow read-only tools outside your workspace" → Enable
+| "Find authentication code across all services" | Cross-repo graph + semantic search |
+| "What breaks if I change the token format?" | Federated graph traversal |
+| "What APIs does the auth service expose?" | Searches linked repo's API index |
 
 ---
 
 ## Semantic Search
 
-Mnemo uses ChromaDB for semantic code search. This means you can find code by **meaning**, not just filename or keyword.
-
-### Examples
+ChromaDB-powered search by meaning, not just filename.
 
 | Query | Finds |
 |---|---|
@@ -259,180 +338,124 @@ Mnemo uses ChromaDB for semantic code search. This means you can find code by **
 | "error handling" | retry pipelines, DelegatingHandlers, catch blocks |
 | "database access" | CosmosDbService, repositories, connection code |
 
-### How it works
-
-- ChromaDB auto-installs on first `mnemo init` (no manual setup)
-- Code is chunked at class/function boundaries and embedded
-- Queries match by semantic similarity, not just text overlap
-- Falls back to keyword matching if ChromaDB is unavailable
-
-### No ChromaDB? Still works
-
-Without ChromaDB, Mnemo uses a keyword-based fallback (token overlap scoring). It's less accurate but requires zero dependencies beyond the base install.
+Falls back to keyword matching if ChromaDB is unavailable.
 
 ---
 
-## Using Mnemo With AI Agents
-
-You can work naturally with your AI assistant; you do not need to memorize tool names.
-
-### Setup per agent/client
-
-- `mnemo init --client amazonq`
-- `mnemo init --client cursor`
-- `mnemo init --client claude-code`
-- `mnemo init --client kiro`
-- `mnemo init --client copilot`
-- `mnemo init --client generic`
-- `mnemo init --client all` (configure everything in one run)
-
-### Recommended first-chat prompt
-
-Use this once after setup/restart:
-
-```text
-Use Mnemo context for this repo first, then help me with my task.
-```
-
-### Daily workflow
-
-1. Start task context:
-   - "I'm working on ABC-123: migrate auth token validation."
-2. Ask implementation/analysis questions naturally:
-   - "Show me similar handlers and where to plug a new one."
-3. Persist important outcomes:
-   - "Remember we chose Redis cache-aside for token introspection."
-4. Capture delivery hygiene:
-   - "Store this review summary."
-   - "Record this production incident."
-
----
-
-## MCP Tools
+## MCP Tools (48 total)
 
 ### Memory & Context
 
 | Tool | Description |
 |------|-------------|
-| `mnemo_recall` | Load decisions, preferences, active task, and recent memories (token-budgeted) |
-| `mnemo_remember` | Save important information (auto-categorized and vector-indexed) |
-| `mnemo_search_memory` | Search all memories semantically (auto-detects category from query) |
-| `mnemo_decide` | Record an architectural or design decision with reasoning |
-| `mnemo_context` | Save/update project metadata (tech stack, conventions) |
+| `mnemo_recall` | Load decisions, preferences, active task, graph summary, and recent memories |
+| `mnemo_remember` | Save information (auto-categorized, auto-creates plans if plan-like) |
+| `mnemo_search_memory` | Search all memories semantically |
+| `mnemo_decide` | Record a decision (auto-creates plan if reasoning has steps) |
+| `mnemo_context` | Save/update project metadata |
+| `mnemo_forget` | Delete a memory by ID |
+
+### Knowledge Graph
+
+| Tool | Description |
+|------|-------------|
+| `mnemo_graph` | Query the knowledge graph (stats, neighbors, traverse, path, find, hubs) |
+
+### Plan Mode
+
+| Tool | Description |
+|------|-------------|
+| `mnemo_plan` | Create/track/update plans (create, done, add, remove, status) |
 
 ### Code Understanding
 
 | Tool | Description |
 |------|-------------|
-| `mnemo_lookup` | Get method-level details for a specific file or folder |
-| `mnemo_map` | Regenerate the repo map after code changes |
-| `mnemo_intelligence` | Full code intelligence report (architecture, patterns, dependencies, ownership) |
-| `mnemo_similar` | Find similar implementations to follow as patterns |
-| `mnemo_context_for_task` | Retrieve semantic context scoped to the active task |
+| `mnemo_lookup` | Get method-level details for a file or folder |
+| `mnemo_map` | Regenerate repo map + knowledge graph |
+| `mnemo_intelligence` | Full code intelligence report |
+| `mnemo_similar` | Find similar implementations |
+| `mnemo_context_for_task` | Retrieve context scoped to active task |
 
 ### Multi-Repo
 
 | Tool | Description |
 |------|-------------|
-| `mnemo_links` | Show all linked repos in the workspace |
-| `mnemo_cross_search` | Search across this repo AND all linked repos |
-| `mnemo_cross_impact` | Cross-repo impact analysis — what breaks everywhere if you change something |
+| `mnemo_links` | Show linked repos |
+| `mnemo_cross_search` | Search across all linked repos |
+| `mnemo_cross_impact` | Cross-repo impact analysis |
+
+### Safety & Quality
+
+| Tool | Description |
+|------|-------------|
+| `mnemo_check_security` | Scan for security issues |
+| `mnemo_add_security_pattern` | Add custom security pattern |
+| `mnemo_breaking_changes` | Detect breaking changes against baseline |
+| `mnemo_add_regression` | Record regression risk for a file |
+| `mnemo_check_regressions` | Check file regression risks |
+| `mnemo_drift` | Detect architecture drift |
+| `mnemo_dead_code` | Detect unused code (in-memory scan, <0.3s) |
+| `mnemo_health` | Code health report |
+
+### Git & Workflow
+
+| Tool | Description |
+|------|-------------|
+| `mnemo_commit_message` | Generate commit message from staged changes |
+| `mnemo_pr_description` | Generate PR description |
+| `mnemo_hooks_install` | Install pre-commit hooks |
+| `mnemo_check` | Run pre-commit validations |
+| `mnemo_add_correction` | Store AI correction for learning |
+| `mnemo_corrections` | Show stored corrections |
+| `mnemo_velocity` | Development velocity metrics |
 
 ### Knowledge & APIs
 
 | Tool | Description |
 |------|-------------|
-| `mnemo_knowledge` | Search the team knowledge base (or list all files) |
-| `mnemo_discover_apis` | Discover all API endpoints from controllers and OpenAPI specs |
-| `mnemo_search_api` | Search for a specific endpoint, schema, or service |
+| `mnemo_knowledge` | Search team knowledge base |
+| `mnemo_discover_apis` | Discover all API endpoints |
+| `mnemo_search_api` | Search for specific endpoint |
 
-### Code Review
-
-| Tool | Description |
-|------|-------------|
-| `mnemo_add_review` | Store a code review summary with feedback and outcome |
-| `mnemo_reviews` | Show code review history |
-
-### Error Memory
+### Team & Operations
 
 | Tool | Description |
 |------|-------------|
-| `mnemo_add_error` | Store an error → cause → fix mapping |
-| `mnemo_search_errors` | Search known errors (use when hitting a bug to check if it's been seen before) |
-
-### Dependency Graph
-
-| Tool | Description |
-|------|-------------|
-| `mnemo_dependencies` | Show the full service dependency graph |
-| `mnemo_impact` | Impact analysis — what breaks if you change a service or file |
-
-### Onboarding
-
-| Tool | Description |
-|------|-------------|
-| `mnemo_onboarding` | Generate a complete project onboarding guide for new team members |
-
-### Sprint/Task Context
-
-| Tool | Description |
-|------|-------------|
-| `mnemo_task` | Set or get the current task/ticket being worked on |
-| `mnemo_task_done` | Mark a task as completed |
-
-### Test Intelligence
-
-| Tool | Description |
-|------|-------------|
-| `mnemo_tests` | Show which tests cover a file, or get overall test coverage summary |
-
-### Code Health
-
-| Tool | Description |
-|------|-------------|
-| `mnemo_health` | Code health report — complexity hotspots, large files, potential god classes |
-
-### Team Knowledge Graph
-
-| Tool | Description |
-|------|-------------|
-| `mnemo_team` | Show team expertise map — who knows what based on git history |
-| `mnemo_who_touched` | Find who last modified a specific file |
-
-### Incident Memory
-
-| Tool | Description |
-|------|-------------|
-| `mnemo_add_incident` | Record a production incident with root cause and fix |
-| `mnemo_incidents` | Search or list production incidents |
+| `mnemo_team` | Team expertise map |
+| `mnemo_who_touched` | Who last modified a file |
+| `mnemo_add_error` | Store error → cause → fix |
+| `mnemo_search_errors` | Search known errors |
+| `mnemo_add_incident` | Record production incident |
+| `mnemo_incidents` | Search/list incidents |
+| `mnemo_add_review` | Store code review |
+| `mnemo_reviews` | Show review history |
+| `mnemo_dependencies` | Service dependency graph |
+| `mnemo_impact` | Impact analysis |
+| `mnemo_onboarding` | Generate onboarding guide |
+| `mnemo_task` | Set/get current task |
+| `mnemo_task_done` | Mark task complete |
+| `mnemo_tests` | Test coverage info |
 
 ---
 
 ## How to Use in Chat
 
-You don't need to mention "mnemo" — just ask naturally:
+Just ask naturally:
 
 | What you want | What to ask |
 |---------------|-------------|
 | Project overview | "What do you know about this project?" |
+| Code relationships | "What implements IPayerHandler?" |
+| Impact analysis | "What breaks if I change CosmosDbService?" |
+| Plan work | "We need to migrate to SOAP — here are the steps..." |
+| Plan status | "What's the plan status?" |
 | Code details | "Show me the AuthorizationService methods" |
-| Follow patterns | "I need to add a new payer handler, show me existing ones" |
-| Architecture | "What's the architecture of this project?" |
-| APIs | "What API endpoints exist?" |
-| Knowledge | "What's in the knowledge base?" |
-| Save context | "Remember that we decided to use Redis for caching" |
-| Search memory | "What do we know about auth token handling?" |
-| Code health | "What's the code health of this project?" |
-| Test coverage | "What tests cover AuthorizationService?" |
-| Team expertise | "Who knows about the payment service?" |
-| Impact analysis | "What breaks if I change AuthService?" |
-| Cross-repo search | "Find authentication code across all services" |
-| Cross-repo impact | "What breaks in other repos if I change the token format?" |
-| Onboarding | "Give me a project overview for onboarding" |
-| Task tracking | "I'm working on JIRA-456" |
-| Error lookup | "Have we seen this NullReferenceException before?" |
-| Incidents | "We had an outage in the auth service last week" |
-| Code review | "Store this review feedback for future reference" |
+| Follow patterns | "I need to add a new payer handler" |
+| Architecture | "What's the architecture?" |
+| Dead code | "Find unused code" |
+| Security | "Run a security scan" |
+| Cross-repo | "Find auth code across all services" |
 
 ---
 
@@ -441,203 +464,77 @@ You don't need to mention "mnemo" — just ask naturally:
 | Command | Description |
 |---------|-------------|
 | `mnemo init` | Initialize Mnemo in current directory |
-| `mnemo init --client all` | Initialize Mnemo for all supported AI clients |
-| `mnemo doctor` | Diagnose install, repo, and MCP client setup |
-| `mnemo status` | Quick check — is Mnemo active and MCP responding? |
-| `mnemo recall` | Show all stored memory (what Q sees) |
-| `mnemo map` | Manually refresh the repo map and semantic index |
-| `mnemo remember "text"` | Store a note in memory (auto-categorized) |
-| `mnemo update` | Update Mnemo to the latest version (standalone binary) |
-| `mnemo reset` | Wipe all Mnemo data and client context files |
-| `mnemo link <path>` | Link a sibling repo for cross-repo queries |
-| `mnemo link --discover <dir>` | Auto-discover and link all repos under a directory |
-| `mnemo link --discover <dir> --init` | Discover, link, AND initialize all repos |
+| `mnemo init --client all` | Initialize for all AI clients |
+| `mnemo ui` | Open the Mnemo dashboard in your browser |
+| `mnemo doctor` | Diagnose setup |
+| `mnemo status` | Quick health check |
+| `mnemo recall` | Show stored memory |
+| `mnemo map` | Refresh repo map + knowledge graph |
+| `mnemo remember "text"` | Store a note |
+| `mnemo update` | Update to latest version |
+| `mnemo reset` | Wipe all Mnemo data |
+| `mnemo link <path>` | Link a sibling repo |
+| `mnemo link --discover <dir>` | Auto-discover and link repos |
 | `mnemo unlink <name>` | Remove a linked repo |
-| `mnemo links` | Show all linked repos and their status |
-
----
-
-## Feature Guide: Simple + Technical
-
-### 1) Memory and decisions
-- Simple: your agent remembers project decisions and team preferences. Memory grows forever without eating context.
-- Technical: memories are persisted in `.mnemo/memory.json` (never deleted), auto-categorized (bug/architecture/preference/todo/pattern/general), and vector-indexed in ChromaDB. Retrieval is tiered: `mnemo_recall` returns only hot memories (decisions + preferences + last 7 days) within a token budget. Older memories are searchable via `mnemo_search_memory` which auto-detects category from query text. No memory is ever deleted or requires manual intervention.
-
-### 2) Repo understanding
-- Simple: your agent can explain "where things are" quickly.
-- Technical: Mnemo parses supported languages and generates `.mnemo/summary.md` plus `.mnemo/hashes.json` for change detection; tools include `mnemo_map`, `mnemo_lookup`.
-
-### 3) Semantic code retrieval
-- Simple: "find me code similar to this feature" works by meaning, not just exact name.
-- Technical: ChromaDB auto-installs on first `mnemo init`. Code is chunked at class/function boundaries, embedded with all-MiniLM-L6-v2, and stored in `.mnemo/index/chroma/`. Falls back to keyword scoring without ChromaDB.
-
-### 4) Multi-repo workspace
-- Simple: your agent can search code across all your team's repos at once.
-- Technical: `.mnemo/links.json` stores paths to sibling repos. `mnemo_cross_search` and `mnemo_cross_impact` fan out queries to linked repos' indexes. Each repo maintains its own `.mnemo/` independently.
-
-### 5) Knowledge base search
-- Simple: your internal runbooks/standards become searchable by the agent.
-- Technical: markdown in `.mnemo/knowledge/` is chunked by headings and queried through `mnemo_knowledge`.
-
-### 6) API discovery
-- Simple: your agent can list endpoints and find relevant APIs quickly.
-- Technical: OpenAPI specs and controller annotations are parsed; `mnemo_discover_apis` and `mnemo_search_api` expose structured and searchable API context.
-
-### 7) Task-aware context
-- Simple: when you set a task, the agent focuses on relevant code automatically.
-- Technical: `mnemo_task` sets active task metadata and `mnemo_context_for_task` performs task-scoped retrieval.
-
-### 8) Auto-remember
-- Simple: the agent automatically saves important findings so you never lose context.
-- Technical: the rule file instructs the AI to call `mnemo_remember` after code changes, bug fixes, architecture decisions, or any analysis that produced non-obvious insights.
-
-### 9) Engineering memory beyond code
-- Simple: your agent remembers incidents, errors, reviews, ownership, and health signals.
-- Technical: dedicated MCP tools persist/query this operational memory (`mnemo_add_error`, `mnemo_incidents`, `mnemo_reviews`, `mnemo_team`, `mnemo_health`, etc.).
-
-## Knowledge Base
-
-Add markdown files to `.mnemo/knowledge/` for team knowledge that Q should know:
-
-```
-.mnemo/knowledge/
-├── architecture.md    ← system design, service boundaries
-├── runbooks.md        ← deployment, debugging procedures
-├── standards.md       ← coding conventions, naming rules
-├── onboarding.md      ← project overview for new members
-└── gotchas.md         ← common pitfalls and workarounds
-```
-
-Q can search these with `mnemo_knowledge`.
+| `mnemo links` | Show linked repos |
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│                YOUR IDE                      │
-│                                             │
-│  Amazon Q ←── reads .amazonq/rules/mnemo.md │
-│      │                                      │
-│      │ JSON-RPC (stdin/stdout)              │
-│      ▼                                      │
-│  mnemo-mcp (background process)             │
-│      │                                      │
-└──────┼──────────────────────────────────────┘
-       │
-       ▼
-  .mnemo/
-  ├── summary.md      ← compact code map
-  ├── hashes.json     ← change detection
-  ├── memory.json     ← chat summaries & notes
-  ├── decisions.json  ← architectural decisions
-  ├── context.json    ← project metadata
-  ├── links.json      ← linked sibling repos
-  ├── index/chroma/   ← semantic search index
-  └── knowledge/      ← team docs (searchable)
+┌─────────────────────────────────────────────────────┐
+│  MCP Tools (48 tools via tool_registry.py)          │
+├─────────────────────────────────────────────────────┤
+│  Response Enrichment (enrichment.py)                │
+│  → plan hints, regression warnings, decision refs   │
+├─────────────────────────────────────────────────────┤
+│  Knowledge Graph (graph/)                           │
+│  → LocalGraph (NetworkX) + WorkspaceGraph           │
+├─────────────────────────────────────────────────────┤
+│  Plan Mode (plan/)                                  │
+│  → auto-create, auto-complete, TASKS.md sync        │
+├─────────────────────────────────────────────────────┤
+│  Semantic Search (vector_index/ + ChromaDB)          │
+├─────────────────────────────────────────────────────┤
+│  Code Parsing (repo_map.py + analyzers/)            │
+│  → tree-sitter (14 languages) + Roslyn              │
+├─────────────────────────────────────────────────────┤
+│  Storage (storage.py → .mnemo/*.json)               │
+└─────────────────────────────────────────────────────┘
 ```
 
-**Config files:**
-
-| File | Purpose |
-|------|---------|
-| `~/.aws/amazonq/mcp.json` | Registers mnemo-mcp server with Amazon Q |
-| `~/.cursor/mcp.json` | Registers mnemo-mcp server with Cursor |
-| `~/.claude/mcp.json` | Registers mnemo-mcp server with Claude Code |
-| `.amazonq/rules/mnemo.md` | Amazon Q auto-loaded instructions + embedded context |
-| `.cursorrules` | Cursor instructions + embedded context |
-| `CLAUDE.md` | Claude Code instructions + embedded context |
-| `MNEMO.md` | Generic MCP client instructions + embedded context |
-| `.mnemo/*` | All stored data (gitignored) |
-
----
-
-## Optional Extras
-
-- `pip install "mnemo[semantic]"` explicitly installs ChromaDB (auto-installed on first use anyway).
-- `pip install "mnemo[binary]"` installs PyInstaller tooling for binary builds.
-- Use `scripts/build_binary.ps1` (Windows) or `pyinstaller pyinstaller.spec` directly.
-
-## VS Code Extension
-
-A VS Code extension is available under `vscode-extension/` that provides:
-- Auto-detection and download of the Mnemo binary
-- One-click workspace initialization (prompts on first open)
-- Status bar indicator ("Mnemo: Active")
-- Commands: Initialize Workspace, Show Status, Refresh Index
-
-## Supported Languages
-
-- C# (.cs)
-- Python (.py)
-- JavaScript (.js, .jsx)
-- TypeScript (.ts, .tsx)
-- Go (.go)
-
----
-
-## Requirements
-
-- Python 3.10+
-- Git (for rename/delete detection and team graph)
-- Any AI client with MCP support (Amazon Q, Cursor, Claude Code, Kiro, Copilot, or generic MCP client)
-
----
-
-## Smart Analyzer Selection
-
-Mnemo automatically picks the best code analyzer based on your tech stack. You don't configure anything — it just works.
-
-| Language | Best Analyzer | Fallback | What you get |
-|----------|--------------|----------|-------------|
-| C# | **Roslyn** (needs .NET SDK) | tree-sitter | Full return types, parameter names, generics, inheritance chains, DI dependencies |
-| Python | tree-sitter | — | Classes, functions, decorators, imports |
-| JavaScript/TypeScript | tree-sitter | — | Classes, methods, arrow functions, exports |
-| Go | tree-sitter | — | Functions, methods with receivers, structs |
-
-### How it works
-
-During `mnemo init`:
-1. Detects `.csproj`/`.sln` files → checks if `dotnet` is on PATH → uses Roslyn
-2. If .NET SDK is not available → falls back to tree-sitter (still works, less detail)
-3. Results are merged into the same index regardless of which analyzer produced them
-
-### Roslyn vs tree-sitter output
-
-**Tree-sitter:**
+**Storage layout:**
 ```
-class AuthorizationService : IAuthorizationService
-  - ProcessAuthorizationRequestAsync
-  - ValidateRequest
+.mnemo/
+├── summary.md       ← detailed code map (for lookup)
+├── tree.md          ← compact tree (for recall)
+├── graph.json       ← knowledge graph (NetworkX)
+├── graph_meta.json  ← graph stats
+├── hashes.json      ← change detection
+├── memory.json      ← memories
+├── decisions.json   ← decisions
+├── context.json     ← project metadata
+├── plans.json       ← tracked plans
+├── links.json       ← linked repos
+├── index/chroma/    ← semantic search index
+└── knowledge/       ← team docs
 ```
-
-**Roslyn:**
-```
-class AuthorizationService : IAuthorizationService
-  - Task<object?> ProcessAuthorizationRequestAsync(string payerId, string payerName, object request, string correlationId, CancellationToken ct)
-  - List<string> ValidateRequest(string payerId, object request)
-  - AuthorizationService(IPayerHandlerFactory handlerFactory, IPayerLookupRepository payerLookupRepo, IAuditLogRepository auditLogRepository, ILogger<AuthorizationService> logger)
-```
-
-The user sees no difference in how they ask questions — just better answers.
 
 ---
 
 ## Tech Stack
 
-What Mnemo is built with:
-
 | Component | Technology |
 |-----------|------------|
 | Core | Python 3.10+ |
 | MCP Server | JSON-RPC over stdin/stdout |
-| Code Parsing (default) | tree-sitter (Python, C#, JS/TS, Go) |
-| Code Parsing (C# enhanced) | Roslyn / Microsoft.CodeAnalysis (.NET 8) |
+| Knowledge Graph | NetworkX (serialized to JSON) |
+| Code Parsing | tree-sitter (14 languages) + Roslyn (.NET 8 for C#) |
 | Semantic Search | ChromaDB + all-MiniLM-L6-v2 (ONNX) |
-| Keyword Fallback | Custom sparse embedding (token overlap scoring) |
+| Keyword Fallback | Custom sparse embedding (IDF-weighted token overlap) |
 | Storage | JSON files in `.mnemo/` |
-| Change Detection | MD5 content hashing + git rename tracking |
+| Change Detection | mtime-based + git rename tracking |
 | Team Graph | GitPython (git log analysis) |
 | CLI | Click |
 | Binary Distribution | PyInstaller |
@@ -648,24 +545,112 @@ What Mnemo is built with:
 
 **Required:**
 - `click` — CLI framework
-- `tree-sitter` + language grammars (Python, JS, TS, Go, C#)
+- `tree-sitter` + language grammars (Python, JS, TS, Go, C#, Java, Rust)
 - `gitpython` — git history analysis
+- `networkx` — knowledge graph
 
 **Auto-installed on first use:**
 - `chromadb` — vector database for semantic search
+
+**Optional (`pip install mnemo[all-languages]`):**
+- `tree-sitter-ruby`, `tree-sitter-php`, `tree-sitter-c`, `tree-sitter-cpp`, `tree-sitter-kotlin`, `tree-sitter-swift`, `tree-sitter-scala`
 
 **Optional (detected at runtime):**
 - .NET SDK 8+ — enables Roslyn analyzer for richer C# analysis
 
 ---
 
+## Supported Languages
+
+### Core (included with `pip install mnemo`)
+
+| Language | Extensions |
+|----------|------------|
+| Python | `.py` |
+| JavaScript | `.js`, `.jsx` |
+| TypeScript | `.ts`, `.tsx` |
+| Go | `.go` |
+| C# | `.cs` (+ Roslyn enhanced analysis) |
+| Java | `.java` |
+| Rust | `.rs` |
+
+### Optional (install with `pip install mnemo[all-languages]`)
+
+| Language | Extensions |
+|----------|------------|
+| Ruby | `.rb` |
+| PHP | `.php` |
+| C | `.c`, `.h` |
+| C++ | `.cpp`, `.cc`, `.hpp` |
+| Kotlin | `.kt`, `.kts` |
+| Swift | `.swift` |
+| Scala | `.scala`, `.sc` |
+
+Optional languages are gracefully skipped if their grammar is not installed — no errors, no crashes.
+
+---
+
+## Requirements
+
+- Python 3.10+
+- Git (for rename/delete detection and team graph)
+- Any AI client with MCP support (Amazon Q, Cursor, Claude Code, Kiro, Copilot, or generic)
+
+---
+
+## Dashboard UI
+
+Mnemo includes a built-in web dashboard to visualize your project's knowledge graph, memory, linked repos, and more.
+
+```bash
+mnemo ui                  # opens http://localhost:7890
+mnemo ui --port 9000      # custom port
+mnemo ui --no-open        # don't auto-open browser
+```
+
+### What the dashboard shows
+
+| Section | Content |
+|---------|--------|
+| Overview | Stat cards (memories, graph nodes, linked repos, tasks, decisions) + activity timeline |
+| Knowledge Graph | Interactive force-directed visualization with search and type filter |
+| Memory | All memories with category filter badges + decisions log |
+| Linked Repos | Cards showing each repo's name, path, indexed/exists status |
+| Tasks | Active/completed tasks with status indicators |
+| Health | Code complexity hotspots, large files, god classes |
+| APIs | Discovered API endpoints |
+| Team | Git-based expertise map |
+| Incidents & Errors | Operational memory with severity badges |
+| Knowledge Base | Rendered markdown from `.mnemo/knowledge/` |
+
+Dark theme, glassmorphism design, zero dependencies (Tailwind + vis-network from CDN).
+
+---
+
+## Dashboard UI
+
+Mnemo includes a built-in web dashboard to visualize your project's knowledge graph, memory, linked repos, and more.
+
+```bash
+mnemo ui                  # opens http://localhost:7890
+mnemo ui --port 9000      # custom port
+mnemo ui --no-open        # don't auto-open browser
+```
+
+Dark theme, glassmorphism design, zero dependencies (Tailwind + vis-network from CDN).
+
+---
+
 ## Roadmap
 
-### Future Features (Decided)
-
-| Feature | Description |
-|---------|-------------|
-| **Smart Code Review** | Extract review decisions from git/PR comments. Pre-commit validation against stored feedback. Review-aware code generation. |
-| **Convention Enforcer** | Detect patterns and enforce them when Q generates code. "All handlers must inherit BaseHandler." |
-| **Team Server (`mnemo serve`)** | Central server for team-wide shared memory, cross-repo indexing without local clones. |
-| **Migration Assistant** | Track migration progress (e.g. .NET 6 → 8). Q knows what's migrated and what's left. |
+| Feature | Status |
+|---------|--------|
+| Knowledge Graph (Local + Workspace) | ✅ Done |
+| Plan Mode (auto-create, auto-complete) | ✅ Done |
+| Response Enrichment | ✅ Done |
+| Multi-Language Support (14 languages) | ✅ Done |
+| Dashboard UI (`mnemo ui`) | ✅ Done |
+| Team Server (`mnemo serve`) | 🔲 Next |
+| Convention Enforcer | 🔲 Planned |
+| Smart Code Review | 🔲 Planned |
+| Enterprise (Auth, Audit, Neo4j) | 🔲 Future |

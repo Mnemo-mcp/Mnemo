@@ -27,8 +27,9 @@ def add_error(
 ) -> dict:
     """Store an error, cause, and fix mapping."""
     errors = _load_errors(repo_root)
+    next_id = max((e.get("id", 0) for e in errors), default=0) + 1
     entry = {
-        "id": len(errors) + 1,
+        "id": next_id,
         "timestamp": time.time(),
         "error": error,
         "cause": cause,

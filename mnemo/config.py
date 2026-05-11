@@ -16,6 +16,21 @@ SUPPORTED_EXTENSIONS = {
     ".jsx": "javascript",
     ".go": "go",
     ".cs": "csharp",
+    ".java": "java",
+    ".rs": "rust",
+    # Optional (available with pip install mnemo[all-languages])
+    ".rb": "ruby",
+    ".php": "php",
+    ".c": "c",
+    ".h": "c",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".hpp": "cpp",
+    ".kt": "kotlin",
+    ".kts": "kotlin",
+    ".swift": "swift",
+    ".scala": "scala",
+    ".sc": "scala",
 }
 
 IGNORE_DIRS = {
@@ -23,8 +38,14 @@ IGNORE_DIRS = {
     "dist", "build", ".mnemo", ".tox", ".mypy_cache", "egg-info",
     "bin", "obj", "packages", ".vs",
     "wwwroot", "publish", "artifacts", "TestResults",
+    "target", "vendor", ".gradle", ".idea",
 }
 
 
 def mnemo_path(repo_root: Path) -> Path:
     return repo_root / MNEMO_DIR
+
+
+def should_ignore(path: Path) -> bool:
+    """Check if a path should be ignored based on directory name."""
+    return any(part in IGNORE_DIRS for part in path.parts)
