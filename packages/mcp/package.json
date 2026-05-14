@@ -1,0 +1,18 @@
+{
+  "name": "@mnemo-mcp/mcp",
+  "version": "0.3.0",
+  "description": "npm shim for Mnemo MCP server — spawns the mnemo binary and pipes stdio",
+  "bin": {
+    "mnemo-mcp": "./bin.mjs"
+  },
+  "type": "module",
+  "license": "AGPL-3.0",
+  "engines": {
+    "node": ">=14"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mnemo-mcp/Mnemo"
+  },
+  "keywords": ["mcp", "memory", "ai", "coding-agent", "knowledge-graph"]
+}

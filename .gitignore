@@ -12,6 +12,9 @@ analyzers/roslyn/obj/
 # VS Code extension build output
 vscode-extension/out/
 vscode-extension/node_modules/
+website/node_modules/
+website/.next/
+website/out/
 *.vsix
 
 # IDE
@@ -21,7 +24,12 @@ vscode-extension/node_modules/
 # OS
 .DS_Store
 Thumbs.db
+scorecard.png
 
 # Local docs
 plan_documents/
 .amazonq/
+.competitor_analysis/
+.desloppify/
+.kiro/
+.claude/
