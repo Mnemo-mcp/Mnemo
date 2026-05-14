@@ -29,6 +29,7 @@ scorecard.png
 # Local docs
 .amazonq/
 .competitor_analysis/
+plan_documents/
 .desloppify/
 .kiro/
 .claude/
