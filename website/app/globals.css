@@ -2,29 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @layer base {
   body {
-    @apply bg-surface text-text-primary antialiased font-body;
-    font-feature-settings: 'kern' 1, 'liga' 1;
+    @apply bg-surface text-gray-200 antialiased font-sans;
   }
 
   ::selection {
-    background: oklch(0.72 0.14 55 / 0.3);
+    background: rgba(229, 165, 75, 0.25);
   }
 }
 
 @layer utilities {
-  .heading {
-    @apply font-display tracking-tight;
-  }
-
   .card {
-    @apply bg-surface-raised border border-border-subtle rounded-sm;
-  }
-
-  .accent-line {
-    @apply w-12 h-0.5 bg-accent;
+    @apply bg-surface-raised border border-border-subtle rounded-lg;
   }
 }

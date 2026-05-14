@@ -3,7 +3,11 @@ import Hero from '@/components/Hero';
 import Stack from '@/components/Stack';
 import Features from '@/components/Features';
 import Terminal from '@/components/Terminal';
+import Phases from '@/components/Phases';
+import Agents from '@/components/Agents';
 import Install from '@/components/Install';
+import Compare from '@/components/Compare';
+import Architecture from '@/components/Architecture';
 import Footer from '@/components/Footer';
 
 export default function Home() {
@@ -39,7 +43,11 @@ export default function Home() {
             ]} />
           </div>
         </section>
+        <Phases />
+        <Agents />
         <Install />
+        <Compare />
+        <Architecture />
       </main>
       <Footer />
     </>

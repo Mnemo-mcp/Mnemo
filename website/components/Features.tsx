@@ -1,36 +1,32 @@
 const FEATURES = [
-  { num: '880+', unit: 'nodes', title: 'Structural Knowledge Graph', desc: 'Services, classes, interfaces, methods, files, and people as nodes. Relationships like implements, inherits, calls, depends_on give agents real architectural awareness across 14 languages.' },
-  { num: '56', unit: 'tools', title: 'Complete MCP Toolset', desc: 'Every tool enriches its response with proactive context. The agent gets warnings, next tasks, and related decisions without extra calls.' },
-  { num: '3×', unit: 'streams', title: 'Hybrid Retrieval', desc: 'BM25 with Porter stemming, vector similarity via MiniLM-L6-v2, and graph traversal boost. Fused with Reciprocal Rank Fusion.' },
-  { num: 'Auto', unit: 'decay', title: 'Self-Maintaining Memory', desc: 'Retention scoring with access reinforcement. Frequently-used memories stay hot. Stale ones fade. Contradiction detection supersedes conflicting facts.' },
-  { num: '14', unit: 'langs', title: 'Deep Code Parsing', desc: 'Python, TypeScript, Go, C#, Java, Rust, Ruby, PHP, C/C++, Kotlin, Swift, Scala. Full AST extraction via tree-sitter. Roslyn for enhanced C#.' },
-  { num: '16', unit: 'rules', title: 'Secret Filtering', desc: 'AWS keys, GitHub PATs, JWTs, Bearer tokens, private keys — all stripped before storage. Your .mnemo/ never contains credentials.' },
-  { num: 'DAG', unit: 'tasks', title: 'Plan Mode', desc: 'Auto-creates plans from natural language. Tasks have dependencies and frontier scoring. Auto-marks done when matching work is reported.' },
-  { num: '5', unit: 'hooks', title: 'Lifecycle Capture', desc: 'Kiro and Claude Code hooks observe agent activity passively. Memory builds itself without explicit calls.' },
+  { num: '880+', unit: 'nodes', title: 'Structural Knowledge Graph', desc: 'Services, classes, interfaces, methods, files, and people. Relationships: implements, inherits, calls, depends_on. 14 languages via tree-sitter.' },
+  { num: '56', unit: 'tools', title: 'Complete MCP Toolset', desc: 'Every tool enriches its response with proactive context — warnings, next tasks, related decisions without extra calls.' },
+  { num: '3×', unit: 'streams', title: 'Hybrid Retrieval', desc: 'BM25 with stemming, vector similarity via MiniLM-L6-v2, graph traversal boost. Fused with Reciprocal Rank Fusion.' },
+  { num: 'Auto', unit: 'decay', title: 'Self-Maintaining Memory', desc: 'Retention scoring with access reinforcement. Hot memories stay, stale ones fade. Contradiction detection supersedes conflicts.' },
+  { num: '16', unit: 'rules', title: 'Secret Filtering', desc: 'AWS keys, GitHub PATs, JWTs, Bearer tokens, private keys — all stripped before storage. .mnemo/ never contains credentials.' },
+  { num: 'DAG', unit: 'tasks', title: 'Plan Mode', desc: 'Auto-creates plans from natural language. Dependencies, frontier scoring, auto-completion. Syncs to .mnemo/TASKS.md.' },
+  { num: '5', unit: 'hooks', title: 'Lifecycle Capture', desc: 'Kiro and Claude Code hooks observe agent activity passively. agentSpawn, postToolUse, stop. Memory builds itself.' },
+  { num: '11', unit: 'agents', title: 'Universal MCP Support', desc: 'Amazon Q, Cursor, Claude Code, Kiro, Copilot, Gemini CLI, Windsurf, Cline, Roo Code, OpenCode, Goose.' },
   { num: '0', unit: 'deps', title: 'Single Process, Local JSON', desc: 'No Redis. No Postgres. No Docker. Everything in .mnemo/ as JSON. Starts in under 1 second. Works offline.' },
 ];
 
 export default function Features() {
   return (
     <section id="features" className="py-28 px-6 border-t border-border-subtle">
-      <div className="max-w-5xl mx-auto">
-        <div className="accent-line mb-6" />
-        <h2 className="heading text-3xl md:text-4xl mb-4">Everything an agent needs to understand your codebase.</h2>
-        <p className="text-text-secondary text-base max-w-lg mb-16">
-          Not a vector store. Not a markdown file. A full cognition runtime.
-        </p>
+      <div className="max-w-6xl mx-auto">
+        <p className="text-accent font-mono text-sm mb-4">Capabilities</p>
+        <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Everything an agent needs.</h2>
+        <p className="text-gray-400 text-base max-w-lg mb-14">Not a vector store. Not a markdown file. A full cognition runtime — parse, graph, remember, search, plan, enrich.</p>
 
-        <div className="space-y-px bg-border-subtle">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-border-subtle rounded-lg overflow-hidden">
           {FEATURES.map((f, i) => (
-            <div key={i} className="bg-surface p-6 md:p-8 grid md:grid-cols-[120px_1fr] gap-6 items-start">
-              <div>
-                <span className="font-display text-2xl font-bold text-accent">{f.num}</span>
-                <span className="text-xs text-text-muted ml-1 uppercase tracking-wider font-mono">{f.unit}</span>
+            <div key={i} className="bg-surface p-6 hover:bg-surface-raised transition-colors">
+              <div className="flex items-baseline gap-1.5 mb-3">
+                <span className="text-lg font-bold text-accent">{f.num}</span>
+                <span className="text-[10px] text-gray-500 uppercase tracking-wider font-mono">{f.unit}</span>
               </div>
-              <div>
-                <h3 className="font-body font-semibold text-sm text-text-primary mb-2">{f.title}</h3>
-                <p className="text-sm text-text-secondary leading-relaxed max-w-xl">{f.desc}</p>
-              </div>
+              <h3 className="text-sm font-semibold text-white mb-2">{f.title}</h3>
+              <p className="text-xs text-gray-500 leading-relaxed">{f.desc}</p>
             </div>
           ))}
         </div>
