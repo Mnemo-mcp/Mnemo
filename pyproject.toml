@@ -21,6 +21,7 @@ dependencies = [
     "tree-sitter-java>=0.21",
     "tree-sitter-rust>=0.21",
     "gitpython>=3.1",
+    "pyyaml>=6.0",
     "networkx>=3.0",
 ]
 classifiers = [
