@@ -292,10 +292,10 @@ def start_server(repo_root: Path, port: int = 7890, open_browser: bool = True):
     handler = create_handler(repo_root)
     server = HTTPServer(("127.0.0.1", port), handler)
     url = f"http://localhost:{port}"
-    print(f"\n  🧠 Mnemo Dashboard")
+    print("\n  🧠 Mnemo Dashboard")
     print(f"  → {url}")
     print(f"  → Repo: {repo_root}")
-    print(f"  → Press Ctrl+C to stop\n")
+    print("  → Press Ctrl+C to stop\n")
 
     if open_browser:
         webbrowser.open(url)
