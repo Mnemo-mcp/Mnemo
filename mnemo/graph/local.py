@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
-import sys
+import time
 from pathlib import Path
-from typing import Any
 
 import networkx as nx
+
+from ..utils.logger import get_logger
+
+logger = get_logger("graph.local")
 
 from . import Node, Edge
 from ..config import mnemo_path
@@ -43,16 +46,29 @@ class LocalGraph:
         data = g.nodes[id]
         return Node(id=id, type=data.get("type", ""), name=data.get("name", ""), properties={k: v for k, v in data.items() if k not in ("type", "name")})
 
-    def get_neighbors(self, id: str, edge_type: str | None = None, direction: str = "both") -> list[tuple[Edge, Node]]:
+    def get_neighbors(self, id: str, edge_type: str | None = None, direction: str = "both", as_of: float | None = None) -> list[tuple[Edge, Node]]:
         g = self.graph
         if id not in g:
             return []
         results = []
 
+        def _edge_valid(data: dict) -> bool:
+            if as_of is None:
+                return True
+            created = data.get("created_at")
+            if created is not None and created > as_of:
+                return False
+            valid_until = data.get("valid_until")
+            if valid_until is not None and valid_until <= as_of:
+                return False
+            return True
+
         if direction in ("outgoing", "both"):
             for _, target, key, data in g.out_edges(id, keys=True, data=True):
                 etype = data.get("type", "")
                 if edge_type and etype != edge_type:
+                    continue
+                if not _edge_valid(data):
                     continue
                 edge = Edge(source=id, target=target, type=etype, properties={k: v for k, v in data.items() if k != "type"})
                 node = self.get_node(target)
@@ -64,6 +80,8 @@ class LocalGraph:
                 etype = data.get("type", "")
                 if edge_type and etype != edge_type:
                     continue
+                if not _edge_valid(data):
+                    continue
                 edge = Edge(source=source, target=id, type=etype, properties={k: v for k, v in data.items() if k != "type"})
                 node = self.get_node(source)
                 if node:
@@ -71,7 +89,7 @@ class LocalGraph:
 
         return results
 
-    def traverse(self, start: str, depth: int = 2, edge_types: list[str] | None = None, direction: str = "both") -> dict[str, Node]:
+    def traverse(self, start: str, depth: int = 2, edge_types: list[str] | None = None, direction: str = "both", as_of: float | None = None) -> dict[str, Node]:
         g = self.graph
         if start not in g:
             return {}
@@ -88,7 +106,7 @@ class LocalGraph:
             visited[current] = node
 
             if d < depth:
-                neighbors = self.get_neighbors(current, direction=direction)
+                neighbors = self.get_neighbors(current, direction=direction, as_of=as_of)
                 for edge, neighbor in neighbors:
                     if edge_types and edge.type not in edge_types:
                         continue
@@ -113,7 +131,10 @@ class LocalGraph:
         self.graph.add_node(node.id, type=node.type, name=node.name, **node.properties)
 
     def upsert_edge(self, edge: Edge) -> None:
-        self.graph.add_edge(edge.source, edge.target, type=edge.type, **edge.properties)
+        self.graph.add_edge(edge.source, edge.target, type=edge.type,
+                            created_at=edge.properties.get("created_at", time.time()),
+                            valid_until=edge.properties.get("valid_until", None),
+                            **{k: v for k, v in edge.properties.items() if k not in ("created_at", "valid_until")})
 
     def remove_node(self, id: str) -> None:
         g = self.graph
@@ -164,7 +185,7 @@ class LocalGraph:
             data = json.loads(path.read_text(encoding="utf-8"))
             self._graph = nx.node_link_graph(data, directed=True, multigraph=True)
         except (json.JSONDecodeError, OSError, Exception) as exc:
-            print(f"[mnemo] Failed to load graph: {exc}", file=sys.stderr)
+            logger.warning(f"Failed to load graph: {exc}")
             self._graph = nx.MultiDiGraph()
 
     def exists(self) -> bool:

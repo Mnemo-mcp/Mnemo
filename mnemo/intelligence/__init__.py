@@ -90,7 +90,7 @@ def detect_dependencies(repo_root: Path) -> dict[str, list[str]]:
 def detect_patterns(repo_root: Path) -> list[str]:
     """Detect common code patterns and conventions."""
     patterns: list[str] = []
-    
+
     # Check for common .NET patterns
     controllers = list(repo_root.rglob("*Controller.cs"))
     if controllers:
@@ -184,6 +184,67 @@ def classify_architecture(repo_root: Path) -> list[dict[str, Any]]:
                 }
             )
     return sorted(findings, key=lambda item: item["confidence"], reverse=True)
+
+
+def detect_design_patterns_from_graph(repo_root: Path) -> list[dict[str, Any]]:
+    """Detect design patterns from knowledge graph relationships (MNO-838)."""
+    try:
+        from .graph.local import LocalGraph
+        graph = LocalGraph(repo_root)
+        if not graph.exists():
+            return []
+    except Exception:
+        return []
+
+    patterns: list[dict[str, Any]] = []
+    g = graph.graph
+
+    # Strategy pattern: multiple classes implementing same interface
+    interface_impls: dict[str, list[str]] = {}
+    for src, tgt, data in g.edges(data=True):
+        if data.get("type") == "implements":
+            interface_impls.setdefault(tgt, []).append(src)
+
+    for iface, impls in interface_impls.items():
+        if len(impls) >= 3:
+            iface_node = graph.get_node(iface)
+            name = iface_node.name if iface_node else iface
+            patterns.append({
+                "pattern": "Strategy",
+                "interface": name,
+                "implementations": len(impls),
+                "examples": [graph.get_node(i).name for i in impls[:5] if graph.get_node(i)],
+            })
+
+    # Template Method: class with inheritance chain
+    inheritance_chains: dict[str, list[str]] = {}
+    for src, tgt, data in g.edges(data=True):
+        if data.get("type") == "inherits":
+            inheritance_chains.setdefault(tgt, []).append(src)
+
+    for base, children in inheritance_chains.items():
+        if len(children) >= 2:
+            base_node = graph.get_node(base)
+            name = base_node.name if base_node else base
+            patterns.append({
+                "pattern": "Template Method / Inheritance",
+                "base_class": name,
+                "subclasses": len(children),
+                "examples": [graph.get_node(c).name for c in children[:5] if graph.get_node(c)],
+            })
+
+    # Facade: service node with many outgoing 'contains' edges to files
+    for nid, data in g.nodes(data=True):
+        if data.get("type") == "service":
+            out_count = sum(1 for _, _, d in g.out_edges(nid, data=True) if d.get("type") == "contains")
+            if out_count >= 8:
+                patterns.append({
+                    "pattern": "Facade/Module",
+                    "service": data.get("name", nid),
+                    "file_count": out_count,
+                })
+
+    return patterns
 
 
 # --- Similar Implementations ---
@@ -322,6 +383,19 @@ def generate_intelligence(repo_root: Path) -> str:
         for arch in architectures:
             evidence = ", ".join(arch["evidence"])
             lines.append(f"- **{arch['name']}** (confidence {arch['confidence']}) — evidence: {evidence}")
+        lines.append("")
+
+    # Design patterns from graph (MNO-838)
+    graph_patterns = detect_design_patterns_from_graph(repo_root)
+    if graph_patterns:
+        lines.append("## Design Patterns (from graph)")
+        for p in graph_patterns:
+            if p["pattern"] == "Strategy":
+                lines.append(f"- **Strategy**: `{p['interface']}` ({p['implementations']} implementations: {', '.join(p['examples'])})")
+            elif p["pattern"] == "Template Method / Inheritance":
+                lines.append(f"- **Template Method**: `{p['base_class']}` ({p['subclasses']} subclasses: {', '.join(p['examples'])})")
+            elif p["pattern"] == "Facade/Module":
+                lines.append(f"- **Facade**: `{p['service']}` ({p['file_count']} files)")
         lines.append("")
 
     return "\n".join(lines)

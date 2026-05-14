@@ -18,6 +18,7 @@ class ClientTarget:
     mcp_config_path: Path | None
     context_file: str | None
     context_label: str
+    local_mcp_config: str | None = None  # repo-relative path for project-local MCP config
 
 
 CLIENTS: dict[str, ClientTarget] = {
@@ -45,15 +46,58 @@ CLIENTS: dict[str, ClientTarget] = {
     "kiro": ClientTarget(
         key="kiro",
         display_name="Kiro",
-        mcp_config_path=Path.home() / ".kiro" / "mcp.json",
+        mcp_config_path=None,
         context_file=".kiro/rules/mnemo.md",
         context_label="rule",
+        local_mcp_config=".kiro/settings/mcp.json",
     ),
     "copilot": ClientTarget(
         key="copilot",
         display_name="GitHub Copilot",
         mcp_config_path=Path.home() / ".config" / "github-copilot" / "mcp.json",
         context_file=".github/copilot-instructions.md",
+        context_label="instructions",
+    ),
+    "gemini-cli": ClientTarget(
+        key="gemini-cli",
+        display_name="Gemini CLI",
+        mcp_config_path=Path.home() / ".gemini" / "mcp.json",
+        context_file=".gemini/MNEMO.md",
+        context_label="instructions",
+    ),
+    "windsurf": ClientTarget(
+        key="windsurf",
+        display_name="Windsurf",
+        mcp_config_path=Path.home() / ".windsurf" / "mcp.json",
+        context_file=".windsurf/MNEMO.md",
+        context_label="instructions",
+    ),
+    "cline": ClientTarget(
+        key="cline",
+        display_name="Cline",
+        mcp_config_path=Path.home() / ".cline" / "mcp.json",
+        context_file=".cline/MNEMO.md",
+        context_label="instructions",
+    ),
+    "roo-code": ClientTarget(
+        key="roo-code",
+        display_name="Roo Code",
+        mcp_config_path=Path.home() / ".roo-code" / "mcp.json",
+        context_file=".roo-code/MNEMO.md",
+        context_label="instructions",
+    ),
+    "opencode": ClientTarget(
+        key="opencode",
+        display_name="OpenCode",
+        mcp_config_path=Path.home() / ".opencode" / "mcp.json",
+        context_file=".opencode/MNEMO.md",
+        context_label="instructions",
+    ),
+    "goose": ClientTarget(
+        key="goose",
+        display_name="Goose",
+        mcp_config_path=Path.home() / ".goose" / "mcp.json",
+        context_file=".goose/MNEMO.md",
         context_label="instructions",
     ),
     "generic": ClientTarget(
@@ -73,7 +117,10 @@ def resolve_clients(selection: str) -> list[ClientTarget]:
     """Resolve a CLI client selection into concrete client targets."""
     normalized = selection.lower().strip()
     if normalized == "all":
-        return list(CLIENTS.values())
+        return [v for v in CLIENTS.values() if v.key != "generic"]
+    # Alias: gemini → gemini-cli
+    if normalized == "gemini":
+        normalized = "gemini-cli"
     try:
         return [CLIENTS[normalized]]
     except KeyError as exc:
@@ -114,15 +161,17 @@ def find_mnemo_mcp_command() -> str:
     return "mnemo-mcp"
 
 
-def setup_mcp_config(target: ClientTarget, command: str | None = None) -> bool:
+def setup_mcp_config(target: ClientTarget, command: str | None = None, repo_root: Path | None = None) -> bool:
     """Register Mnemo in a client's MCP config.
 
     Returns True when the config file changed.
     """
-    if target.mcp_config_path is None:
+    if target.local_mcp_config and repo_root:
+        config_path = repo_root / target.local_mcp_config
+    elif target.mcp_config_path:
+        config_path = target.mcp_config_path
+    else:
         return False
-
-    config_path = target.mcp_config_path
     config_path.parent.mkdir(parents=True, exist_ok=True)
 
     config = {}

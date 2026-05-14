@@ -1,5 +1,7 @@
 """Mnemo configuration and constants."""
 
+from __future__ import annotations
+
 from pathlib import Path
 
 MNEMO_DIR = ".mnemo"
@@ -48,4 +50,5 @@ def mnemo_path(repo_root: Path) -> Path:
 
 def should_ignore(path: Path) -> bool:
     """Check if a path should be ignored based on directory name."""
+
     return any(part in IGNORE_DIRS for part in path.parts)

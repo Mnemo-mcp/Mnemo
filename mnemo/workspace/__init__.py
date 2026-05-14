@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Any
 
 from ..config import mnemo_path
+from ..utils.logger import get_logger
+
+logger = get_logger("workspace")
 
 LINKS_FILE = "links.json"
 
@@ -175,7 +178,7 @@ def cross_repo_semantic_query(
                 r["repo"] = linked.name
             results.extend(linked_results)
         except Exception as exc:
-            print(f"[mnemo] Failed to query linked repo {linked.name}: {exc}", file=sys.stderr)
+            logger.warning(f"Failed to query linked repo {linked.name}: {exc}")
             continue
 
     # Sort by score descending, deduplicate by id

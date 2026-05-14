@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-from typing import Any
+
+from .utils.logger import get_logger
+
+logger = get_logger("enrichment")
 
 
 def enrich_response(repo_root: Path, tool_name: str, result: str, arguments: dict) -> str:
@@ -19,10 +21,12 @@ def enrich_response(repo_root: Path, tool_name: str, result: str, arguments: dic
     try:
         hints.extend(_plan_hints(repo_root, tool_name, result, arguments))
         hints.extend(_regression_hints(repo_root, tool_name, arguments))
+        hints.extend(_incident_hints(repo_root, tool_name, arguments))
         hints.extend(_decision_hints(repo_root, tool_name, arguments))
+        hints.extend(_correction_hints(repo_root, tool_name, arguments))
     except Exception as exc:
         # Enrichment is non-fatal — never break the actual response
-        print(f"[mnemo] Enrichment error: {exc}", file=sys.stderr)
+        logger.debug(f"Enrichment error: {exc}")
 
     if not hints:
         return result
@@ -84,6 +88,32 @@ def _regression_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[
         return []
 
 
+def _incident_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[str]:
+    """Surface related incidents when looking at code (MNO-835 recommendation engine)."""
+    if tool_name not in ("mnemo_lookup", "mnemo_similar"):
+        return []
+
+    query = arguments.get("query", "")
+    if not query:
+        return []
+
+    try:
+        from mnemo.incidents import _load_incidents
+        incidents = _load_incidents(repo_root)
+        if not incidents:
+            return []
+
+        query_lower = query.lower()
+        hits = []
+        for inc in incidents:
+            searchable = (inc.get("title", "") + " " + " ".join(inc.get("services", []))).lower()
+            if any(w in searchable for w in query_lower.split() if len(w) > 3):
+                hits.append(f"\U0001f6a8 Related incident: {inc.get('title', '')[:80]} (fix: {inc.get('fix', '')[:60]})")
+        return hits[:1]
+    except (ImportError, Exception):
+        return []
+
+
 def _decision_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[str]:
     """Surface related decisions when looking at code."""
     if tool_name not in ("mnemo_lookup", "mnemo_similar", "mnemo_graph", "mnemo_intelligence"):
@@ -106,6 +136,32 @@ def _decision_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[st
             text = d.get("decision", "").lower()
             if query_lower in text or any(w in text for w in query_lower.split() if len(w) > 3):
                 hits.append(f"\U0001f4cc Decision: {d['decision'][:100]}")
+        return hits[:1]
+    except (ImportError, Exception):
+        return []
+
+
+def _correction_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[str]:
+    """Surface relevant past corrections when looking at code or generating suggestions."""
+    if tool_name not in ("mnemo_lookup", "mnemo_similar", "mnemo_remember", "mnemo_intelligence"):
+        return []
+
+    query = arguments.get("query", "") or arguments.get("content", "")
+    if not query:
+        return []
+
+    try:
+        from mnemo.corrections import _load_corrections
+        corrections = _load_corrections(repo_root)
+        if not corrections:
+            return []
+
+        query_lower = query.lower()
+        hits = []
+        for c in corrections:
+            context = (c.get("context", "") + " " + c.get("file", "") + " " + c.get("suggestion", "")).lower()
+            if any(w in context for w in query_lower.split() if len(w) > 3):
+                hits.append(f"\u26a0\ufe0f Past correction: \"{c.get('suggestion', '')[:60]}\" → \"{c.get('correction', '')[:60]}\"")
         return hits[:1]
     except (ImportError, Exception):
         return []

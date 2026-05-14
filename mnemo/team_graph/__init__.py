@@ -7,6 +7,9 @@ from pathlib import Path
 from collections import defaultdict
 
 from ..config import IGNORE_DIRS
+from ..utils.logger import get_logger
+
+logger = get_logger("team_graph")
 
 
 def _should_ignore(path: str) -> bool:
@@ -19,7 +22,7 @@ def build_team_graph(repo_root: Path) -> dict[str, dict]:
         from git import Repo
         repo = Repo(repo_root)
     except Exception as exc:
-        print(f"[mnemo] Git repo access failed: {exc}", file=sys.stderr)
+        logger.warning(f"Git repo access failed: {exc}")
         return {}
 
     # author → {service: commit_count}
@@ -39,7 +42,7 @@ def build_team_graph(repo_root: Path) -> dict[str, dict]:
                 if file_path not in last_touch:
                     last_touch[file_path] = author
     except Exception as exc:
-        print(f"[mnemo] Git history iteration failed: {exc}", file=sys.stderr)
+        logger.warning(f"Git history iteration failed: {exc}")
 
     return {
         "expertise": dict(expertise),

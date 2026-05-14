@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import re
-import sys
-import time
 from pathlib import Path
-from typing import Any
 
 from . import Node, Edge
 from .local import LocalGraph
 from .relationships import extract_call_edges, extract_dependency_edges, extract_ownership_edges
-from ..config import SUPPORTED_EXTENSIONS, mnemo_path, should_ignore
+from ..config import SUPPORTED_EXTENSIONS, should_ignore
 from ..repo_map import _extract_file, MAX_FILE_SIZE
 from ..storage import Collections, get_storage
 

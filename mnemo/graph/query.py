@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
-from . import Node, Edge
+from . import Node
 from .local import LocalGraph
 
 
@@ -27,8 +26,10 @@ def query_graph(repo_root: Path, action: str, **kwargs) -> str:
         return _format_find(graph, kwargs.get("type"), kwargs.get("name"))
     elif action == "hubs":
         return _format_hubs(graph)
+    elif action == "why":
+        return _format_why(graph, kwargs.get("node", ""))
     else:
-        return f"Unknown action: {action}. Use: stats, neighbors, traverse, path, find, hubs"
+        return f"Unknown action: {action}. Use: stats, neighbors, traverse, path, find, hubs, why"
 
 
 def _resolve_node_id(graph: LocalGraph, name: str) -> str | None:
@@ -191,4 +192,30 @@ def _format_hubs(graph: LocalGraph) -> str:
         if node:
             lines.append(f"- `{node.name}` ({node.type}) — {degree} connections")
 
+    return "\n".join(lines)
+
+
+def _format_why(graph: LocalGraph, name: str) -> str:
+    """Find why an entity exists by traversing reason_for edges from decisions."""
+    node_id = _resolve_node_id(graph, name)
+    if not node_id:
+        return f"Node '{name}' not found in graph."
+    node = graph.get_node(node_id)
+
+    # Find incoming reason_for edges (decisions that explain this entity)
+    reasons = graph.get_neighbors(node_id, edge_type="reason_for", direction="incoming")
+
+    # Also check references edges from decisions
+    references = graph.get_neighbors(node_id, edge_type="references", direction="incoming")
+    decision_refs = [(e, n) for e, n in references if n.type == "decision"]
+
+    all_reasons = reasons + decision_refs
+
+    if not all_reasons:
+        return f"No recorded reasons for why `{node.name}` ({node.type}) exists. Use `mnemo_decide` to record architectural decisions that reference this entity."
+
+    lines = [f"# Why does `{node.name}` exist?\n"]
+    for edge, reason_node in all_reasons:
+        full_text = reason_node.properties.get("full_text", reason_node.name)
+        lines.append(f"- **{reason_node.type}**: {full_text}")
     return "\n".join(lines)

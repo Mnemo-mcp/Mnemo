@@ -26,6 +26,15 @@ def _save_corrections(repo_root: Path, data: list[dict]) -> None:
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
+def _correction_similarity(a: str, b: str) -> float:
+    """Simple token overlap similarity for corrections."""
+    tokens_a = set(a.lower().split())
+    tokens_b = set(b.lower().split())
+    if not tokens_a or not tokens_b:
+        return 0.0
+    return len(tokens_a & tokens_b) / len(tokens_a | tokens_b)
+
+
 def add_correction(
     repo_root: Path,
     suggestion: str,
@@ -35,6 +44,15 @@ def add_correction(
 ) -> dict:
     """Store an AI suggestion that was corrected by the user."""
     corrections = _load_corrections(repo_root)
+
+    # Check for similar existing correction — boost confidence instead of adding new
+    for existing in corrections:
+        sim = _correction_similarity(correction, existing.get("correction", ""))
+        if sim > 0.7:
+            existing["confidence"] = min(existing.get("confidence", 0.7) + 0.1, 1.0)
+            _save_corrections(repo_root, corrections)
+            return existing
+
     next_id = max((c.get("id", 0) for c in corrections), default=0) + 1
     entry = {
         "id": next_id,
@@ -43,10 +61,21 @@ def add_correction(
         "correction": correction,
         "context": context,
         "file": file,
+        "confidence": 0.7,
     }
     corrections.append(entry)
     _save_corrections(repo_root, corrections)
     return entry
+
+
+def decay_corrections(repo_root: Path) -> None:
+    """Decay all correction confidences by multiplying by 0.995."""
+    corrections = _load_corrections(repo_root)
+    if not corrections:
+        return
+    for c in corrections:
+        c["confidence"] = c.get("confidence", 0.7) * 0.995
+    _save_corrections(repo_root, corrections)
 
 
 def get_corrections(repo_root: Path, query: str = "", limit: int = 20, offset: int = 0) -> str:
@@ -54,6 +83,9 @@ def get_corrections(repo_root: Path, query: str = "", limit: int = 20, offset: i
     corrections = _load_corrections(repo_root)
     if not corrections:
         return "No corrections stored."
+
+    # Filter out low-confidence corrections
+    corrections = [c for c in corrections if c.get("confidence", 0.7) >= 0.3]
 
     if query:
         query_lower = query.lower()
@@ -63,7 +95,7 @@ def get_corrections(repo_root: Path, query: str = "", limit: int = 20, offset: i
                        query_lower in c.get("correction", "").lower()]
 
     if not corrections:
-        return f"No corrections matching '{query}'."
+        return f"No corrections matching '{query}'." if query else "No corrections stored."
 
     total = len(corrections)
     page = corrections[offset:offset + limit]

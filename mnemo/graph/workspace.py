@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
-from . import Node, Edge
+from . import Node
 from .local import LocalGraph
 from ..config import mnemo_path
 

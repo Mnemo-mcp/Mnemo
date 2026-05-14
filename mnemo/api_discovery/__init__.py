@@ -19,7 +19,7 @@ def _find_openapi_specs(repo_root: Path) -> list[Path]:
     """Find OpenAPI/Swagger spec files."""
     specs = []
     patterns = ["swagger.json", "openapi.json", "swagger.yaml", "openapi.yaml"]
-    
+
     for pattern in patterns:
         for f in repo_root.rglob(pattern):
             if not _should_ignore(f):

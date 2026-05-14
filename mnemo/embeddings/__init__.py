@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+import json
 import math
 from collections import Counter
 from dataclasses import dataclass, field
+from pathlib import Path
 import re
 from typing import Protocol
+
+from ..utils.stemmer import stem
+from ..utils.synonyms import expand_synonyms
 
 
 def _tokenize(text: str) -> list[str]:
     normalized = text.lower().replace("_", " ")
-    return re.findall(r"[a-zA-Z0-9]+", normalized)
+    tokens = re.findall(r"[a-zA-Z0-9]+", normalized)
+    return [stem(t) for t in tokens]
 
 
 @dataclass(frozen=True)
@@ -62,7 +68,12 @@ class KeywordEmbeddingProvider:
         return math.log((self._total_docs + 1) / (df + 1)) + 1.0
 
     def embed(self, text: str) -> SparseEmbedding:
-        counts = Counter(_tokenize(text))
+        tokens = _tokenize(text)
+        counts = Counter(tokens)
+        # Expand with synonyms at 0.7x weight
+        for term, weight in expand_synonyms(list(counts.keys())):
+            if term not in counts:
+                counts[term] = 0.7 * weight
         if self._total_docs > 0:
             weighted = {tok: count * self._idf(tok) for tok, count in counts.items()}
         else:
@@ -71,3 +82,18 @@ class KeywordEmbeddingProvider:
 
     def embed_many(self, texts: list[str]) -> list[SparseEmbedding]:
         return [self.embed(text) for text in texts]
+
+    def save_state(self, path: Path) -> None:
+        """Serialize IDF state to JSON."""
+        data = {"doc_freq": dict(self._doc_freq), "total_docs": self._total_docs}
+        path.write_text(json.dumps(data))
+
+    def load_state(self, path: Path) -> bool:
+        """Restore IDF state from JSON. Returns True if successful."""
+        try:
+            data = json.loads(path.read_text())
+            self._doc_freq = Counter(data["doc_freq"])
+            self._total_docs = data["total_docs"]
+            return True
+        except Exception:
+            return False
