@@ -71,7 +71,7 @@ class TestDraftPlans:
 
 class TestFrontierScoring:
     def test_returns_highest_priority_task(self, tmp_path):
-        repo = make_repo(tmp_path)
+        repo = make_repo(tmp_path)  # noqa: F841
         now = time.time()
         plans = [{
             "title": "Test Plan",

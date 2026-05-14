@@ -12,8 +12,8 @@ from .utils.logger import get_logger
 
 logger = get_logger("sqlite_adapter")
 
-from .config import mnemo_path
-from .storage import Collections, LIST_COLLECTIONS
+from .config import mnemo_path  # noqa: E402
+from .storage import Collections, LIST_COLLECTIONS  # noqa: E402
 
 DB_FILE = "mnemo.db"
 

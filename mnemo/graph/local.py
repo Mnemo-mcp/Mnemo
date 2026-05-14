@@ -12,8 +12,8 @@ from ..utils.logger import get_logger
 
 logger = get_logger("graph.local")
 
-from . import Node, Edge
-from ..config import mnemo_path
+from . import Node, Edge  # noqa: E402
+from ..config import mnemo_path  # noqa: E402
 
 GRAPH_FILE = "graph.json"
 GRAPH_META_FILE = "graph_meta.json"

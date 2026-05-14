@@ -65,7 +65,7 @@ def test_empty_memory_exports_gracefully(repo):
     # No memory.json or decisions.json
     output = repo / "export"
     with patch("mnemo.persistence.export.mnemo_path", return_value=mnemo_dir):
-        result = export_obsidian(repo, output)
+        result = export_obsidian(repo, output)  # noqa: F841
     assert (output / "MOC.md").exists()
     moc = (output / "MOC.md").read_text()
     assert "No entries" in moc

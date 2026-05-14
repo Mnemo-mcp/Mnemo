@@ -271,9 +271,9 @@ EOF
 exit 0
 """)
 
-    _write_hook(hooks_dir / "user-prompt-submit.sh", f"""#!/bin/sh
+    _write_hook(hooks_dir / "user-prompt-submit.sh", """#!/bin/sh
 # Mnemo userPromptSubmit — search relevant memories for prompt
-input_json=$(cat 2>/dev/null || echo "{{}}")
+input_json=$(cat 2>/dev/null || echo "{}")
 exit 0
 """)
 
@@ -289,9 +289,9 @@ input_json=$(cat 2>/dev/null || echo "{}")
 exit 0
 """)
 
-    _write_hook(hooks_dir / "stop.sh", f"""#!/bin/sh
+    _write_hook(hooks_dir / "stop.sh", """#!/bin/sh
 # Mnemo stop hook — auto-capture learnings
-input_json=$(cat 2>/dev/null || echo "{{}}")
+input_json=$(cat 2>/dev/null || echo "{}")
 exit 0
 """)
 

@@ -89,8 +89,8 @@ class TestTokenBudget:
         char_budget = MEMORY_TOKEN_BUDGET * TOKEN_CHAR_RATIO
         # The memory section content (excluding the "more memories excluded" note) should be within budget
         lines = output.strip().split("\n")
-        content_lines = [l for l in lines if l.startswith("- ")]
-        content_chars = sum(len(l) for l in content_lines)
+        content_lines = [l for l in lines if l.startswith("- ")]  # noqa: E741
+        content_chars = sum(len(l) for l in content_lines)  # noqa: E741
         assert content_chars <= char_budget + 300  # small tolerance for last line
 
 
@@ -126,6 +126,6 @@ class TestRRFScoring:
         ])
         # "cosmos timeout" should rank entry 1 higher via keyword match
         result = search_memory(repo, "cosmos timeout")
-        lines = [l for l in result.split("\n") if l.startswith("- [")]
+        lines = [l for l in result.split("\n") if l.startswith("- [")]  # noqa: E741
         if lines:
             assert "cosmos" in lines[0].lower()

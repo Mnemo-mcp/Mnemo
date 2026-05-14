@@ -39,7 +39,7 @@ def add_lesson(repo_root: Path, content: str, source: str = "") -> dict:
             _save(repo_root, lessons)
             return lesson
     entry = {
-        "id": max((l.get("id", 0) for l in lessons), default=0) + 1,
+        "id": max((e.get("id", 0) for e in lessons), default=0) + 1,
         "content": content,
         "source": source,
         "fingerprint": fingerprint,
@@ -55,7 +55,7 @@ def add_lesson(repo_root: Path, content: str, source: str = "") -> dict:
 
 
 def get_lessons(repo_root: Path, min_confidence: float = 0.3) -> list[dict]:
-    return [l for l in _load(repo_root) if not l.get("deleted") and l.get("confidence", 0) >= min_confidence]
+    return [e for e in _load(repo_root) if not e.get("deleted") and e.get("confidence", 0) >= min_confidence]
 
 
 def decay_lessons(repo_root: Path) -> str:

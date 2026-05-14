@@ -13,8 +13,8 @@ from ..utils.logger import get_logger
 
 logger = get_logger("ui")
 
-from ..config import mnemo_path
-from ..storage import Collections, get_storage
+from ..config import mnemo_path  # noqa: E402
+from ..storage import Collections, get_storage  # noqa: E402
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 

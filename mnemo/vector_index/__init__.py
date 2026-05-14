@@ -13,9 +13,9 @@ from ..utils.logger import get_logger
 
 logger = get_logger("vector_index")
 
-from ..chunking import Chunk
-from ..utils.circuit_breaker import CircuitBreaker
-from ..embeddings import KeywordEmbeddingProvider
+from ..chunking import Chunk  # noqa: E402
+from ..utils.circuit_breaker import CircuitBreaker  # noqa: E402
+from ..embeddings import KeywordEmbeddingProvider  # noqa: E402
 
 _breaker = CircuitBreaker()
 _EXPECTED_DIMENSIONS = 384
