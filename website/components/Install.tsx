@@ -9,7 +9,11 @@ const METHODS = [
   },
   {
     label: 'pip',
-    steps: ['pip install mnemo', 'cd your-project && mnemo init'],
+    steps: ['pip install mnemo-dev', 'cd your-project && mnemo init'],
+  },
+  {
+    label: 'npx',
+    steps: ['npx @mnemo-dev/mcp'],
   },
   {
     label: 'Binary',
