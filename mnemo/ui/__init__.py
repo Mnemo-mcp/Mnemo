@@ -292,9 +292,10 @@ def start_server(repo_root: Path, port: int = 7890, open_browser: bool = True):
     handler = create_handler(repo_root)
     server = HTTPServer(("127.0.0.1", port), handler)
     url = f"http://localhost:{port}"
-    logger.info(f"🧠 Mnemo Dashboard running at {url}")
-    logger.info(f"   Repo: {repo_root}")
-    logger.info("   Press Ctrl+C to stop")
+    print(f"\n  🧠 Mnemo Dashboard")
+    print(f"  → {url}")
+    print(f"  → Repo: {repo_root}")
+    print(f"  → Press Ctrl+C to stop\n")
 
     if open_browser:
         webbrowser.open(url)
@@ -302,5 +303,5 @@ def start_server(repo_root: Path, port: int = 7890, open_browser: bool = True):
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        logger.info("Dashboard stopped.")
+        print("\n  Dashboard stopped.")
         server.shutdown()

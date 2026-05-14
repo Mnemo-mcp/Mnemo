@@ -33,12 +33,35 @@ def _save_hashes(repo_root: Path, hashes: dict[str, str]):
 
 
 def has_changes(repo_root: Path) -> bool:
-    """Quick check if any files changed since last map generation using mtime."""
-    summary_path = mnemo_path(repo_root) / "summary.md"
+    """Quick check if any files changed or were deleted since last map generation."""
+    from ..config import mnemo_path as _mnemo_path
+    summary_path = _mnemo_path(repo_root) / "summary.md"
     if not summary_path.exists():
         return True
     last_map_time = summary_path.stat().st_mtime
 
+    # Check for deleted files: compare stored hash count vs current file count
+    hashes_path = _mnemo_path(repo_root) / "hashes.json"
+    if hashes_path.exists():
+        import json
+        try:
+            stored_hashes = json.loads(hashes_path.read_text())
+            stored_count = len(stored_hashes) if isinstance(stored_hashes, dict) else 0
+        except (json.JSONDecodeError, OSError):
+            stored_count = 0
+
+        current_count = 0
+        for ext in SUPPORTED_EXTENSIONS:
+            for filepath in repo_root.rglob(f"*{ext}"):
+                if _should_ignore(filepath) or filepath.stat().st_size > MAX_FILE_SIZE:
+                    continue
+                current_count += 1
+
+        # If file count changed significantly (files added or deleted), rebuild
+        if abs(current_count - stored_count) > 0:
+            return True
+
+    # Check for modified files
     for ext in SUPPORTED_EXTENSIONS:
         for filepath in repo_root.rglob(f"*{ext}"):
             if _should_ignore(filepath) or filepath.stat().st_size > MAX_FILE_SIZE:
