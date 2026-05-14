@@ -2,11 +2,11 @@
   "name": "mnemo-vscode",
   "displayName": "Mnemo",
   "description": "Persistent memory, semantic code search, cross-repo intelligence, and architecture awareness for AI coding assistants. Works with Amazon Q, Cursor, Claude Code, Copilot, and any MCP client.",
-  "version": "0.0.6",
+  "version": "0.4.0",
   "publisher": "Nikhil1057",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nikhil1057/Mnemo"
+    "url": "https://github.com/Mnemo-mcp/Mnemo"
   },
   "engines": {
     "vscode": "^1.92.0"
