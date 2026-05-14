@@ -502,6 +502,11 @@ _PLAN_SIGNALS = re.compile(
     re.I,
 )
 
+_TASK_VERBS = re.compile(
+    r'^\s*[-\*\d]+[.)\s]+(add|create|update|remove|fix|implement|migrate|convert|refactor|replace|build|set up|configure|deploy|test|write|move|split|merge|extract)\b',
+    re.I | re.M,
+)
+
 _STEP_PATTERNS = [
     re.compile(r'^\s*[-\*\d]+[.)\s]', re.M),  # bullet points or numbered lists
     re.compile(r'\b(step \d|phase \d|first|then|next|finally|after that)\b', re.I),
@@ -509,20 +514,27 @@ _STEP_PATTERNS = [
 
 
 def _looks_like_plan(text: str) -> bool:
-    """Detect if text describes work that should be tracked as a plan."""
+    """Detect if text describes work that should be tracked as a plan.
+    
+    Requires BOTH a plan-level signal AND actionable bullet items.
+    Simple lists of facts/observations won't trigger this.
+    """
+    # Must have a high-level action signal
     if not _PLAN_SIGNALS.search(text):
         return False
-    # Must have multiple steps/items
+
+    # Must have 3+ bullet points that START with action verbs
+    actionable_bullets = _TASK_VERBS.findall(text)
+    if len(actionable_bullets) >= 3:
+        return True
+
+    # Or 4+ plain bullets WITH sequential language
     bullet_count = len(re.findall(r'^\s*[-\*\d]+[.)\s]', text, re.M))
-    if bullet_count >= 3:
-        return True
-    # Or sequential language
-    for pattern in _STEP_PATTERNS:
-        if len(pattern.findall(text)) >= 2:
-            return True
-    # Or multiple services/components mentioned with action verbs
-    if len(_PLAN_SIGNALS.findall(text)) >= 2:
-        return True
+    if bullet_count >= 4:
+        for pattern in _STEP_PATTERNS[1:]:  # sequential language patterns
+            if len(pattern.findall(text)) >= 2:
+                return True
+
     return False
 
 
@@ -563,20 +575,22 @@ def _extract_plan_title(text: str) -> str:
 
 
 def auto_create_plan_from_text(repo_root: Path, text: str, source: str = "memory") -> str | None:
-    """If text looks like a plan, auto-create it. Returns message or None.
+    """If text looks like a deliberate plan (not just context), auto-create it.
     
-    Only triggers from explicit plan creation (source='plan'), not from
-    mnemo_remember which would create unwanted plans from normal context.
+    Only triggers when text has BOTH:
+    - Action verbs indicating work to be done (migrate, implement, refactor, etc.)
+    - 3+ concrete task-like items (bullet points with actionable language)
+    
+    Does NOT trigger on:
+    - General context/notes being remembered
+    - Lists of facts or observations
+    - Single-line memories even with action verbs
     """
-    # Only auto-create plans from explicit sources, not from remember
-    if source == "memory":
-        return None
-
     if not _looks_like_plan(text):
         return None
 
     tasks = _extract_tasks_from_text(text)
-    if len(tasks) < 2:
+    if len(tasks) < 3:  # Require at least 3 tasks (was 2 - too easy to trigger)
         return None
 
     title = _extract_plan_title(text)
