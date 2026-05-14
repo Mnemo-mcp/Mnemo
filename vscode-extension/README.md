@@ -12,6 +12,8 @@ Every time you start a new AI chat, your assistant forgets everything — what y
 
 Mnemo gives your AI agent a persistent brain. It builds a knowledge graph of your codebase, remembers decisions, tracks plans, and proactively surfaces relevant context — automatically.
 
+**56 MCP tools** · **14 languages** · **140+ tests** · **Zero external databases** · **16 secret patterns auto-stripped**
+
 ---
 
 ## Capabilities
@@ -166,12 +168,17 @@ You don't need special syntax — just ask naturally:
 
 ## Works With
 
-- **Amazon Q** — Full MCP integration
+- **Amazon Q** — Full MCP integration (default)
 - **Cursor** — Full MCP integration
-- **Claude Code** — Full MCP integration
+- **Claude Code** — Lifecycle hooks + MCP
+- **Kiro** — Lifecycle hooks + MCP + skills
 - **GitHub Copilot** — MCP support
-- **Kiro** — MCP support
-- **Any MCP-compatible client**
+- **Gemini CLI** — MCP support
+- **Windsurf** — MCP support
+- **Cline** — MCP support
+- **Roo Code** — MCP support
+- **OpenCode** — MCP support
+- **Goose** — MCP support
 
 ---
 
@@ -232,6 +239,8 @@ No Python required on your machine. No PATH configuration. The extension handles
 
 ## Links
 
+- [Website](https://mnemo-mcp.github.io/Mnemo/)
 - [GitHub](https://github.com/Mnemo-mcp/Mnemo)
+- [PyPI](https://pypi.org/project/mnemo-dev/)
 - [Full Documentation](https://github.com/Mnemo-mcp/Mnemo#readme)
 - [Report Issues](https://github.com/Mnemo-mcp/Mnemo/issues)
