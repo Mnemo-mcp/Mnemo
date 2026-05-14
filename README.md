@@ -1,5 +1,7 @@
 # Mnemo
 
+**[Website](https://mnemo-mcp.github.io/Mnemo/)** · **[PyPI](https://pypi.org/project/mnemo-dev/)** · **[GitHub](https://github.com/Mnemo-mcp/Mnemo)**
+
 Persistent engineering cognition for AI coding agents.
 
 One command gives Amazon Q, Cursor, Claude Code, Kiro, and other MCP clients accumulated engineering understanding across chat sessions -- architecture intelligence, historical decisions, proactive guidance, and institutional memory.
