@@ -1,5 +1,5 @@
 {
-  "name": "@mnemo-mcp/mcp",
+  "name": "@mnemo-dev/mcp",
   "version": "0.4.0",
   "description": "npm shim for Mnemo MCP server — spawns the mnemo binary and pipes stdio",
   "bin": {

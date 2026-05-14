@@ -138,7 +138,7 @@ cd your-project && mnemo init
 ### Option D: npx (no install)
 
 ```bash
-npx @mnemo-mcp/mcp
+npx @mnemo-dev/mcp
 ```
 
 This downloads and runs the MCP server directly. Requires `mnemo` CLI to be installed separately for `mnemo init`.
