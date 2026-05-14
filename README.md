@@ -121,7 +121,7 @@ cd your-project && mnemo init
 ### Option C: pip
 
 ```bash
-pip install mnemo
+pip install mnemo-dev
 cd your-project && mnemo init
 ```
 
@@ -133,7 +133,15 @@ cd Mnemo && pip install -e .
 cd your-project && mnemo init
 ```
 
-### Option D: Standalone Binary
+### Option D: npx (no install)
+
+```bash
+npx @mnemo-mcp/mcp
+```
+
+This downloads and runs the MCP server directly. Requires `mnemo` CLI to be installed separately for `mnemo init`.
+
+### Option E: Standalone Binary
 
 Download from [GitHub Releases](https://github.com/Mnemo-mcp/Mnemo/releases) or use the install script:
 
