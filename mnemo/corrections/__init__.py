@@ -65,6 +65,25 @@ def add_correction(
     }
     corrections.append(entry)
     _save_corrections(repo_root, corrections)
+
+    # MNO-024: Decay confidence of memories matching this correction
+    try:
+        from ..storage import Collections, get_storage
+        storage = get_storage(repo_root)
+        memories = storage.read_collection(Collections.MEMORY)
+        if isinstance(memories, list):
+            search_text = (context + " " + suggestion).lower()
+            changed = False
+            for mem in memories:
+                mc = mem.get("content", "").lower()
+                if _correction_similarity(search_text, mc) > 0.5:
+                    mem["confidence"] = max(mem.get("confidence", 0.8) - 0.1, 0.1)
+                    changed = True
+            if changed:
+                storage.write_collection(Collections.MEMORY, memories)
+    except Exception:
+        pass
+
     return entry
 
 

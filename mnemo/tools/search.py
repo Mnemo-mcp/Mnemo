@@ -7,6 +7,61 @@ from pathlib import Path
 from ..tool_registry import tool
 
 
+@tool("mnemo_search",
+      "Search across memory, code, APIs, errors, or all linked repos.",
+      properties={
+          "query": {"type": "string", "description": "What to search for"},
+          "scope": {"type": "string", "description": "memory|code|api|errors|cross-repo|all (default: all)"},
+      },
+      required=["query"])
+def _unified_search(root: Path, args: dict) -> str:
+    query = args.get("query", "")
+    scope = args.get("scope", "all")
+    sections: list[str] = []
+
+    if scope in ("memory", "all"):
+        from ..memory import search_memory
+        result = search_memory(root, query, deep=False)
+        if result and "No " not in result[:20]:
+            sections.append(f"## Memory\n{result}")
+
+    if scope in ("code", "all"):
+        from ..retrieval import semantic_query
+        try:
+            results = semantic_query(root, "code", query, limit=10)
+            if results:
+                lines = [f"- `{r.get('metadata', {}).get('path', '')}` {r.get('content', '')[:150]}" for r in results[:5]]
+                sections.append("## Code\n" + "\n".join(lines))
+        except Exception:
+            pass
+
+    if scope in ("api", "all"):
+        from ..api_discovery import search_api
+        result = search_api(root, query)
+        if result and "No " not in result[:20]:
+            sections.append(f"## APIs\n{result}")
+
+    if scope in ("errors", "all"):
+        from ..errors import search_errors
+        result = search_errors(root, query)
+        if result and "No " not in result[:20]:
+            sections.append(f"## Errors\n{result}")
+
+    if scope == "cross-repo":
+        from ..workspace import cross_repo_semantic_query
+        results = cross_repo_semantic_query(root, "code", query, limit=15)
+        if results:
+            lines = []
+            for r in results:
+                meta = r.get("metadata", {})
+                lines.append(f"- **[{r.get('repo', '?')}]** `{meta.get('path', '')}` :: `{meta.get('symbol', '')}`")
+            sections.append("## Cross-Repo\n" + "\n".join(lines))
+
+    if not sections:
+        return f"No results for '{query}' (scope={scope})"
+    return f"# Search: '{query}' (scope={scope})\n\n" + "\n\n".join(sections)
+
+
 @tool("mnemo_knowledge",
       "Search the project knowledge base (runbooks, architecture docs, standards, gotchas). Without a query, lists all available knowledge files.",
       properties={"query": {"type": "string", "description": "Search term (optional — omit to list all knowledge files)"}})

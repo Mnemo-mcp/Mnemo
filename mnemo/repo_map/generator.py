@@ -10,10 +10,17 @@ from ..chunking import make_code_chunks
 from ..retrieval import index_chunks
 from ..utils.logger import get_logger
 
-from .scanner import _should_ignore, _save_hashes, MAX_FILE_SIZE
+from .scanner import _should_ignore, _save_hashes, _load_hashes, MAX_FILE_SIZE
 from .parsers import _extract_file
 
 logger = get_logger("repo_map")
+
+
+def _save_index_manifest(repo_root: Path, files: set[str]) -> None:
+    """Track indexed files in .mnemo/index_manifest.json."""
+    import json
+    manifest_path = mnemo_path(repo_root) / "index_manifest.json"
+    manifest_path.write_text(json.dumps(sorted(files)), encoding="utf-8")
 
 
 def generate_summary(repo_root: Path, index: bool = True) -> str:
@@ -21,6 +28,9 @@ def generate_summary(repo_root: Path, index: bool = True) -> str:
     tree: dict[str, dict[str, list[str]]] = {}
     hashes: dict[str, str] = {}
     all_chunks = []
+
+    # MNO-030: Load previous hashes for incremental indexing
+    old_hashes = _load_hashes(repo_root) if index else {}
 
     # Try Roslyn for C# if .NET SDK is available
     from ..analyzers import roslyn_available, run_roslyn_analyzer, roslyn_to_mnemo_format
@@ -54,7 +64,9 @@ def generate_summary(repo_root: Path, index: bool = True) -> str:
             info = roslyn_data.get(rel) or _extract_file(source, language)
             rel_short = "/".join(parts[1:]) or rel
             if info:
-                all_chunks.extend(make_code_chunks(rel, language, info))
+                # MNO-030: Only index chunks for files with changed hashes
+                if not index or hashes.get(rel) != old_hashes.get(rel):
+                    all_chunks.extend(make_code_chunks(rel, language, info))
 
             if info and info.get("classes"):
                 class_names = []
@@ -70,6 +82,14 @@ def generate_summary(repo_root: Path, index: bool = True) -> str:
 
     # Save hashes
     _save_hashes(repo_root, hashes)
+
+    # MNO-030: Delete chunks for removed files and update manifest
+    if index:
+        from ..retrieval import delete_chunks
+        removed = set(old_hashes.keys()) - set(hashes.keys())
+        for removed_file in removed:
+            delete_chunks(repo_root, "code", removed_file)
+        _save_index_manifest(repo_root, set(hashes.keys()))
 
     # Build markdown
     lines = []

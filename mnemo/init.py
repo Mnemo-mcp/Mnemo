@@ -61,6 +61,22 @@ def init(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
 
     save_repo_map(repo_root)
 
+    # MNO-028: Auto-install ChromaDB for semantic search
+    try:
+        import chromadb  # noqa: F401
+    except ImportError:
+        import subprocess  # noqa: F811
+        import sys
+        print("Installing semantic search (chromadb)...")
+        try:
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", "chromadb>=0.5", "--quiet"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception:
+            print("Warning: chromadb install failed. Semantic search will use keyword fallback.")
+
     # Generate repo identity (MNO-802)
     from .repo_map.identity import save_identity
     save_identity(repo_root)

@@ -271,9 +271,22 @@ EOF
 exit 0
 """)
 
-    _write_hook(hooks_dir / "user-prompt-submit.sh", """#!/bin/sh
-# Mnemo userPromptSubmit — search relevant memories for prompt
-input_json=$(cat 2>/dev/null || echo "{}")
+    _write_hook(hooks_dir / "user-prompt-submit.sh", f"""#!/bin/sh
+# Mnemo userPromptSubmit — search relevant memories for prompt (MNO-013)
+MNEMO="{mnemo_bin}"
+input_json=$(cat 2>/dev/null || echo "{{}}")
+prompt=$(echo "$input_json" | grep -o '"prompt"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"prompt"[[:space:]]*:[[:space:]]*"//;s/"$//')
+if [ -z "$prompt" ]; then
+  exit 0
+fi
+results=$("$MNEMO" tool mnemo_search_memory --query "$prompt" 2>/dev/null | head -c 2000)
+if [ -z "$results" ]; then
+  exit 0
+fi
+# Truncate to max 3 results, 150 chars each, ~500 tokens total
+echo "<mnemo-relevant-context>"
+echo "$results" | head -45
+echo "</mnemo-relevant-context>"
 exit 0
 """)
 
@@ -289,9 +302,32 @@ input_json=$(cat 2>/dev/null || echo "{}")
 exit 0
 """)
 
-    _write_hook(hooks_dir / "stop.sh", """#!/bin/sh
-# Mnemo stop hook — auto-capture learnings
-input_json=$(cat 2>/dev/null || echo "{}")
+    _write_hook(hooks_dir / "stop.sh", f"""#!/bin/sh
+# Mnemo stop hook — auto-capture learnings (MNO-014)
+MNEMO="{mnemo_bin}"
+input_json=$(cat 2>/dev/null || echo "{{}}")
+response=$(echo "$input_json" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    print(data.get('response', ''))
+except Exception:
+    pass
+" 2>/dev/null)
+if [ -z "$response" ] || [ "${{#response}}" -lt 100 ]; then
+  exit 0
+fi
+# Use Python extractor for pattern matching
+python3 -c "
+import sys
+sys.path.insert(0, '{repo_root}')
+from mnemo.hooks.extractor import extract_facts
+import subprocess, json
+response = sys.stdin.read()
+facts = extract_facts(response)
+for f in facts[:2]:
+    subprocess.run(['{mnemo_bin}', 'tool', 'mnemo_remember', '--content', f['content'], '--category', f['category']], capture_output=True)
+" <<< "$response" 2>/dev/null
 exit 0
 """)
 

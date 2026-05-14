@@ -24,6 +24,7 @@ def enrich_response(repo_root: Path, tool_name: str, result: str, arguments: dic
         hints.extend(_incident_hints(repo_root, tool_name, arguments))
         hints.extend(_decision_hints(repo_root, tool_name, arguments))
         hints.extend(_correction_hints(repo_root, tool_name, arguments))
+        hints.extend(_self_verify_hints(repo_root, tool_name, arguments))
     except Exception as exc:
         # Enrichment is non-fatal — never break the actual response
         logger.debug(f"Enrichment error: {exc}")
@@ -168,6 +169,36 @@ def _correction_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[
             context = (c.get("context", "") + " " + c.get("file", "") + " " + c.get("suggestion", "")).lower()
             if any(w in context for w in query_words):
                 hits.append(f"\u26a0\ufe0f Past correction: \"{c.get('suggestion', '')[:60]}\" → \"{c.get('correction', '')[:60]}\"")
+        return hits[:2]
+    except (ImportError, Exception):
+        return []
+
+
+def _self_verify_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[str]:
+    """Warn if new memory/decision contradicts existing decisions (MNO-026)."""
+    if tool_name not in ("mnemo_remember", "mnemo_decide"):
+        return []
+
+    content = arguments.get("content", "") or arguments.get("decision", "")
+    if not content:
+        return []
+
+    try:
+        from .storage import Collections, get_storage
+        from .memory._shared import _text_similarity
+
+        storage = get_storage(repo_root)
+        decisions = storage.read_collection(Collections.DECISIONS)
+        if not isinstance(decisions, list):
+            return []
+
+        hits = []
+        for d in decisions:
+            if not d.get("active", True):
+                continue
+            sim = _text_similarity(content, d.get("decision", ""))
+            if 0.5 <= sim <= 0.85:
+                hits.append(f"⚠️ May contradict Decision #{d['id']}: {d['decision'][:80]}")
         return hits[:2]
     except (ImportError, Exception):
         return []

@@ -147,6 +147,14 @@ def add_memory(repo_root: Path, content: str, category: str = "general", source:
             existing["superseded_by"] = entry["id"]
             existing["superseded_at"] = time.time()
 
+    # MNO-024: Boost confidence of referenced/similar memories
+    for existing in entries[-30:]:
+        eid = existing.get("id")
+        if eid and (f"#{eid}" in content or f"memory {eid}" in content.lower()):
+            existing["confidence"] = min(existing.get("confidence", 0.8) + 0.05, 1.0)
+        elif _text_similarity(content, existing.get("content", "")) > 0.8:
+            existing["confidence"] = min(existing.get("confidence", 0.8) + 0.05, 1.0)
+
     entries.append(entry)
     storage.write_collection(Collections.MEMORY, entries)
 

@@ -148,3 +148,32 @@ def _load_slots(repo_root: Path) -> dict:
 def _save_slots(repo_root: Path, slots: dict):
     path = mnemo_path(repo_root) / 'slots.json'
     path.write_text(json.dumps(slots, indent=2))
+
+
+def detect_frequent_topics(repo_root: Path) -> None:
+    """Auto-create slots for search queries repeated 3+ times (MNO-027)."""
+    from collections import Counter
+    from ..utils.observations import _load_observations
+
+    obs = _load_observations(repo_root)
+    search_queries: list[str] = []
+    for o in obs:
+        if "search" in o.get("tool_name", ""):
+            q = o.get("input_summary", "").strip()
+            if q:
+                search_queries.append(q)
+
+    if not search_queries:
+        return
+
+    counts = Counter(search_queries)
+    slots = _load_slots(repo_root)
+    for query, count in counts.most_common(5):
+        if count < 3:
+            break
+        # Derive slot name from query
+        slot_name = re.sub(r'[^a-z0-9]+', '_', query[:30].lower()).strip('_')
+        if not slot_name or slot_name in slots:
+            continue
+        slots[slot_name] = {'content': f'Auto-created for frequent query: {query[:100]}', 'size_limit': 2000, 'pinned': False}
+    _save_slots(repo_root, slots)

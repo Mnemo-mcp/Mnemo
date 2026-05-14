@@ -7,6 +7,83 @@ from pathlib import Path
 from ..tool_registry import tool
 
 
+@tool("mnemo_record",
+      "Store or search engineering records (errors, incidents, reviews, corrections).",
+      properties={
+          "type": {"type": "string", "description": "error|incident|review|correction"},
+          "action": {"type": "string", "description": "add|search|list"},
+          "query": {"type": "string", "description": "Search query (for search action)"},
+          "error": {"type": "string", "description": "Error message (for error/add)"},
+          "cause": {"type": "string", "description": "Root cause (for error/add)"},
+          "fix": {"type": "string", "description": "How it was fixed (for error/add, incident/add)"},
+          "file": {"type": "string"},
+          "tags": {"type": "array", "items": {"type": "string"}},
+          "title": {"type": "string", "description": "Incident title (for incident/add)"},
+          "what_happened": {"type": "string"},
+          "root_cause": {"type": "string"},
+          "prevention": {"type": "string"},
+          "severity": {"type": "string", "description": "low, medium, high, critical"},
+          "services": {"type": "array", "items": {"type": "string"}},
+          "summary": {"type": "string", "description": "Review summary (for review/add)"},
+          "files": {"type": "array", "items": {"type": "string"}},
+          "feedback": {"type": "string"},
+          "outcome": {"type": "string", "description": "approved, rejected, or changes_requested"},
+          "suggestion": {"type": "string", "description": "AI suggestion (for correction/add)"},
+          "correction": {"type": "string", "description": "User correction (for correction/add)"},
+          "context": {"type": "string"},
+          "limit": {"type": "integer"},
+          "offset": {"type": "integer"},
+      },
+      required=["type", "action"])
+def _record(root: Path, args: dict) -> str:
+    record_type = args.get("type", "")
+    action = args.get("action", "list")
+
+    if record_type == "error":
+        if action == "add":
+            from ..errors import add_error
+            entry = add_error(root, args.get("error", ""), args.get("cause", ""),
+                              args.get("fix", ""), args.get("file", ""), args.get("tags", []))
+            return f"Error #{entry['id']} stored."
+        from ..errors import search_errors
+        return search_errors(root, args.get("query", ""))
+
+    elif record_type == "incident":
+        if action == "add":
+            from ..incidents import add_incident
+            entry = add_incident(root, args.get("title", ""), args.get("what_happened", ""),
+                                 args.get("root_cause", ""), args.get("fix", ""),
+                                 args.get("prevention", ""), args.get("severity", "medium"),
+                                 args.get("services", []))
+            return f"Incident #{entry['id']} recorded."
+        from ..incidents import search_incidents, format_incidents
+        query = args.get("query", "")
+        if query:
+            return search_incidents(root, query)
+        return format_incidents(root, limit=int(args.get("limit", 20)), offset=int(args.get("offset", 0)))
+
+    elif record_type == "review":
+        if action == "add":
+            from ..code_review import add_review
+            entry = add_review(root, args.get("summary", ""), args.get("files", []),
+                               args.get("feedback", ""), args.get("outcome", "approved"))
+            return f"Review #{entry['id']} stored."
+        from ..code_review import format_reviews
+        return format_reviews(root, limit=int(args.get("limit", 20)), offset=int(args.get("offset", 0)))
+
+    elif record_type == "correction":
+        if action == "add":
+            from ..corrections import add_correction
+            entry = add_correction(root, args.get("suggestion", ""), args.get("correction", ""),
+                                   args.get("context", ""), args.get("file", ""))
+            return f"Correction #{entry['id']} stored."
+        from ..corrections import get_corrections
+        return get_corrections(root, args.get("query", ""),
+                               limit=int(args.get("limit", 20)), offset=int(args.get("offset", 0)))
+
+    return f"Unknown record type: {record_type}. Use: error, incident, review, correction"
+
+
 @tool("mnemo_add_review",
       "Store a code review summary with feedback and outcome.",
       properties={
@@ -81,65 +158,6 @@ def _impact(root: Path, args: dict) -> str:
 def _onboarding(root: Path, args: dict) -> str:
     from ..onboarding import generate_onboarding
     return generate_onboarding(root)
-
-
-@tool("mnemo_task",
-      "Set or get the current task/ticket being worked on. Without task_id, shows active tasks.",
-      properties={
-          "task_id": {"type": "string", "description": "Ticket ID (e.g. JIRA-123)"},
-          "description": {"type": "string"},
-          "files": {"type": "array", "items": {"type": "string"}},
-          "notes": {"type": "string"},
-      })
-def _task(root: Path, args: dict) -> str:
-    from ..sprint import set_current_task, get_current_task
-    task_id = args.get("task_id", "")
-    if not task_id:
-        return get_current_task(root)
-    set_current_task(root, task_id, args.get("description", ""),
-                     args.get("files", []), args.get("notes", ""))
-    return f"Task {task_id} set as active."
-
-
-@tool("mnemo_task_done",
-      "Mark a task as completed.",
-      properties={
-          "task_id": {"type": "string"},
-          "summary": {"type": "string"},
-      },
-      required=["task_id"])
-def _task_done(root: Path, args: dict) -> str:
-    from ..sprint import complete_task, _load_tasks
-    from ..storage import Collections, get_storage
-    from ..memory import add_memory
-
-    result = complete_task(root, args.get("task_id", ""), args.get("summary", ""))
-    task_id = args.get("task_id", "")
-    summary = args.get("summary", "")
-    try:
-        tasks = _load_tasks(root)
-        task_entry = next((t for t in tasks if t.get("task_id") == task_id), None)
-        if task_entry:
-            desc = task_entry.get("description", task_id)
-            files = task_entry.get("files", [])
-            storage = get_storage(root)
-            memories = storage.read_collection(Collections.MEMORY)
-            if not isinstance(memories, list):
-                memories = []
-            decisions = [m for m in memories[-10:] if m.get("category") == "decision"]
-            decision_text = "; ".join(d.get("content", "")[:50] for d in decisions[:3])
-            crystal = f"Completed [{desc}]: {summary or 'done'}. Files: {', '.join(files[:5]) or 'none'}."
-            if decision_text:
-                crystal += f" Decisions: {decision_text}"
-            add_memory(root, crystal, "pattern", source="crystal")
-            errors = [m for m in memories[-10:] if m.get("category") == "bug"]
-            for err in errors[:2]:
-                lesson = f"Lesson from {task_id}: {err.get('content', '')[:100]}"
-                add_memory(root, lesson, "pattern", source="lesson")
-    except Exception as exc:
-        from ..utils.logger import get_logger
-        get_logger("tools.team").debug(f"Crystallization failed: {exc}")
-    return result
 
 
 @tool("mnemo_tests",

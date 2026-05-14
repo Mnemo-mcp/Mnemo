@@ -32,3 +32,18 @@ def semantic_query(
     filters: dict[str, str] | None = None,
 ) -> list[dict]:
     return get_index(repo_root).query(namespace, query, limit=limit, filters=filters)
+
+
+def delete_chunks(repo_root: Path, namespace: str, file_path: str) -> None:
+    """Delete all chunks for a removed file from the index."""
+    idx = get_index(repo_root)
+    # Remove from in-memory store
+    records = idx._memory_store.get(namespace, [])
+    idx._memory_store[namespace] = [r for r in records if r.metadata.get("path") != file_path]
+    # Remove from ChromaDB
+    collection = idx._collection(namespace)
+    if collection:
+        try:
+            collection.delete(where={"path": file_path})
+        except Exception:
+            pass

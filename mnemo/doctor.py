@@ -98,6 +98,14 @@ def doctor(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
             exists = path.exists()
             lines.append(f"[{_status(exists)}] {filename}: {path}")
 
+        # MNO-029: Stale index check
+        chroma_dir = base / "index" / "chroma"
+        if chroma_dir.exists():
+            import time
+            age_hours = (time.time() - chroma_dir.stat().st_mtime) / 3600
+            stale = age_hours > 24
+            lines.append(f"[{_status(not stale)}] Semantic index: {'stale (' + f'{age_hours:.0f}h old)' if stale else 'fresh'}")
+
     lines.append("")
     lines.append("## Client Setup")
     for target in targets:
@@ -105,6 +113,90 @@ def doctor(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
         config_ok, config_message = _check_mcp_config(target, repo_root)
         lines.append(f"[{_status(context_ok)}] {target.display_name} context: {context_message}")
         lines.append(f"[{_status(config_ok)}] {target.display_name} MCP config: {config_message}")
+
+    # --- Comprehensive health checks (MNO-034) ---
+    checks_passed = 0
+    checks_total = 0
+
+    if initialized:
+        lines.append("")
+        lines.append("## Health Checks")
+
+        # 1. ChromaDB installed and importable
+        checks_total += 1
+        try:
+            import chromadb  # noqa: F811
+            lines.append("[OK] ChromaDB: installed and importable")
+            checks_passed += 1
+        except ImportError:
+            lines.append("[WARN] ChromaDB: not installed (semantic search unavailable)")
+
+        # 2. Memory integrity
+        checks_total += 1
+        try:
+            memory_path = base / "memory.json"
+            if memory_path.exists():
+                memories = json.loads(memory_path.read_text(encoding="utf-8"))
+                active = [m for m in memories if not m.get("evicted") and not m.get("superseded_by")]
+                evicted = [m for m in memories if m.get("evicted")]
+                superseded = [m for m in memories if m.get("superseded_by")]
+                lines.append(f"[OK] Memory integrity: {len(active)} active, {len(evicted)} evicted, {len(superseded)} superseded")
+                checks_passed += 1
+            else:
+                lines.append("[WARN] Memory integrity: memory.json missing")
+        except (json.JSONDecodeError, OSError):
+            lines.append("[WARN] Memory integrity: corrupt memory.json")
+
+        # 3. Graph freshness
+        checks_total += 1
+        graph_path = base / "graph.json"
+        if graph_path.exists():
+            try:
+                graph_data = json.loads(graph_path.read_text(encoding="utf-8"))
+                nodes = graph_data.get("nodes", [])
+                if len(nodes) > 0:
+                    lines.append(f"[OK] Graph freshness: {len(nodes)} nodes")
+                    checks_passed += 1
+                else:
+                    lines.append("[WARN] Graph freshness: 0 nodes (run mnemo map)")
+            except (json.JSONDecodeError, OSError):
+                lines.append("[WARN] Graph freshness: corrupt graph.json")
+        else:
+            lines.append("[WARN] Graph freshness: graph.json missing (run mnemo map)")
+
+        # 4. Hashes.json exists and has entries
+        checks_total += 1
+        hashes_path = base / "hashes.json"
+        if hashes_path.exists():
+            try:
+                hashes = json.loads(hashes_path.read_text(encoding="utf-8"))
+                if hashes:
+                    lines.append(f"[OK] Change detection: {len(hashes)} file hashes tracked")
+                    checks_passed += 1
+                else:
+                    lines.append("[WARN] Change detection: hashes.json is empty")
+            except (json.JSONDecodeError, OSError):
+                lines.append("[WARN] Change detection: corrupt hashes.json")
+        else:
+            lines.append("[WARN] Change detection: hashes.json missing")
+
+        # 5. Index freshness (MNO-029)
+        checks_total += 1
+        chroma_dir = base / "index" / "chroma"
+        if chroma_dir.exists():
+            import time as _time
+            age_hours = (_time.time() - chroma_dir.stat().st_mtime) / 3600
+            if age_hours <= 24:
+                lines.append(f"[OK] Index freshness: {age_hours:.0f}h old")
+                checks_passed += 1
+            else:
+                lines.append(f"[WARN] Index freshness: stale ({age_hours:.0f}h old, >24h)")
+        else:
+            lines.append("[OK] Index freshness: no index yet (will build on first use)")
+            checks_passed += 1
+
+        lines.append("")
+        lines.append(f"**{checks_passed}/{checks_total} checks passed**")
 
     if not initialized:
         lines.append("")

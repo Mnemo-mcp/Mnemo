@@ -7,6 +7,21 @@ from pathlib import Path
 from ..tool_registry import tool
 
 
+@tool("mnemo_generate",
+      "Generate commit message or PR description from context.",
+      properties={"target": {"type": "string", "description": "commit|pr"}},
+      required=["target"])
+def _generate(root: Path, args: dict) -> str:
+    target = args.get("target", "commit")
+    if target == "commit":
+        from ..commit_gen import generate_commit_message
+        return generate_commit_message(root)
+    elif target == "pr":
+        from ..pr_gen import generate_pr_description
+        return generate_pr_description(root)
+    return f"Unknown target: {target}. Use: commit, pr"
+
+
 @tool("mnemo_commit_message",
       "Generate a commit message from staged git changes and recent memory context. Returns a conventional commit format message.")
 def _commit_message(root: Path, args: dict) -> str:

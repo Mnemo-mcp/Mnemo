@@ -232,6 +232,24 @@ def _extract_pattern(cluster: list[dict[str, Any]], category: str) -> dict[str, 
     }
 
 
+def summarize_for_injection(entry: dict) -> str:
+    """Return a 1-line summary of a memory entry, max 150 chars. Cached in entry['_summary']."""
+    if entry.get("_summary"):
+        return entry["_summary"]
+    cat = entry.get("category", "general")
+    content = entry.get("content", "")
+    # Extract first sentence
+    first = re.split(r'[.!?\n]', content, maxsplit=1)[0].strip()
+    # Extract file references
+    files = re.findall(r'[\w/.-]+\.(?:py|js|ts|go|rs|java|cs|rb)', content)
+    suffix = f" (files: {', '.join(files[:2])})" if files else ""
+    summary = f"[{cat}] {first}{suffix}"
+    if len(summary) > 150:
+        summary = summary[:147] + "..."
+    entry["_summary"] = summary
+    return summary
+
+
 # Contradiction signals
 _NEGATION_PAIRS = [
     ("use", "don't use"), ("use", "avoid"), ("use", "never use"),

@@ -8,6 +8,44 @@ from pathlib import Path
 from ..tool_registry import tool
 
 
+@tool("mnemo_audit",
+      "Run code quality checks.",
+      properties={
+          "report": {"type": "string", "description": "security|dead-code|drift|health|breaking|conventions|full (default: full)"},
+          "file": {"type": "string", "description": "Optional file scope"},
+      })
+def _audit(root: Path, args: dict) -> str:
+    report = args.get("report", "full")
+    file_scope = args.get("file", "")
+    sections: list[str] = []
+
+    if report in ("security", "full"):
+        from ..security import check_security
+        sections.append(f"## Security\n{check_security(root, file_scope)}")
+
+    if report in ("dead-code", "full"):
+        from ..dead_code import detect_dead_code
+        sections.append(f"## Dead Code\n{detect_dead_code(root)}")
+
+    if report in ("drift", "full"):
+        from ..drift import detect_drift
+        sections.append(f"## Drift\n{detect_drift(root)}")
+
+    if report in ("health", "full"):
+        from ..health import calculate_health
+        sections.append(f"## Health\n{calculate_health(root)}")
+
+    if report in ("breaking", "full"):
+        from ..breaking import detect_breaking_changes
+        sections.append(f"## Breaking Changes\n{detect_breaking_changes(root)}")
+
+    if report in ("conventions", "full"):
+        from ..conventions import check_conventions
+        sections.append(f"## Conventions\n{check_conventions(root, file_scope)}")
+
+    return f"# Audit Report ({report})\n\n" + "\n\n".join(sections)
+
+
 @tool("mnemo_check_security",
       "Scan codebase for security issues (hardcoded secrets, SQL injection, eval, shell injection). Optionally scope to a single file.",
       properties={"file": {"type": "string", "description": "Optional file path to scope scan"}})

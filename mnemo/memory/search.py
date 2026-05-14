@@ -486,8 +486,14 @@ def _index_changed_files(repo_root: Path, old_hashes: dict[str, Any]) -> None:
             logger.warning(f"Failed to index changed files: {exc}")
 
 
-def recall(repo_root: Path) -> str:
-    """Recall project memory with token-budgeted tiered retrieval."""
+def recall(repo_root: Path, tier: str = "standard") -> str:
+    """Recall project memory with tiered retrieval.
+
+    Tiers:
+      - compact (~500 tokens): active task + 3 hot memories + next plan step + 1 warning
+      - standard (~2000 tokens): budgeted recall with truncated repo map, max 10 memories
+      - deep (unlimited): everything, no truncation
+    """
     from ..repo_map import has_changes, save_repo_map
     from ..repo_map.identity import format_identity
     from ..corrections import decay_corrections
@@ -498,20 +504,148 @@ def recall(repo_root: Path) -> str:
 
     decay_corrections(repo_root)
 
+    # MNO-029: Rebuild stale index (>24h old with changes)
+    chroma_dir = base / "index" / "chroma"
+    if chroma_dir.exists():
+        try:
+            mtime = chroma_dir.stat().st_mtime
+            if (time.time() - mtime) > 86400 and has_changes(repo_root):
+                save_repo_map(repo_root)
+        except OSError:
+            pass
+
     if has_changes(repo_root):
         old_hashes = _as_dict(get_storage(repo_root).read_collection(Collections.HASHES))
         save_repo_map(repo_root, index=False)
         _index_changed_files(repo_root, old_hashes)
 
+    if tier == "compact":
+        return _recall_compact(repo_root)
+
     storage = get_storage(repo_root)
+
+    if tier == "deep":
+        return _recall_deep(repo_root, base, storage)
+
+    # tier == "standard": budgeted ~2000 tokens
+    return _recall_standard(repo_root, base, storage)
+
+
+def _recall_compact(repo_root: Path) -> str:
+    """Compact tier (~500 tokens): task + 3 memories + plan step + 1 warning."""
+    from .retention import summarize_for_injection
+    from ..plan import _load_plans
+    from ..regressions import _load_regressions
+
+    storage = get_storage(repo_root)
+    parts: list[str] = []
+
+    # Active task
+    tasks = _as_list(storage.read_collection(Collections.TASKS))
+    active = [t for t in tasks if t.get("status") == "active"]
+    if active:
+        t = active[-1]
+        parts.append(f"Task: {t.get('task_id', '')} {t.get('description', '')}")
+
+    # 3 most relevant hot memories
+    memory = _as_list(storage.read_collection(Collections.MEMORY))
+    now = time.time()
+    hot = [e for e in memory if not e.get("evicted") and _get_tier(e, now) == "hot"]
+    hot.sort(key=lambda e: _compute_retention(e, now), reverse=True)
+    for entry in hot[:3]:
+        parts.append(summarize_for_injection(entry))
+
+    # Next plan step
+    plans = _load_plans(repo_root)
+    for plan in plans:
+        for task in plan.get("tasks", []):
+            if task.get("status") in (None, "pending", "todo"):
+                parts.append(f"Next: {task.get('title', task.get('description', ''))}")
+                break
+        else:
+            continue
+        break
+
+    # 1 warning (regression)
+    regressions = _load_regressions(repo_root)
+    if regressions:
+        r = regressions[-1]
+        parts.append(f"⚠️ Regression risk: {r.get('file', '')} — {r.get('bug', '')[:60]}")
+
+    return "\n".join(parts)
+
+
+def _recall_standard(repo_root: Path, base: Path, storage) -> str:
+    """Standard tier (~2000 tokens): budgeted recall, max 10 memories, truncated map."""
+    from ..repo_map.identity import format_identity
+    from .slots import get_working_context, reflect_slots
+    import mnemo.memory.slots as _slots_mod
+
     sections = [
         _recall_context(storage),
         format_identity(repo_root),
         _recall_decisions(storage),
     ]
 
+    _slots_mod._recall_counter += 1
+    if _slots_mod._recall_counter % 5 == 0:
+        reflect_slots(repo_root)
+    working_ctx = get_working_context(repo_root)
+    if working_ctx:
+        sections.append(f"# Working Context\n{working_ctx}\n")
+
+    # Memory — capped at 10 entries
+    memory = _as_list(storage.read_collection(Collections.MEMORY))
+    now = time.time()
+    current_branch = _get_current_branch(repo_root)
+    hot_memories = []
+    for entry in memory:
+        if entry.get("evicted"):
+            continue
+        tier_val = _get_tier(entry, now)
+        if tier_val in ("hot", "warm"):
+            branch = entry.get("branch", "main")
+            if branch in (current_branch, "main", "master") or _compute_retention(entry, now) >= 0.5:
+                hot_memories.append(entry)
+
+    hot_memories.sort(key=lambda e: _compute_retention(e, now), reverse=True)
+    hot_memories = hot_memories[:10]
+
+    if hot_memories:
+        lines = ["# Memory"]
+        for item in hot_memories:
+            cat = f" [{item['category']}]" if item.get("category") != "general" else ""
+            lines.append(f"- {item['content']}{cat}")
+        lines.append("")
+        sections.append("\n".join(lines))
+
+    sections.append(_recall_active_task(repo_root, storage))
+    sections.append(_recall_recent_changes(base))
+
+    # Repo map — truncated to fit ~2000 token total budget
+    header = "\n".join(s for s in sections if s)
+    budget_chars = 2000 * TOKEN_CHAR_RATIO
+    remaining = max(budget_chars - len(header), 200)
+    repo_map = _recall_repo_map(base, len(header))
+    if len(repo_map) > remaining:
+        repo_map = repo_map[:remaining - 3] + "..."
+    sections.append(repo_map)
+
+    return "\n".join(s for s in sections if s)
+
+
+def _recall_deep(repo_root: Path, base: Path, storage) -> str:
+    """Deep tier (unlimited): full recall, no truncation."""
+    from ..repo_map.identity import format_identity
     from .slots import get_working_context, reflect_slots
     import mnemo.memory.slots as _slots_mod
+
+    sections = [
+        _recall_context(storage),
+        format_identity(repo_root),
+        _recall_decisions(storage),
+    ]
+
     _slots_mod._recall_counter += 1
     if _slots_mod._recall_counter % 5 == 0:
         reflect_slots(repo_root)
@@ -523,8 +657,7 @@ def recall(repo_root: Path) -> str:
         _recall_memory(repo_root, storage),
         _recall_active_task(repo_root, storage),
         _recall_recent_changes(base),
+        _recall_repo_map(base, 0),
     ]
-    header = "\n".join(s for s in sections if s)
-    sections.append(_recall_repo_map(base, len(header)))
 
     return "\n".join(s for s in sections if s)

@@ -8,10 +8,14 @@ from ..tool_registry import tool
 
 
 @tool("mnemo_recall",
-      "Recall all stored memory, decisions, context, and repo map. YOU MUST call this at the START of every new chat to load project context before answering any questions.")
+      "Recall all stored memory, decisions, context, and repo map. YOU MUST call this at the START of every new chat to load project context before answering any questions.",
+      properties={
+          "tier": {"type": "string", "description": "Recall tier: compact (~500 tokens), standard (~2000 tokens), or deep (unlimited). Default: standard"},
+      })
 def _recall(root: Path, args: dict) -> str:
     from ..memory import recall
-    data = recall(root)
+    tier = args.get("tier", "standard")
+    data = recall(root, tier=tier)
     return data or "Memory is empty. Run mnemo_init first."
 
 
