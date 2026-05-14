@@ -86,7 +86,7 @@ def search_memory(repo_root: Path, query: str, deep: bool = False, tags: list[st
     # Keyword search
     storage = get_storage(repo_root)
     entries = _as_list(storage.read_collection(Collections.MEMORY))
-    entries = [e for e in entries if not e.get("evicted")]
+    entries = [e for e in entries if not e.get("evicted") and not e.get("superseded_by")]
 
     if tags:
         entries = [e for e in entries if set(tags) & set(e.get("tags", []))]

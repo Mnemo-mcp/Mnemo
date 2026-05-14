@@ -142,11 +142,16 @@ def _decision_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[st
 
 
 def _correction_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[str]:
-    """Surface relevant past corrections when looking at code or generating suggestions."""
-    if tool_name not in ("mnemo_lookup", "mnemo_similar", "mnemo_remember", "mnemo_intelligence"):
+    """Surface relevant past corrections when the agent is generating suggestions or looking at code."""
+    CORRECTION_TOOLS = {
+        "mnemo_lookup", "mnemo_similar", "mnemo_remember", "mnemo_intelligence",
+        "mnemo_commit_message", "mnemo_pr_description", "mnemo_decide",
+        "mnemo_search_memory", "mnemo_context_for_task",
+    }
+    if tool_name not in CORRECTION_TOOLS:
         return []
 
-    query = arguments.get("query", "") or arguments.get("content", "")
+    query = arguments.get("query", "") or arguments.get("content", "") or arguments.get("decision", "")
     if not query:
         return []
 
@@ -157,11 +162,12 @@ def _correction_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[
             return []
 
         query_lower = query.lower()
+        query_words = [w for w in query_lower.split() if len(w) > 3]
         hits = []
         for c in corrections:
             context = (c.get("context", "") + " " + c.get("file", "") + " " + c.get("suggestion", "")).lower()
-            if any(w in context for w in query_lower.split() if len(w) > 3):
+            if any(w in context for w in query_words):
                 hits.append(f"\u26a0\ufe0f Past correction: \"{c.get('suggestion', '')[:60]}\" → \"{c.get('correction', '')[:60]}\"")
-        return hits[:1]
+        return hits[:2]
     except (ImportError, Exception):
         return []

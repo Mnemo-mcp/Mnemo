@@ -341,17 +341,46 @@ def auto_forget_sweep(repo_root: Path) -> str:
     if superseded_count:
         actions.append(f"Superseded: {superseded_count}")
 
-    # Low-value pruning
+    # Low-value pruning — evict based on retention score
     low_value = 0
+    EVICTION_THRESHOLD = 0.15  # Memories scoring below this get evicted
+    MAX_ACTIVE = 200  # Hard cap on active memories
+
+    active_after_supersede = [e for e in entries if not e.get("evicted") and not e.get("superseded_by")]
+
+    # Only evict if we're over the cap
+    if len(active_after_supersede) > MAX_ACTIVE:
+        scored = []
+        for e in active_after_supersede:
+            if e.get("category") in PINNED_CATEGORIES:
+                continue  # Never evict decisions/architecture/preferences
+            score = _compute_retention(e, now)
+            scored.append((score, e))
+
+        scored.sort(key=lambda x: x[0])
+
+        # Evict lowest-scoring memories until we're under the cap
+        to_evict = len(active_after_supersede) - MAX_ACTIVE
+        for score, e in scored[:to_evict]:
+            if score < EVICTION_THRESHOLD:
+                e["evicted"] = True
+                e["evicted_at"] = now
+                e["eviction_reason"] = f"retention_score={score:.3f}"
+                low_value += 1
+
+    # Also evict very old zero-access memories regardless of cap
     for e in entries:
-        if e.get("evicted"):
+        if e.get("evicted") or e.get("category") in PINNED_CATEGORIES:
             continue
         age_days = (now - e.get("timestamp", now)) / 86400
-        if age_days > 180 and e.get("importance", 2) <= 2 and e.get("access_count", 0) == 0:
+        if age_days > 90 and e.get("access_count", 0) == 0 and e.get("importance", 2) <= 2:
             e["evicted"] = True
+            e["evicted_at"] = now
+            e["eviction_reason"] = "stale_90d_zero_access"
             low_value += 1
+
     if low_value:
-        actions.append(f"Low-value evicted: {low_value}")
+        actions.append(f"Low-retention evicted: {low_value}")
 
     storage.write_collection(Collections.MEMORY, entries)
 

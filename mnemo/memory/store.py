@@ -139,12 +139,13 @@ def add_memory(repo_root: Path, content: str, category: str = "general", source:
         "importance": importance,
     }
 
-    # Contradiction detection
-    same_cat = [e for e in entries if e.get("category") == category][-30:]
+    # Contradiction detection — supersede older memories with similar content in same category
+    same_cat = [e for e in entries if e.get("category") == category and not e.get("superseded_by")][-30:]
     for existing in same_cat:
         sim = _text_similarity(content, existing.get("content", ""))
-        if 0.4 <= sim <= 0.7:
+        if CONTRADICTION_SIMILARITY_THRESHOLD <= sim < DEDUP_SIMILARITY_THRESHOLD:
             existing["superseded_by"] = entry["id"]
+            existing["superseded_at"] = time.time()
 
     entries.append(entry)
     storage.write_collection(Collections.MEMORY, entries)
