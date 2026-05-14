@@ -9,168 +9,269 @@
 <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script>
 tailwind.config = {
   darkMode: 'class',
   theme: {
     extend: {
-      fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+      fontFamily: { sans: ['IBM Plex Sans', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
     }
   },
   plugins: [],
 }
-// Tailwind typography prose overrides for dark mode
 const proseStyle = document.createElement('style');
 proseStyle.textContent = `
-  .prose { color: #d4d4d8; }
-  .prose h1, .prose h2, .prose h3 { color: #fff; font-weight: 600; margin-top: 1.2em; margin-bottom: 0.5em; }
+  .prose { color: #e8e8e8; }
+  .prose h1, .prose h2, .prose h3 { color: #e8e8e8; font-family: 'JetBrains Mono', monospace; font-weight: 500; margin-top: 1.2em; margin-bottom: 0.5em; }
   .prose h1 { font-size: 1.25rem; }
   .prose h2 { font-size: 1.1rem; }
   .prose h3 { font-size: 0.95rem; }
-  .prose strong { color: #e4e4e7; }
-  .prose code { color: #a5b4fc; background: rgba(99,102,241,0.1); padding: 2px 5px; border-radius: 4px; font-size: 0.85em; }
-  .prose pre { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 12px; overflow-x: auto; }
+  .prose strong { color: #e8e8e8; }
+  .prose code { color: #00ff88; background: rgba(0,255,136,0.08); padding: 2px 5px; border-radius: 2px; font-size: 0.85em; }
+  .prose pre { background: #0c0c0c; border: 1px solid #1f1f1f; border-radius: 2px; padding: 12px; overflow-x: auto; }
   .prose pre code { background: none; padding: 0; }
   .prose ul, .prose ol { padding-left: 1.5em; margin: 0.5em 0; }
   .prose li { margin: 0.25em 0; }
   .prose p { margin: 0.5em 0; }
-  .prose a { color: #818cf8; }
-  .prose hr { border-color: rgba(255,255,255,0.06); }
+  .prose a { color: #00aaff; }
+  .prose hr { border-color: #1f1f1f; }
   .prose table { width: 100%; border-collapse: collapse; }
-  .prose th, .prose td { border: 1px solid rgba(255,255,255,0.08); padding: 6px 10px; text-align: left; }
-  .prose th { background: rgba(255,255,255,0.03); color: #fff; }
+  .prose th, .prose td { border: 1px solid #1f1f1f; padding: 6px 10px; text-align: left; }
+  .prose th { background: #141414; color: #e8e8e8; }
 `;
 document.head.appendChild(proseStyle);
 </script>
 <style>
-body { font-family: 'Inter', sans-serif; background: #0a0a0f; color: #e4e4e7; }
-.glass { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); backdrop-filter: blur(12px); }
-.glass:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
-.stat-card { background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.04)); border: 1px solid rgba(99,102,241,0.15); }
-.nav-item.active { background: rgba(99,102,241,0.12); border-color: rgba(99,102,241,0.3); color: #a5b4fc; }
-.nav-item { transition: all 0.15s ease; }
-.badge { font-size: 0.65rem; padding: 2px 8px; border-radius: 9999px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
-.badge-architecture { background: rgba(139,92,246,0.15); color: #c4b5fd; }
-.badge-bug { background: rgba(239,68,68,0.15); color: #fca5a5; }
-.badge-preference { background: rgba(59,130,246,0.15); color: #93c5fd; }
-.badge-general { background: rgba(107,114,128,0.2); color: #9ca3af; }
-.badge-pattern { background: rgba(16,185,129,0.15); color: #6ee7b7; }
-.badge-todo { background: rgba(245,158,11,0.15); color: #fcd34d; }
-.badge-critical { background: rgba(239,68,68,0.2); color: #fca5a5; }
-.badge-high { background: rgba(249,115,22,0.2); color: #fdba74; }
-.badge-medium { background: rgba(245,158,11,0.15); color: #fcd34d; }
-.badge-low { background: rgba(34,197,94,0.15); color: #86efac; }
-.page { display: none; animation: fadeIn 0.2s ease; }
-.page.active { display: block; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-::-webkit-scrollbar { width: 6px; }
+:root { --bg: #0c0c0c; --surface: #141414; --border: #1f1f1f; --text: #e8e8e8; --text-muted: #888888; --accent-green: #00ff88; --accent-blue: #00aaff; --accent-amber: #ffaa00; --accent-red: #ff4444; }
+html.light { --bg: #f5f5f5; --surface: #ffffff; --border: #e0e0e0; --text: #1a1a1a; --text-muted: #666666; --accent-green: #00cc6a; --accent-blue: #0088dd; --accent-amber: #cc8800; --accent-red: #cc3333; }
+body { font-family: 'IBM Plex Sans', sans-serif; background: var(--bg); color: var(--text); }
+body::before { content: ''; position: fixed; inset: 0; background-image: radial-gradient(circle, var(--border) 1px, transparent 1px); background-size: 24px 24px; opacity: 0.3; pointer-events: none; z-index: 0; }
+.scanline { position: relative; }
+.scanline::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,136,0.015) 2px, rgba(0,255,136,0.015) 4px); pointer-events: none; animation: scanMove 8s linear infinite; }
+@keyframes scanMove { from { background-position: 0 0; } to { background-position: 0 100px; } }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 2px; transition: border-color 0.2s ease; }
+.card:hover { border-color: #2a2a2a; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 2px; padding: 16px; }
+.stat-card:hover { border-color: rgba(0,255,136,0.3); }
+.stat-value { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+.nav-item { transition: all 0.15s ease; border-left: 2px solid transparent; }
+.nav-item.active { border-left-color: var(--accent-green); color: var(--accent-green); }
+.nav-item:hover:not(.active) { background: rgba(255,255,255,0.02); }
+.badge { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; padding: 2px 6px; border-radius: 2px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+.badge-architecture { background: rgba(0,255,136,0.1); color: #00ff88; }
+.badge-bug { background: rgba(255,68,68,0.1); color: #ff4444; }
+.badge-preference { background: rgba(0,170,255,0.1); color: #00aaff; }
+.badge-general { background: rgba(136,136,136,0.15); color: #888888; }
+.badge-pattern { background: rgba(255,170,0,0.1); color: #ffaa00; }
+.badge-todo { background: rgba(255,102,255,0.1); color: #ff66ff; }
+.badge-critical { background: rgba(255,68,68,0.15); color: #ff4444; }
+.badge-high { background: rgba(255,170,0,0.15); color: #ffaa00; }
+.badge-medium { background: rgba(255,170,0,0.1); color: #ffaa00; }
+.badge-low { background: rgba(0,255,136,0.1); color: #00ff88; }
+.page { display: none; }
+.page.active { display: block; animation: pageIn 0.2s ease; }
+@keyframes pageIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes countUp { from { opacity: 0; } to { opacity: 1; } }
+.count-animate { animation: countUp 0.4s ease forwards; }
+.sparkline { display: inline-flex; align-items: flex-end; gap: 1px; height: 20px; }
+.sparkline-bar { width: 3px; border-radius: 1px; background: var(--accent-green); opacity: 0.6; transition: height 0.3s ease; }
+::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: #1f1f1f; border-radius: 2px; }
+.banner { background: rgba(255,170,0,0.08); border: 1px solid rgba(255,170,0,0.2); color: var(--accent-amber); font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; padding: 8px 14px; border-radius: 2px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.banner .dismiss { cursor: pointer; opacity: 0.7; margin-left: 12px; }
+.banner .dismiss:hover { opacity: 1; }
+.heatmap { display: grid; grid-template-columns: repeat(52, 12px); grid-template-rows: repeat(7, 12px); gap: 2px; }
+.heatmap-cell { width: 12px; height: 12px; border-radius: 1px; background: #1f1f1f; transition: all 0.15s ease; }
+.heatmap-cell:hover { transform: scale(1.5); z-index: 1; }
+.heatmap-cell.l1 { background: #003322; }
+.heatmap-cell.l2 { background: #005533; }
+.heatmap-cell.l3 { background: #00aa66; }
+.heatmap-cell.l4 { background: #00ff88; }
+html.light .heatmap-cell { background: #e0e0e0; }
+html.light .heatmap-cell.l1 { background: #b2f5d8; }
+html.light .heatmap-cell.l2 { background: #6ee7b7; }
+html.light .heatmap-cell.l3 { background: #34d399; }
+html.light .heatmap-cell.l4 { background: #10b981; }
+.theme-toggle { cursor: pointer; padding: 6px; border-radius: 2px; border: 1px solid var(--border); background: var(--surface); transition: all 0.2s ease; }
+.theme-toggle:hover { border-color: var(--accent-green); }
+.empty-state { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; }
+.cmd-palette { position: fixed; inset: 0; z-index: 100; display: none; align-items: flex-start; justify-content: center; padding-top: 20vh; background: rgba(0,0,0,0.7); }
+.cmd-palette.open { display: flex; }
+.cmd-palette-box { width: 500px; max-width: 90vw; background: #141414; border: 1px solid #1f1f1f; border-radius: 2px; box-shadow: 0 20px 60px rgba(0,0,0,0.8); overflow: hidden; }
+.cmd-input { width: 100%; padding: 14px 16px; background: transparent; border: none; border-bottom: 1px solid #1f1f1f; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; outline: none; }
+.cmd-results { max-height: 300px; overflow-y: auto; padding: 4px; }
+.cmd-item { padding: 8px 12px; border-radius: 2px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: var(--text-muted); }
+.cmd-item:hover, .cmd-item.active { background: rgba(0,255,136,0.08); color: var(--accent-green); }
+.cmd-item .cmd-key { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; background: #1f1f1f; padding: 2px 6px; border-radius: 2px; margin-left: auto; }
+/* Sidebar */
+.sidebar { width: 48px; transition: width 0.2s ease; overflow: hidden; }
+.sidebar:hover { width: 200px; }
+.sidebar .nav-label { opacity: 0; white-space: nowrap; transition: opacity 0.2s ease; }
+.sidebar:hover .nav-label { opacity: 1; }
+.sidebar .logo-text { opacity: 0; transition: opacity 0.2s ease; }
+.sidebar:hover .logo-text { opacity: 1; }
+.sidebar .sidebar-bottom { opacity: 0; transition: opacity 0.2s ease; }
+.sidebar:hover .sidebar-bottom { opacity: 1; }
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  main { margin-left: 0 !important; }
+  .heatmap { grid-template-columns: repeat(26, 10px); grid-template-rows: repeat(7, 10px); }
+}
 </style>
 </head>
 <body class="min-h-screen flex">
 
 <!-- SIDEBAR -->
-<aside class="w-56 fixed h-screen border-r border-white/5 flex flex-col py-5 px-3 bg-[#0d0d14]">
-  <div class="flex items-center gap-2 px-3 mb-8">
-    <div class="w-7 h-7 rounded-lg bg-indigo-500/20 flex items-center justify-center"><i data-lucide="brain" class="w-4 h-4 text-indigo-400"></i></div>
-    <span class="font-semibold text-sm text-white">Mnemo</span>
+<aside class="sidebar fixed h-screen border-r flex flex-col py-4 px-0" style="background:#0a0a0a; border-color: var(--border); z-index:50;">
+  <div class="flex items-center gap-2 px-3 mb-6">
+    <div class="w-8 h-8 flex items-center justify-center border border-[#00ff88] rounded-none" style="border-radius:2px; min-width:32px;">
+      <span class="font-mono text-sm font-bold text-[#00ff88]">M</span>
+    </div>
+    <span class="logo-text font-mono text-xs font-medium text-[#e8e8e8]">MNEMO</span>
   </div>
-  <nav class="flex flex-col gap-1 flex-1" id="nav">
-    <a href="#overview" class="nav-item active flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="overview"><i data-lucide="layout-dashboard" class="w-4 h-4"></i>Overview</a>
-    <a href="#graph" class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="graph"><i data-lucide="share-2" class="w-4 h-4"></i>Knowledge Graph</a>
-    <a href="#memory" class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="memory"><i data-lucide="database" class="w-4 h-4"></i>Memory</a>
-    <a href="#links" class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="links"><i data-lucide="git-branch" class="w-4 h-4"></i>Linked Repos</a>
-    <a href="#tasks" class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="tasks"><i data-lucide="check-square" class="w-4 h-4"></i>Tasks</a>
-    <a href="#health" class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="health"><i data-lucide="heart-pulse" class="w-4 h-4"></i>Health</a>
-    <a href="#apis" class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="apis"><i data-lucide="plug" class="w-4 h-4"></i>APIs</a>
-    <a href="#team" class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="team"><i data-lucide="users" class="w-4 h-4"></i>Team</a>
-    <a href="#incidents" class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="incidents"><i data-lucide="alert-triangle" class="w-4 h-4"></i>Incidents</a>
-    <a href="#knowledge" class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm border border-transparent" data-page="knowledge"><i data-lucide="book-open" class="w-4 h-4"></i>Knowledge</a>
+  <nav class="flex flex-col gap-0.5 flex-1 px-1" id="nav">
+    <a href="#overview" class="nav-item active flex items-center gap-2.5 px-3 py-2 text-xs" data-page="overview"><i data-lucide="layout-dashboard" class="w-4 h-4 shrink-0"></i><span class="nav-label">Overview</span></a>
+    <a href="#graph" class="nav-item flex items-center gap-2.5 px-3 py-2 text-xs" data-page="graph"><i data-lucide="share-2" class="w-4 h-4 shrink-0"></i><span class="nav-label">Graph</span></a>
+    <a href="#memory" class="nav-item flex items-center gap-2.5 px-3 py-2 text-xs" data-page="memory"><i data-lucide="database" class="w-4 h-4 shrink-0"></i><span class="nav-label">Memory</span></a>
+    <a href="#links" class="nav-item flex items-center gap-2.5 px-3 py-2 text-xs" data-page="links"><i data-lucide="git-branch" class="w-4 h-4 shrink-0"></i><span class="nav-label">Repos</span></a>
+    <a href="#tasks" class="nav-item flex items-center gap-2.5 px-3 py-2 text-xs" data-page="tasks"><i data-lucide="check-square" class="w-4 h-4 shrink-0"></i><span class="nav-label">Tasks</span></a>
+    <a href="#health" class="nav-item flex items-center gap-2.5 px-3 py-2 text-xs" data-page="health"><i data-lucide="heart-pulse" class="w-4 h-4 shrink-0"></i><span class="nav-label">Health</span></a>
+    <a href="#apis" class="nav-item flex items-center gap-2.5 px-3 py-2 text-xs" data-page="apis"><i data-lucide="plug" class="w-4 h-4 shrink-0"></i><span class="nav-label">APIs</span></a>
+    <a href="#team" class="nav-item flex items-center gap-2.5 px-3 py-2 text-xs" data-page="team"><i data-lucide="users" class="w-4 h-4 shrink-0"></i><span class="nav-label">Team</span></a>
+    <a href="#incidents" class="nav-item flex items-center gap-2.5 px-3 py-2 text-xs" data-page="incidents"><i data-lucide="alert-triangle" class="w-4 h-4 shrink-0"></i><span class="nav-label">Incidents</span></a>
+    <a href="#knowledge" class="nav-item flex items-center gap-2.5 px-3 py-2 text-xs" data-page="knowledge"><i data-lucide="book-open" class="w-4 h-4 shrink-0"></i><span class="nav-label">Knowledge</span></a>
+    <a href="#lessons" class="nav-item flex items-center gap-2.5 px-3 py-2 text-xs" data-page="lessons"><i data-lucide="graduation-cap" class="w-4 h-4 shrink-0"></i><span class="nav-label">Lessons</span></a>
+    <a href="#observations" class="nav-item flex items-center gap-2.5 px-3 py-2 text-xs" data-page="observations"><i data-lucide="eye" class="w-4 h-4 shrink-0"></i><span class="nav-label">Observations</span></a>
+    <a href="#metrics" class="nav-item flex items-center gap-2.5 px-3 py-2 text-xs" data-page="metrics"><i data-lucide="bar-chart-3" class="w-4 h-4 shrink-0"></i><span class="nav-label">Metrics</span></a>
   </nav>
-  <div class="px-3 text-xs text-zinc-600">Mnemo Dashboard</div>
+  <div class="px-2 flex flex-col gap-2 sidebar-bottom">
+    <button onclick="$('#cmd-palette').classList.add('open');$('#cmd-input').focus()" class="flex items-center gap-2 px-2 py-1.5 text-xs text-[#888] border border-[#1f1f1f] rounded-none hover:border-[#00ff88] transition-all" style="border-radius:2px;">
+      <i data-lucide="search" class="w-3 h-3"></i><span class="font-mono text-[10px]">⌘K</span>
+    </button>
+    <button class="theme-toggle" id="theme-toggle" title="Toggle theme"><i data-lucide="sun" class="w-3.5 h-3.5"></i></button>
+  </div>
 </aside>
 
-<main class="ml-56 flex-1 p-8">
+<main class="ml-[48px] flex-1 p-6 relative z-10">
+
+<!-- FEATURE FLAG BANNERS -->
+<div id="banners"></div>
 
 <!-- OVERVIEW -->
 <div id="page-overview" class="page active">
-  <h1 class="text-2xl font-semibold text-white mb-6">Overview</h1>
-  <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8" id="stat-cards"></div>
-  <div class="glass rounded-xl p-5">
-    <h2 class="text-sm font-medium text-zinc-400 mb-4">Recent Activity</h2>
-    <div id="activity-list" class="space-y-3"></div>
+  <div class="scanline mb-6 pb-4 border-b border-[#1f1f1f]">
+    <h1 class="font-mono text-lg font-medium" style="color:var(--text)">MISSION CONTROL</h1>
+    <p class="text-xs mt-1" style="color:var(--text-muted)">System overview · real-time telemetry</p>
+  </div>
+  <div class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6" id="stat-cards"></div>
+  <div class="card p-4 mb-4">
+    <h2 class="font-mono text-xs uppercase tracking-wider mb-3" style="color:var(--text-muted)">Activity Heatmap</h2>
+    <div id="heatmap" class="heatmap"></div>
+  </div>
+  <div class="card p-4">
+    <h2 class="font-mono text-xs uppercase tracking-wider mb-3" style="color:var(--text-muted)">Recent Activity</h2>
+    <div id="activity-list" class="space-y-2"></div>
   </div>
 </div>
 
 <!-- GRAPH -->
 <div id="page-graph" class="page">
-  <h1 class="text-2xl font-semibold text-white mb-4">Knowledge Graph</h1>
-  <div class="flex gap-3 mb-4">
-    <input id="graph-search" type="text" placeholder="Search nodes..." class="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm flex-1 outline-none focus:border-indigo-500/50">
-    <select id="graph-filter" class="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm outline-none">
+  <h1 class="font-mono text-lg font-medium mb-4" style="color:var(--text)">KNOWLEDGE GRAPH</h1>
+  <div class="flex gap-2 mb-3">
+    <input id="graph-search" type="text" placeholder="Search nodes..." class="font-mono text-xs bg-[#141414] border border-[#1f1f1f] px-3 py-1.5 flex-1 outline-none focus:border-[#00ff88]" style="border-radius:2px; color:var(--text);">
+    <select id="graph-filter" class="font-mono text-xs bg-[#141414] border border-[#1f1f1f] px-3 py-1.5 outline-none" style="border-radius:2px; color:var(--text);">
       <option value="">All types</option>
     </select>
   </div>
-  <div class="glass rounded-xl overflow-hidden" style="height:calc(100vh - 180px); min-height:500px">
+  <div class="card overflow-hidden" style="height:calc(100vh - 180px); min-height:500px">
     <div id="graph-container" style="width:100%;height:100%"></div>
   </div>
-  <div id="graph-stats" class="mt-3 text-xs text-zinc-500"></div>
+  <div id="graph-stats" class="mt-2 font-mono text-xs" style="color:var(--text-muted)"></div>
 </div>
 
 <!-- MEMORY -->
 <div id="page-memory" class="page">
-  <h1 class="text-2xl font-semibold text-white mb-4">Memory & Decisions</h1>
+  <h1 class="font-mono text-lg font-medium mb-4" style="color:var(--text)">MEMORY & DECISIONS</h1>
   <div class="flex gap-2 mb-4 flex-wrap" id="memory-filters"></div>
-  <div id="memory-list" class="space-y-3"></div>
-  <h2 class="text-lg font-medium text-white mt-8 mb-4">Decisions</h2>
-  <div id="decisions-list" class="space-y-3"></div>
+  <div id="memory-list" class="space-y-2"></div>
+  <h2 class="font-mono text-sm uppercase tracking-wider mt-8 mb-3" style="color:var(--text-muted)">Decisions</h2>
+  <div id="decisions-list" class="space-y-2"></div>
 </div>
 
 <!-- LINKS -->
 <div id="page-links" class="page">
-  <h1 class="text-2xl font-semibold text-white mb-4">Linked Repos</h1>
-  <div id="links-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+  <h1 class="font-mono text-lg font-medium mb-4" style="color:var(--text)">LINKED REPOS</h1>
+  <div id="links-list" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
 </div>
 
 <!-- TASKS -->
 <div id="page-tasks" class="page">
-  <h1 class="text-2xl font-semibold text-white mb-4">Tasks</h1>
-  <div id="tasks-list" class="space-y-3"></div>
+  <h1 class="font-mono text-lg font-medium mb-4" style="color:var(--text)">TASKS</h1>
+  <div id="tasks-list" class="space-y-2"></div>
 </div>
 
 <!-- HEALTH -->
 <div id="page-health" class="page">
-  <h1 class="text-2xl font-semibold text-white mb-4">Code Health</h1>
-  <div id="health-content" class="glass rounded-xl p-5 text-sm text-zinc-300 prose prose-invert prose-sm max-w-none"></div>
+  <h1 class="font-mono text-lg font-medium mb-4" style="color:var(--text)">CODE HEALTH</h1>
+  <div id="health-content" class="card p-5 text-sm prose prose-invert prose-sm max-w-none"></div>
 </div>
 
 <!-- APIS -->
 <div id="page-apis" class="page">
-  <h1 class="text-2xl font-semibold text-white mb-4">API Catalog</h1>
-  <div id="apis-content" class="glass rounded-xl p-5 text-sm text-zinc-300 prose prose-invert prose-sm max-w-none"></div>
+  <h1 class="font-mono text-lg font-medium mb-4" style="color:var(--text)">API CATALOG</h1>
+  <div id="apis-content" class="card p-5 text-sm prose prose-invert prose-sm max-w-none"></div>
 </div>
 
 <!-- TEAM -->
 <div id="page-team" class="page">
-  <h1 class="text-2xl font-semibold text-white mb-4">Team Expertise</h1>
-  <div id="team-content" class="glass rounded-xl p-5 text-sm text-zinc-300 prose prose-invert prose-sm max-w-none"></div>
+  <h1 class="font-mono text-lg font-medium mb-4" style="color:var(--text)">TEAM EXPERTISE</h1>
+  <div id="team-content" class="card p-5 text-sm prose prose-invert prose-sm max-w-none"></div>
 </div>
 
 <!-- INCIDENTS -->
 <div id="page-incidents" class="page">
-  <h1 class="text-2xl font-semibold text-white mb-4">Incidents & Errors</h1>
-  <h2 class="text-sm font-medium text-zinc-400 mb-3">Incidents</h2>
-  <div id="incidents-list" class="space-y-3 mb-8"></div>
-  <h2 class="text-sm font-medium text-zinc-400 mb-3">Known Errors</h2>
-  <div id="errors-list" class="space-y-3"></div>
+  <h1 class="font-mono text-lg font-medium mb-4" style="color:var(--text)">INCIDENTS & ERRORS</h1>
+  <h2 class="font-mono text-xs uppercase tracking-wider mb-2" style="color:var(--text-muted)">Incidents</h2>
+  <div id="incidents-list" class="space-y-2 mb-6"></div>
+  <h2 class="font-mono text-xs uppercase tracking-wider mb-2" style="color:var(--text-muted)">Known Errors</h2>
+  <div id="errors-list" class="space-y-2"></div>
 </div>
 
 <!-- KNOWLEDGE -->
 <div id="page-knowledge" class="page">
-  <h1 class="text-2xl font-semibold text-white mb-4">Knowledge Base</h1>
-  <div id="knowledge-list" class="space-y-4"></div>
+  <h1 class="font-mono text-lg font-medium mb-4" style="color:var(--text)">KNOWLEDGE BASE</h1>
+  <div id="knowledge-list" class="space-y-3"></div>
+</div>
+
+<!-- LESSONS -->
+<div id="page-lessons" class="page">
+  <h1 class="font-mono text-lg font-medium mb-4" style="color:var(--text)">LESSONS LEARNED</h1>
+  <p class="text-xs mb-4 font-mono" style="color:var(--text-muted)">Patterns extracted from completed work. Confidence decays; reinforcement strengthens.</p>
+  <div id="lessons-list" class="space-y-2"></div>
+</div>
+
+<!-- OBSERVATIONS -->
+<div id="page-observations" class="page">
+  <h1 class="font-mono text-lg font-medium mb-4" style="color:var(--text)">OBSERVATIONS</h1>
+  <p class="text-xs mb-4 font-mono" style="color:var(--text-muted)">Tool call history. Used for pattern mining and workflow detection.</p>
+  <div id="observations-list" class="space-y-1"></div>
+</div>
+
+<!-- METRICS -->
+<div id="page-metrics" class="page">
+  <h1 class="font-mono text-lg font-medium mb-4" style="color:var(--text)">TOOL METRICS</h1>
+  <p class="text-xs mb-4 font-mono" style="color:var(--text-muted)">Performance and usage stats per tool.</p>
+  <div id="metrics-grid" class="grid grid-cols-2 md:grid-cols-3 gap-3"></div>
+</div>
+
+<!-- COMMAND PALETTE -->
+<div class="cmd-palette" id="cmd-palette">
+  <div class="cmd-palette-box">
+    <input class="cmd-input" id="cmd-input" placeholder="Search pages, memories, commands..." autofocus>
+    <div class="cmd-results" id="cmd-results"></div>
+  </div>
 </div>
 
 </main>
@@ -193,6 +294,112 @@ function timeAgo(ts) {
   return Math.floor(s/86400) + 'd ago';
 }
 
+// --- Animated Counter ---
+function animateCounter(el, target) {
+  const duration = 800;
+  const start = performance.now();
+  const from = 0;
+  function tick(now) {
+    const progress = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    el.textContent = Math.round(from + (target - from) * eased).toLocaleString();
+    if (progress < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+// --- Sparkline ---
+function renderSparkline(data, max) {
+  if (!data || !data.length) return '';
+  const m = max || Math.max(...data, 1);
+  return `<div class="sparkline">${data.map(v => `<div class="sparkline-bar" style="height:${Math.max(2, (v/m)*20)}px"></div>`).join('')}</div>`;
+}
+
+// --- Command Palette ---
+const cmdPages = [
+  { label: 'Overview', page: 'overview', icon: 'layout-dashboard' },
+  { label: 'Knowledge Graph', page: 'graph', icon: 'share-2' },
+  { label: 'Memory & Decisions', page: 'memory', icon: 'database' },
+  { label: 'Linked Repos', page: 'links', icon: 'git-branch' },
+  { label: 'Tasks & Plans', page: 'tasks', icon: 'check-square' },
+  { label: 'Code Health', page: 'health', icon: 'heart-pulse' },
+  { label: 'API Catalog', page: 'apis', icon: 'plug' },
+  { label: 'Team Expertise', page: 'team', icon: 'users' },
+  { label: 'Incidents & Errors', page: 'incidents', icon: 'alert-triangle' },
+  { label: 'Knowledge Base', page: 'knowledge', icon: 'book-open' },
+  { label: 'Lessons Learned', page: 'lessons', icon: 'graduation-cap' },
+  { label: 'Observations', page: 'observations', icon: 'eye' },
+  { label: 'Tool Metrics', page: 'metrics', icon: 'bar-chart-3' },
+];
+
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault();
+    const pal = $('#cmd-palette');
+    pal.classList.toggle('open');
+    if (pal.classList.contains('open')) { $('#cmd-input').value = ''; $('#cmd-input').focus(); renderCmdResults(''); }
+  }
+  if (e.key === 'Escape') $('#cmd-palette').classList.remove('open');
+});
+$('#cmd-palette').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('open'); });
+$('#cmd-input').addEventListener('input', e => renderCmdResults(e.target.value));
+
+function renderCmdResults(q) {
+  const filtered = q ? cmdPages.filter(p => p.label.toLowerCase().includes(q.toLowerCase())) : cmdPages;
+  $('#cmd-results').innerHTML = filtered.map((p, i) => `
+    <div class="cmd-item ${i===0?'active':''}" onclick="navigate('${p.page}');$('#cmd-palette').classList.remove('open')">
+      <i data-lucide="${p.icon}" class="w-4 h-4"></i>
+      <span>${p.label}</span>
+      <span class="cmd-key">↵</span>
+    </div>
+  `).join('') || '<div class="cmd-item" style="color:var(--text-muted)">No results</div>';
+  lucide.createIcons();
+}
+
+// --- Theme Toggle ---
+(function initTheme() {
+  const saved = localStorage.getItem('mnemo-theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+  document.documentElement.className = theme;
+})();
+$('#theme-toggle').addEventListener('click', () => {
+  const html = document.documentElement;
+  const next = html.classList.contains('dark') ? 'light' : 'dark';
+  html.className = next;
+  localStorage.setItem('mnemo-theme', next);
+});
+
+// --- WebSocket Live Updates (placeholder) ---
+(function initWebSocket() {
+  try {
+    const wsUrl = `ws://${location.host}/ws`;
+    const ws = new WebSocket(wsUrl);
+    ws.onmessage = (event) => {};
+    ws.onerror = () => {};
+    ws.onclose = () => {};
+  } catch (e) {}
+})();
+
+// --- Feature Flag Banners ---
+async function loadBanners() {
+  const status = await api('status');
+  const container = $('#banners');
+  let html = '';
+  if (!status.chromadb_available && !localStorage.getItem('dismiss-chromadb')) {
+    html += `<div class="banner" id="banner-chromadb">ChromaDB not available — using keyword fallback. Run: <code>pip install chromadb</code><span class="dismiss" onclick="dismissBanner('chromadb')">✕</span></div>`;
+  }
+  if (!status.has_linked_repos && !localStorage.getItem('dismiss-links')) {
+    html += `<div class="banner" id="banner-links">No linked repos — cross-repo search disabled. Run: <code>mnemo link &lt;path&gt;</code><span class="dismiss" onclick="dismissBanner('links')">✕</span></div>`;
+  }
+  container.innerHTML = html;
+}
+function dismissBanner(id) {
+  localStorage.setItem('dismiss-' + id, '1');
+  const el = $('#banner-' + id);
+  if (el) el.remove();
+}
+
 // Router
 function navigate(page) {
   $$('.page').forEach(p => p.classList.remove('active'));
@@ -209,53 +416,83 @@ $$('.nav-item').forEach(n => n.addEventListener('click', e => {
   navigate(n.dataset.page);
 }));
 
+// --- Activity Heatmap ---
+function renderHeatmap(memories, decisions) {
+  const now = Date.now() / 1000;
+  const daySeconds = 86400;
+  const counts = {};
+  const allItems = [...(memories || []), ...(decisions || [])];
+  allItems.forEach(item => {
+    const ts = item.timestamp || item.created || 0;
+    if (!ts) return;
+    const daysAgo = Math.floor((now - ts) / daySeconds);
+    if (daysAgo >= 0 && daysAgo < 364) counts[daysAgo] = (counts[daysAgo] || 0) + 1;
+  });
+  let cells = '';
+  for (let week = 51; week >= 0; week--) {
+    for (let day = 0; day < 7; day++) {
+      const daysAgo = week * 7 + day;
+      const c = counts[daysAgo] || 0;
+      const level = c === 0 ? '' : c <= 1 ? 'l1' : c <= 3 ? 'l2' : c <= 5 ? 'l3' : 'l4';
+      cells += `<div class="heatmap-cell ${level}" title="${c} activities, ${daysAgo}d ago"></div>`;
+    }
+  }
+  $('#heatmap').innerHTML = cells;
+}
+
 // Overview
 async function loadOverview() {
-  const d = await api('overview');
+  const [d, mem, savings] = await Promise.all([api('overview'), api('memory'), api('token_savings')]);
   const stats = [
-    { label: 'Memories', value: d.memory_count, icon: 'database' },
-    { label: 'Graph Nodes', value: d.graph_nodes, icon: 'share-2' },
-    { label: 'Linked Repos', value: d.links_count, icon: 'git-branch' },
-    { label: 'Tasks', value: d.tasks_count, icon: 'check-square' },
-    { label: 'Decisions', value: d.decisions_count, icon: 'lightbulb' },
+    { label: 'MEMORIES', value: d.memory_count, icon: 'database' },
+    { label: 'GRAPH NODES', value: d.graph_nodes, icon: 'share-2' },
+    { label: 'LINKED REPOS', value: d.links_count, icon: 'git-branch' },
+    { label: 'TASKS', value: d.tasks_count, icon: 'check-square' },
+    { label: 'DECISIONS', value: d.decisions_count, icon: 'lightbulb' },
+    { label: 'TOKENS SAVED', value: savings.saved_per_recall, icon: 'zap' },
   ];
-  $('#stat-cards').innerHTML = stats.map(s => `
-    <div class="stat-card rounded-xl p-4 flex flex-col gap-1">
-      <div class="text-xs text-zinc-500 flex items-center gap-1.5"><i data-lucide="${s.icon}" class="w-3 h-3"></i>${s.label}</div>
-      <div class="text-2xl font-semibold text-white">${s.value}</div>
+  $('#stat-cards').innerHTML = stats.map((s, i) => `
+    <div class="stat-card count-animate" style="animation-delay:${i*60}ms">
+      <div class="text-2xl font-mono font-bold stat-value" style="color:var(--accent-green)" data-target="${s.value}">0</div>
+      <div class="text-[10px] font-mono uppercase tracking-wider mt-1" style="color:var(--text-muted)">${s.label}</div>
     </div>
   `).join('');
 
-  $('#activity-list').innerHTML = d.activity.map(a => `
-    <div class="flex items-start gap-3 text-sm">
-      <div class="w-1.5 h-1.5 rounded-full mt-2 ${a.type === 'task' ? 'bg-indigo-400' : 'bg-zinc-500'}"></div>
-      <div class="flex-1">
-        <span class="text-zinc-300">${a.content}</span>
-        ${a.category ? `<span class="badge badge-${a.category} ml-2">${a.category}</span>` : ''}
-      </div>
-      <span class="text-xs text-zinc-600 whitespace-nowrap">${timeAgo(a.timestamp)}</span>
+  document.querySelectorAll('.stat-value').forEach(el => {
+    const target = parseInt(el.dataset.target) || 0;
+    if (target > 0) animateCounter(el, target);
+    else el.textContent = el.dataset.target;
+  });
+
+  renderHeatmap(mem.memories, mem.decisions);
+
+  $('#activity-list').innerHTML = d.activity.length ? d.activity.map(a => `
+    <div class="flex items-center gap-3 text-xs py-1.5 border-b" style="border-color:var(--border)">
+      <span class="font-mono shrink-0" style="color:var(--text-muted); width:60px">${timeAgo(a.timestamp)}</span>
+      ${a.category ? `<span class="badge badge-${a.category}">${a.category}</span>` : '<span class="badge badge-general">—</span>'}
+      <span style="color:var(--text)">${a.content}</span>
     </div>
-  `).join('');
+  `).join('') : '<div class="empty-state">No activity yet. Start using Mnemo tools and activity will appear here.</div>';
   lucide.createIcons();
 }
 
-const loaders = { overview: loadOverview, graph: loadGraph, memory: loadMemory, links: loadLinks, tasks: loadTasks, health: loadHealth, apis: loadApis, team: loadTeam, incidents: loadIncidents, knowledge: loadKnowledge };
+const loaders = { overview: loadOverview, graph: loadGraph, memory: loadMemory, links: loadLinks, tasks: loadTasks, health: loadHealth, apis: loadApis, team: loadTeam, incidents: loadIncidents, knowledge: loadKnowledge, lessons: loadLessons, observations: loadObservations, metrics: loadMetrics };
 
-const NODE_COLORS = { class:'#6366f1', service:'#10b981', interface:'#a855f7', file:'#6b7280', method:'#3b82f6', package:'#f59e0b', person:'#f97316', endpoint:'#ec4899', pattern:'#14b8a6', decision:'#8b5cf6', memory:'#6366f1', incident:'#ef4444', error:'#f59e0b', function:'#3b82f6', unknown:'#52525b' };
+const NODE_COLORS = { class:'#00aaff', service:'#00ff88', interface:'#ff66ff', file:'#888888', method:'#00aaff', package:'#ffaa00', person:'#ff66ff', endpoint:'#00aaff', pattern:'#ffaa00', decision:'#00ff88', memory:'#00aaff', incident:'#ff4444', error:'#ffaa00', function:'#00aaff', unknown:'#888888' };
 
 let _graphTimer = null;
 function debounce(fn, ms) { return (...args) => { clearTimeout(_graphTimer); _graphTimer = setTimeout(() => fn(...args), ms); }; }
 
 async function loadGraph() {
   const d = await api('graph');
-  if (!d.nodes.length) { $('#graph-container').innerHTML='<div class="flex items-center justify-center h-full text-zinc-500">No graph data. Run mnemo map.</div>'; return; }
+  if (!d.nodes.length) { $('#graph-container').innerHTML='<div class="empty-state" style="padding-top:4rem">Knowledge graph empty. Run <code>mnemo map</code> to build it.</div>'; return; }
 
   const types = [...new Set(d.nodes.map(n=>n.type))].sort();
   $('#graph-filter').innerHTML = '<option value="">All types</option>' + types.map(t=>`<option value="${t}">${t} (${d.nodes.filter(n=>n.type===t).length})</option>`).join('');
   $('#graph-stats').textContent = `${d.nodes.length} nodes · ${d.edges.length} edges · ${types.length} types`;
 
-  const nodes = new vis.DataSet(d.nodes.map(n => ({ id:n.id, label:n.name, group:n.type, color:{ background: NODE_COLORS[n.type]||'#52525b', border:'transparent', highlight:{background: NODE_COLORS[n.type]||'#52525b', border:'#fff'} }, font:{color:'#e4e4e7', size:11} })));
-  const edges = new vis.DataSet(d.edges.map((e,i) => ({ id:i, from:e.source, to:e.target, title:e.type, color:{color:'rgba(140,140,255,0.25)', highlight:'#818cf8'}, arrows:{to:{scaleFactor:0.5}}, smooth:{enabled:true, type:'curvedCW', roundness:0.15} })));
+  const nodes = new vis.DataSet(d.nodes.map(n => ({ id:n.id, label:n.name, group:n.type, color:{ background: NODE_COLORS[n.type]||'#888888', border:'transparent', highlight:{background: NODE_COLORS[n.type]||'#888888', border:'#00ff88'} }, font:{color:'#e8e8e8', size:10, face:'JetBrains Mono'} })));
+  const edges = new vis.DataSet(d.edges.map((e,i) => ({ id:i, from:e.source, to:e.target, title:e.type, color:{color:'rgba(0,255,136,0.15)', highlight:'#00ff88'}, arrows:{to:{scaleFactor:0.5}}, smooth:{enabled:true, type:'curvedCW', roundness:0.15} })));
 
   const network = new vis.Network($('#graph-container'), {nodes, edges}, {
     physics: { solver:'forceAtlas2Based', forceAtlas2Based:{gravitationalConstant:-50, springLength:150, springConstant:0.04, damping:0.5}, stabilization:{iterations:200, fit:true} },
@@ -290,12 +527,12 @@ async function loadMemory() {
   window._memories = d.memories;
   renderMemories(d.memories);
 
-  $('#decisions-list').innerHTML = d.decisions.map(dec => `
-    <div class="glass rounded-lg p-4">
-      <p class="text-sm text-zinc-200">${dec.decision}</p>
-      <p class="text-xs text-zinc-500 mt-2">Reasoning: ${dec.reasoning || 'N/A'}</p>
+  $('#decisions-list').innerHTML = d.decisions.length ? d.decisions.map(dec => `
+    <div class="card p-4" style="border-left: 2px solid var(--accent-green)">
+      <p class="text-sm" style="color:var(--text)">${dec.decision}</p>
+      <p class="text-xs mt-2" style="color:var(--text-muted)">Reasoning: ${dec.reasoning || 'N/A'}</p>
     </div>
-  `).join('') || '<p class="text-sm text-zinc-500">No decisions recorded.</p>';
+  `).join('') : '<div class="empty-state">No decisions recorded yet. Use mnemo_decide to record architectural decisions.</div>';
 }
 
 function filterMem(cat) {
@@ -303,51 +540,53 @@ function filterMem(cat) {
 }
 
 function renderMemories(mems) {
-  $('#memory-list').innerHTML = mems.slice().reverse().map(m => `
-    <div class="glass rounded-lg p-4">
-      <div class="flex items-center gap-2 mb-1">
-        <span class="badge badge-${m.category}">${m.category}</span>
-        <span class="text-xs text-zinc-600">${timeAgo(m.timestamp)}</span>
+  const catColors = { architecture:'#00ff88', bug:'#ff4444', preference:'#00aaff', pattern:'#ffaa00', todo:'#ff66ff', general:'#888888' };
+  $('#memory-list').innerHTML = mems.length ? mems.slice().reverse().map(m => `
+    <div class="card p-3 flex gap-3" style="border-left: 2px solid ${catColors[m.category] || '#888888'}">
+      <div class="flex-1">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="badge badge-${m.category}">${m.category}</span>
+        </div>
+        <p class="text-sm" style="color:var(--text)">${m.content}</p>
       </div>
-      <p class="text-sm text-zinc-300">${m.content}</p>
+      <span class="font-mono text-[10px] shrink-0" style="color:var(--text-muted)">${timeAgo(m.timestamp)}</span>
     </div>
-  `).join('') || '<p class="text-sm text-zinc-500">No memories stored.</p>';
+  `).join('') : '<div class="empty-state">No memories yet. The agent will remember important context automatically, or use mnemo_remember.</div>';
 }
 
 async function loadLinks() {
   const d = await api('links');
   $('#links-list').innerHTML = d.map(l => `
-    <div class="glass rounded-xl p-5">
+    <div class="card p-4">
       <div class="flex items-center gap-3 mb-2">
-        <div class="w-8 h-8 rounded-lg ${l.indexed ? 'bg-green-500/15' : 'bg-zinc-500/15'} flex items-center justify-center">
-          <i data-lucide="${l.indexed ? 'check-circle' : 'circle'}" class="w-4 h-4 ${l.indexed ? 'text-green-400' : 'text-zinc-500'}"></i>
-        </div>
+        <div class="w-2 h-2 rounded-full ${l.indexed ? 'bg-[#00ff88]' : 'bg-[#888]'}"></div>
         <div>
-          <div class="text-sm font-medium text-white">${l.name}</div>
-          <div class="text-xs text-zinc-500 font-mono">${l.path}</div>
+          <div class="text-sm font-medium" style="color:var(--text)">${l.name}</div>
+          <div class="text-xs font-mono" style="color:var(--text-muted)">${l.path}</div>
         </div>
       </div>
-      <div class="flex gap-2 mt-3">
+      <div class="flex gap-2 mt-2">
         <span class="badge ${l.indexed ? 'badge-pattern' : 'badge-general'}">${l.indexed ? 'indexed' : 'not indexed'}</span>
         <span class="badge ${l.exists ? 'badge-low' : 'badge-bug'}">${l.exists ? 'exists' : 'missing'}</span>
       </div>
     </div>
-  `).join('') || '<p class="text-sm text-zinc-500">No linked repos.</p>';
+  `).join('') || '<p class="text-xs font-mono" style="color:var(--text-muted)">No linked repos.</p>';
   lucide.createIcons();
 }
+
 async function loadTasks() {
   const d = await api('tasks');
-  $('#tasks-list').innerHTML = d.map(t => `
-    <div class="glass rounded-lg p-4 flex items-center gap-4">
-      <div class="w-3 h-3 rounded-full ${t.status==='active' ? 'bg-indigo-400 animate-pulse' : 'bg-green-400'}"></div>
+  $('#tasks-list').innerHTML = d.length ? d.map(t => `
+    <div class="card p-3 flex items-center gap-3">
+      <div class="w-2 h-2 rounded-full ${t.status==='active' ? 'bg-[#00ff88] animate-pulse' : 'bg-[#00aaff]'}"></div>
       <div class="flex-1">
-        <div class="text-sm font-medium text-white">${t.task_id}</div>
-        <div class="text-xs text-zinc-400">${t.description || ''}</div>
-        ${t.files?.length ? `<div class="text-xs text-zinc-600 font-mono mt-1">${t.files.join(', ')}</div>` : ''}
+        <div class="text-sm font-mono font-medium" style="color:var(--text)">${t.task_id}</div>
+        <div class="text-xs" style="color:var(--text-muted)">${t.description || ''}</div>
+        ${t.files?.length ? `<div class="text-xs font-mono mt-1" style="color:var(--text-muted)">${t.files.join(', ')}</div>` : ''}
       </div>
       <span class="badge ${t.status==='active' ? 'badge-architecture' : 'badge-pattern'}">${t.status}</span>
     </div>
-  `).join('') || '<p class="text-sm text-zinc-500">No tasks recorded.</p>';
+  `).join('') : '<div class="empty-state">No active plans. Describe work to do and Mnemo will auto-create a plan.</div>';
 }
 
 async function loadHealth() {
@@ -370,36 +609,79 @@ async function loadIncidents() {
   const errors = await api('errors');
 
   $('#incidents-list').innerHTML = incidents.map(i => `
-    <div class="glass rounded-lg p-4">
+    <div class="card p-3" style="border-left: 2px solid var(--accent-red)">
       <div class="flex items-center gap-2 mb-1">
         <span class="badge badge-${i.severity || 'medium'}">${i.severity || 'medium'}</span>
-        <span class="text-sm font-medium text-white">${i.title}</span>
+        <span class="text-sm font-medium" style="color:var(--text)">${i.title}</span>
       </div>
-      <p class="text-xs text-zinc-400">${i.what_happened}</p>
-      <p class="text-xs text-zinc-500 mt-1">Fix: ${i.fix}</p>
+      <p class="text-xs" style="color:var(--text-muted)">${i.what_happened}</p>
+      <p class="text-xs mt-1" style="color:var(--accent-green)">Fix: ${i.fix}</p>
     </div>
-  `).join('') || '<p class="text-sm text-zinc-500">No incidents recorded.</p>';
+  `).join('') || '<p class="text-xs font-mono" style="color:var(--text-muted)">No incidents recorded.</p>';
 
   $('#errors-list').innerHTML = errors.map(e => `
-    <div class="glass rounded-lg p-4">
-      <div class="text-sm text-red-300 font-mono">${e.error}</div>
-      <p class="text-xs text-zinc-400 mt-1">Cause: ${e.cause}</p>
-      <p class="text-xs text-green-300/70 mt-1">Fix: ${e.fix}</p>
+    <div class="card p-3" style="border-left: 2px solid var(--accent-amber)">
+      <div class="text-sm font-mono" style="color:var(--accent-red)">${e.error}</div>
+      <p class="text-xs mt-1" style="color:var(--text-muted)">Cause: ${e.cause}</p>
+      <p class="text-xs mt-1" style="color:var(--accent-green)">Fix: ${e.fix}</p>
     </div>
-  `).join('') || '<p class="text-sm text-zinc-500">No errors recorded.</p>';
+  `).join('') || '<p class="text-xs font-mono" style="color:var(--text-muted)">No errors recorded.</p>';
 }
 
 async function loadKnowledge() {
   const d = await api('knowledge');
   $('#knowledge-list').innerHTML = d.map(k => `
-    <div class="glass rounded-xl p-5">
-      <h3 class="text-sm font-medium text-white mb-2">${k.name}</h3>
-      <div class="text-xs text-zinc-400 prose prose-invert prose-xs max-w-none">${marked.parse(k.content)}</div>
+    <div class="card p-4">
+      <h3 class="text-sm font-mono font-medium mb-2" style="color:var(--accent-green)">${k.name}</h3>
+      <div class="text-xs prose prose-invert prose-xs max-w-none">${marked.parse(k.content)}</div>
     </div>
-  `).join('') || '<p class="text-sm text-zinc-500">No knowledge files. Add .md files to .mnemo/knowledge/</p>';
+  `).join('') || '<p class="text-xs font-mono" style="color:var(--text-muted)">No knowledge files. Add .md files to .mnemo/knowledge/</p>';
+}
+
+async function loadLessons() {
+  const d = await api('lessons');
+  $('#lessons-list').innerHTML = d.length ? d.map(l => `
+    <div class="card p-3">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm" style="color:var(--text)">${l.content || ''}</span>
+        <span class="font-mono text-xs px-2 py-0.5" style="border-radius:2px; ${l.confidence > 0.7 ? 'background:rgba(0,255,136,0.1);color:#00ff88' : l.confidence > 0.4 ? 'background:rgba(255,170,0,0.1);color:#ffaa00' : 'background:rgba(255,68,68,0.1);color:#ff4444'}">${Math.round((l.confidence || 0) * 100)}%</span>
+      </div>
+      <div class="flex gap-4 text-xs font-mono" style="color:var(--text-muted)">
+        <span>Source: ${l.source || 'manual'}</span>
+        <span>Reinforced: ${l.reinforcement_count || 0}x</span>
+      </div>
+    </div>
+  `).join('') : '<div class="empty-state">No lessons yet. Lessons are extracted from completed tasks and reinforced over time.</div>';
+}
+
+async function loadObservations() {
+  const d = await api('observations');
+  $('#observations-list').innerHTML = d.length ? d.slice().reverse().map(o => `
+    <div class="flex items-center gap-3 text-xs py-1.5 border-b" style="border-color:var(--border)">
+      <span class="font-mono shrink-0" style="color:var(--accent-green); width:140px">${o.tool_name || ''}</span>
+      <span class="truncate flex-1" style="color:var(--text-muted)">${o.input_summary || ''}</span>
+      <span class="font-mono shrink-0" style="color:var(--text-muted)">${timeAgo(o.timestamp)}</span>
+    </div>
+  `).join('') : '<div class="empty-state">No observations yet. Tool calls are recorded automatically as you work.</div>';
+}
+
+async function loadMetrics() {
+  const d = await api('metrics');
+  const entries = Object.entries(d);
+  $('#metrics-grid').innerHTML = entries.length ? entries.map(([tool, m]) => `
+    <div class="card p-4">
+      <div class="font-mono text-xs mb-2" style="color:var(--accent-blue)">${tool}</div>
+      <div class="grid grid-cols-3 gap-2 text-center">
+        <div><div class="text-lg font-mono font-bold" style="color:var(--text)">${m.calls}</div><div class="text-[10px] font-mono uppercase" style="color:var(--text-muted)">calls</div></div>
+        <div><div class="text-lg font-mono font-bold" style="color:var(--text)">${m.avg_ms}ms</div><div class="text-[10px] font-mono uppercase" style="color:var(--text-muted)">avg</div></div>
+        <div><div class="text-lg font-mono font-bold" style="color:${m.success_rate >= 95 ? 'var(--accent-green)' : m.success_rate >= 80 ? 'var(--accent-amber)' : 'var(--accent-red)'}">${m.success_rate}%</div><div class="text-[10px] font-mono uppercase" style="color:var(--text-muted)">success</div></div>
+      </div>
+    </div>
+  `).join('') : '<div class="empty-state">No metrics yet. Tool usage stats appear after you start using Mnemo tools.</div>';
 }
 
 loadOverview();
+loadBanners();
 lucide.createIcons();
 </script>
 
