@@ -7,3 +7,4 @@ const nextConfig = {
 
 export default nextConfig;
 
+// v0.4.0
