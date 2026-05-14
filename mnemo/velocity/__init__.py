@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import subprocess
+import subprocess  # nosec B404
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -12,7 +12,7 @@ def _git_log(repo_root: Path, days: int = 30) -> list[dict]:
     """Parse git log for the last N days."""
     since = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 B607
             ["git", "log", f"--since={since}", "--format=%H|%ai|%an|%s", "--no-merges"],
             cwd=repo_root, capture_output=True, text=True, timeout=15,
         )
@@ -37,7 +37,7 @@ def _git_shortstat(repo_root: Path, days: int = 7) -> dict:
     """Get insertions/deletions for the period."""
     since = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 B607
             ["git", "log", f"--since={since}", "--shortstat", "--no-merges", "--format="],
             cwd=repo_root, capture_output=True, text=True, timeout=15,
         )

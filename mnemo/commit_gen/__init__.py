@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import subprocess
+import subprocess  # nosec B404
 from pathlib import Path
 
 from ..storage import Collections, get_storage
@@ -11,19 +11,19 @@ from ..storage import Collections, get_storage
 def _git_diff_staged(repo_root: Path) -> str:
     """Get staged diff, fall back to unstaged if nothing staged."""
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 B607
             ["git", "diff", "--cached", "--stat"],
             cwd=repo_root, capture_output=True, text=True, timeout=10,
         )
         if result.stdout.strip():
-            diff = subprocess.run(
+            diff = subprocess.run(  # nosec B603 B607
                 ["git", "diff", "--cached"],
                 cwd=repo_root, capture_output=True, text=True, timeout=10,
             )
             return diff.stdout[:8000]
 
         # Nothing staged — use unstaged
-        diff = subprocess.run(
+        diff = subprocess.run(  # nosec B603 B607
             ["git", "diff"],
             cwd=repo_root, capture_output=True, text=True, timeout=10,
         )
@@ -35,13 +35,13 @@ def _git_diff_staged(repo_root: Path) -> str:
 def _git_diff_stat(repo_root: Path) -> str:
     """Get a compact stat summary of changes."""
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 B607
             ["git", "diff", "--cached", "--stat"],
             cwd=repo_root, capture_output=True, text=True, timeout=10,
         )
         if result.stdout.strip():
             return result.stdout.strip()
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 B607
             ["git", "diff", "--stat"],
             cwd=repo_root, capture_output=True, text=True, timeout=10,
         )

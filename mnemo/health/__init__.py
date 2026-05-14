@@ -7,6 +7,9 @@ import sys
 from pathlib import Path
 
 from ..config import IGNORE_DIRS, SUPPORTED_EXTENSIONS, should_ignore
+from ..utils.logger import get_logger
+
+logger = get_logger("health")
 
 
 def _should_ignore(path: Path) -> bool:
@@ -55,13 +58,91 @@ def _get_git_churn(repo_root: Path, filepath: Path) -> int:
         commits = list(repo.iter_commits(paths=rel, max_count=100))
         return len(commits)
     except Exception as exc:
-        print(f"[mnemo] Git churn lookup failed: {exc}", file=sys.stderr)
+        logger.debug(f"Git churn lookup failed: {exc}")
         return 0
+
+
+def system_health(repo_root: Path) -> dict:
+    """Return system health metrics."""
+    import resource
+    import json
+
+    mem_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (1024 * 1024)
+
+    mnemo_dir = repo_root / ".mnemo"
+    memories = 0
+    decisions = 0
+    graph_nodes = 0
+    dir_size_kb = 0.0
+    disk_breakdown: dict[str, float] = {}
+    warnings: list[str] = []
+
+    if mnemo_dir.exists():
+        mem_file = mnemo_dir / "memory.json"
+        if mem_file.exists():
+            try:
+                memories = len(json.loads(mem_file.read_text()))
+            except (json.JSONDecodeError, OSError):
+                memories = 0
+        dec_file = mnemo_dir / "decisions.json"
+        if dec_file.exists():
+            try:
+                decisions = len(json.loads(dec_file.read_text()))
+            except (json.JSONDecodeError, OSError):
+                decisions = 0
+        graph_file = mnemo_dir / "graph_meta.json"
+        if graph_file.exists():
+            try:
+                meta = json.loads(graph_file.read_text())
+                graph_nodes = meta.get("nodes", 0)
+            except (json.JSONDecodeError, OSError):
+                graph_nodes = 0
+        for f in mnemo_dir.rglob("*"):
+            if f.is_file():
+                try:
+                    size_kb = f.stat().st_size / 1024
+                    dir_size_kb += size_kb
+                    rel = str(f.relative_to(mnemo_dir))
+                    disk_breakdown[rel] = round(size_kb, 1)
+                    if size_kb > 50 * 1024:
+                        warnings.append(f"Large file: {rel} ({size_kb / 1024:.1f} MB)")
+                except OSError:
+                    continue  # Skip unreadable files
+        if dir_size_kb > 100 * 1024:
+            warnings.append(f"Total .mnemo/ size exceeds 100MB ({dir_size_kb / 1024:.1f} MB)")
+
+    from ..utils.circuit_breaker import CircuitBreaker
+    from ..vector_index import _breaker
+    chromadb_status = _breaker.state
+
+    result = {
+        "memory_mb": mem_mb,
+        "memories": memories,
+        "decisions": decisions,
+        "graph_nodes": graph_nodes,
+        "chromadb_status": chromadb_status,
+        "mnemo_dir_size_kb": dir_size_kb,
+        "disk_breakdown": disk_breakdown,
+    }
+    if warnings:
+        result["warnings"] = warnings
+    return result
 
 
 def calculate_health(repo_root: Path) -> str:
     """Calculate code health metrics for the project."""
     lines = ["# Code Health Report\n"]
+
+    # System health section
+    sh = system_health(repo_root)
+    lines.append("## System Health")
+    lines.append(f"- **Process memory:** {sh['memory_mb']:.1f} MB")
+    lines.append(f"- **Memories:** {sh['memories']}")
+    lines.append(f"- **Decisions:** {sh['decisions']}")
+    lines.append(f"- **Graph nodes:** {sh['graph_nodes']}")
+    lines.append(f"- **ChromaDB:** {sh['chromadb_status']}")
+    lines.append(f"- **.mnemo/ size:** {sh['mnemo_dir_size_kb']:.1f} KB")
+    lines.append("")
 
     hotspots: list[tuple[str, int, int, int]] = []  # (file, complexity, methods, lines)
 

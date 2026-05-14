@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 from importlib.metadata import PackageNotFoundError, version
@@ -16,18 +16,22 @@ def _status(ok: bool) -> str:
     return "OK" if ok else "WARN"
 
 
-def _check_mcp_config(target: ClientTarget) -> tuple[bool, str]:
-    if target.mcp_config_path is None:
+def _check_mcp_config(target: ClientTarget, repo_root: Path | None = None) -> tuple[bool, str]:
+    if target.local_mcp_config and repo_root:
+        config_path = repo_root / target.local_mcp_config
+    elif target.mcp_config_path:
+        config_path = target.mcp_config_path
+    else:
         return True, "manual MCP config required"
-    if not target.mcp_config_path.exists():
-        return False, f"missing {target.mcp_config_path}"
+    if not config_path.exists():
+        return False, f"missing {config_path}"
     try:
-        config = json.loads(target.mcp_config_path.read_text(encoding="utf-8"))
+        config = json.loads(config_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
-        return False, f"invalid JSON in {target.mcp_config_path}"
+        return False, f"invalid JSON in {config_path}"
     if "mnemo" not in config.get("mcpServers", {}):
-        return False, f"mnemo server not registered in {target.mcp_config_path}"
-    return True, str(target.mcp_config_path)
+        return False, f"mnemo server not registered in {config_path}"
+    return True, str(config_path)
 
 
 def _check_mcp_alive(command: str) -> bool:
@@ -37,7 +41,7 @@ def _check_mcp_alive(command: str) -> bool:
         "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "doctor"}}
     })
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 B607
             [command, "mcp"] if command != "mnemo-mcp" else [command],
             input=init_msg, capture_output=True, text=True, timeout=5,
         )
@@ -98,7 +102,7 @@ def doctor(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
     lines.append("## Client Setup")
     for target in targets:
         context_ok, context_message = _check_context_file(repo_root, target)
-        config_ok, config_message = _check_mcp_config(target)
+        config_ok, config_message = _check_mcp_config(target, repo_root)
         lines.append(f"[{_status(context_ok)}] {target.display_name} context: {context_message}")
         lines.append(f"[{_status(config_ok)}] {target.display_name} MCP config: {config_message}")
 
@@ -109,7 +113,7 @@ def doctor(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
         missing_clients = [
             target.display_name
             for target in targets
-            if not _check_context_file(repo_root, target)[0] or not _check_mcp_config(target)[0]
+            if not _check_context_file(repo_root, target)[0] or not _check_mcp_config(target, repo_root)[0]
         ]
         if missing_clients:
             lines.append("")

@@ -29,9 +29,9 @@ def _save_baseline(repo_root: Path, baseline: dict) -> None:
 
 def _current_git_tag(repo_root: Path) -> str | None:
     """Get the latest git tag if HEAD is tagged."""
-    import subprocess
+    import subprocess  # nosec B404
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 B607
             ["git", "describe", "--tags", "--exact-match", "HEAD"],
             cwd=repo_root, capture_output=True, text=True, timeout=5,
         )

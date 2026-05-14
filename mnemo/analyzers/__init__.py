@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
-import subprocess
+import subprocess  # nosec B404
 from pathlib import Path
 from typing import Any
 
@@ -44,7 +44,7 @@ def run_roslyn_analyzer(repo_root: Path) -> list[dict[str, Any]] | None:
         return None
 
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 B607
             ["dotnet", "run", "--project", str(_ANALYZER_DIR), "--", str(target)],
             capture_output=True,
             text=True,

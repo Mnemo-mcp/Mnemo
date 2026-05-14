@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from ..utils.logger import get_logger
+
+logger = get_logger("ui")
+
 from ..config import mnemo_path
 from ..storage import Collections, get_storage
 
@@ -169,6 +173,29 @@ def _get_team(repo_root: Path) -> str:
         return "Team data unavailable."
 
 
+def _get_status_flags(repo_root: Path) -> dict:
+    """Return feature flags for the dashboard banners."""
+    chroma_available = False
+    try:
+        from ..vector_index import LocalVectorIndex
+        vi = LocalVectorIndex(repo_root)
+        chroma_available = vi.available()
+    except Exception:
+        chroma_available = False
+    links = _read_json(repo_root, "links.json")
+    return {"chromadb_available": chroma_available, "has_linked_repos": len(links) > 0}
+
+
+def _get_token_savings(repo_root: Path) -> dict:
+    """Estimate token savings from memory recall budget."""
+    memory = _read_json(repo_root, "memory.json")
+    total_chars = sum(len(m.get("content", "")) for m in memory)
+    # Recall budget is typically ~4000 chars returned
+    recall_budget = 4000
+    saved = max(0, total_chars - recall_budget) if memory else 0
+    return {"total_chars": total_chars, "recall_budget": recall_budget, "saved_per_recall": saved}
+
+
 def _get_knowledge(repo_root: Path) -> list:
     knowledge_dir = mnemo_path(repo_root) / "knowledge"
     if not knowledge_dir.exists():
@@ -234,6 +261,26 @@ def create_handler(repo_root: Path):
                 self._send_json({"markdown": _get_team(repo_root)})
             elif path == "/api/knowledge":
                 self._send_json(_get_knowledge(repo_root))
+            elif path == "/api/status":
+                self._send_json(_get_status_flags(repo_root))
+            elif path == "/api/token_savings":
+                self._send_json(_get_token_savings(repo_root))
+            elif path == "/api/lessons":
+                self._send_json(_read_json(repo_root, "lessons.json"))
+            elif path == "/api/observations":
+                self._send_json(_read_json(repo_root, "observations.json")[-50:])
+            elif path == "/api/slots":
+                self._send_json(_read_json(repo_root, "slots.json"))
+            elif path == "/api/plans":
+                self._send_json(_read_json(repo_root, "plans.json"))
+            elif path == "/api/audit":
+                self._send_json(_read_json(repo_root, "audit.json")[-50:])
+            elif path == "/api/metrics":
+                try:
+                    from ..utils.metrics import get_metrics
+                    self._send_json(get_metrics())
+                except Exception:
+                    self._send_json({})
             else:
                 self.send_error(404)
 
@@ -245,9 +292,9 @@ def start_server(repo_root: Path, port: int = 7890, open_browser: bool = True):
     handler = create_handler(repo_root)
     server = HTTPServer(("127.0.0.1", port), handler)
     url = f"http://localhost:{port}"
-    print(f"🧠 Mnemo Dashboard running at {url}")
-    print(f"   Repo: {repo_root}")
-    print("   Press Ctrl+C to stop\n")
+    logger.info(f"🧠 Mnemo Dashboard running at {url}")
+    logger.info(f"   Repo: {repo_root}")
+    logger.info("   Press Ctrl+C to stop")
 
     if open_browser:
         webbrowser.open(url)
@@ -255,5 +302,5 @@ def start_server(repo_root: Path, port: int = 7890, open_browser: bool = True):
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\n👋 Dashboard stopped.")
+        logger.info("Dashboard stopped.")
         server.shutdown()

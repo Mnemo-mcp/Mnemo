@@ -9,9 +9,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+from ..utils.logger import get_logger
+
+logger = get_logger("vector_index")
+
 from ..chunking import Chunk
+from ..utils.circuit_breaker import CircuitBreaker
 from ..embeddings import KeywordEmbeddingProvider
 
+_breaker = CircuitBreaker()
+_EXPECTED_DIMENSIONS = 384
 
 _CHROMA_INSTALL_ATTEMPTED = False
 
@@ -38,7 +45,7 @@ def _auto_install_chromadb() -> bool:
         )
         return True
     except Exception as exc:
-        print(f"[mnemo] chromadb auto-install failed: {exc}", file=sys.stderr)
+        logger.warning(f"chromadb auto-install failed: {exc}")
         return False
 
 
@@ -90,14 +97,14 @@ class LocalVectorIndex:
                 self._chroma_ready = False
                 return
         except Exception as exc:
-            print(f"[mnemo] chromadb import error: {exc}", file=sys.stderr)
+            logger.warning(f"chromadb import error: {exc}")
             self._chroma_ready = False
             return
         try:
             self._chroma_client = chromadb.PersistentClient(path=str(self.index_dir / "chroma"))
             self._chroma_ready = True
         except Exception as exc:
-            print(f"[mnemo] chromadb client init failed: {exc}", file=sys.stderr)
+            logger.warning(f"chromadb client init failed: {exc}")
             self._chroma_ready = False
 
     def _collection(self, namespace: str):
@@ -129,7 +136,7 @@ class LocalVectorIndex:
         self._memory_store[namespace] = kept
 
         collection = self._collection(namespace)
-        if not collection:
+        if not collection or not _breaker.allow_request():
             return
         if chunks:
             # Deduplicate by ID (ChromaDB rejects duplicate IDs in a single batch)
@@ -137,20 +144,25 @@ class LocalVectorIndex:
             for chunk in chunks:
                 seen[chunk.id] = chunk
             unique = list(seen.values())
-            collection.upsert(
-                ids=[chunk.id for chunk in unique],
-                documents=[f"{chunk.path} {chunk.symbol}\n{chunk.content}" for chunk in unique],
-                metadatas=[
-                    {
-                        "path": chunk.path,
-                        "language": chunk.language,
-                        "symbol": chunk.symbol,
-                        "chunk_type": chunk.chunk_type,
-                        **chunk.metadata,
-                    }
-                    for chunk in unique
-                ],
-            )
+            try:
+                collection.upsert(
+                    ids=[chunk.id for chunk in unique],
+                    documents=[f"{chunk.path} {chunk.symbol}\n{chunk.content}" for chunk in unique],
+                    metadatas=[
+                        {
+                            "path": chunk.path,
+                            "language": chunk.language,
+                            "symbol": chunk.symbol,
+                            "chunk_type": chunk.chunk_type,
+                            **chunk.metadata,
+                        }
+                        for chunk in unique
+                    ],
+                )
+                _breaker.record_success()
+            except Exception as exc:
+                _breaker.record_failure()
+                logger.warning(f"ChromaDB upsert failed: {exc}")
 
     def _query_fallback(self, namespace: str, query: str, limit: int, filters: dict[str, Any] | None) -> list[dict[str, Any]]:
         query_emb = self._fallback.embed(query)
@@ -170,7 +182,7 @@ class LocalVectorIndex:
 
     def query(self, namespace: str, query: str, limit: int = 10, filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         collection = self._collection(namespace)
-        if not collection:
+        if not collection or not _breaker.allow_request():
             return self._query_fallback(namespace, query, limit, filters)
         try:
             where = filters or None
@@ -179,12 +191,14 @@ class LocalVectorIndex:
             docs = result.get("documents", [[]])[0]
             distances = result.get("distances", [[]])[0] if result.get("distances") else [0.0] * len(ids)
             metas = result.get("metadatas", [[]])[0] if result.get("metadatas") else [{} for _ in ids]
+            _breaker.record_success()
             return [
                 {"id": doc_id, "score": 1.0 - float(dist), "content": doc, "metadata": meta}
                 for doc_id, doc, dist, meta in zip(ids, docs, distances, metas)
             ]
         except Exception as exc:
-            print(f"[mnemo] ChromaDB query failed, using fallback: {exc}", file=sys.stderr)
+            _breaker.record_failure()
+            logger.warning(f"ChromaDB query failed, using fallback: {exc}")
             return self._query_fallback(namespace, query, limit, filters)
 
     def clear(self, namespace: str | None = None) -> None:

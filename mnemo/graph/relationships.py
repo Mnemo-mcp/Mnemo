@@ -5,10 +5,9 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any
 
 from . import Edge
-from ..config import IGNORE_DIRS, SUPPORTED_EXTENSIONS, should_ignore
+from ..config import should_ignore
 
 
 def extract_call_edges(repo_root: Path, file_path: str, source: str, class_names: set[str]) -> list[Edge]:
@@ -85,9 +84,9 @@ def extract_dependency_edges(repo_root: Path) -> list[tuple[str, str, dict]]:
 
 def extract_ownership_edges(repo_root: Path) -> list[tuple[str, str, int]]:
     """Extract ownership from git log. Returns (person, file_path, commit_count)."""
-    import subprocess
+    import subprocess  # nosec B404
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 B607
             ["git", "shortlog", "-sn", "--all", "--no-merges"],
             cwd=repo_root, capture_output=True, text=True, timeout=15,
         )
@@ -99,7 +98,7 @@ def extract_ownership_edges(repo_root: Path) -> list[tuple[str, str, int]]:
     # Get per-file ownership (top contributor per top-level dir)
     ownership = []
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 B607
             ["git", "log", "--format=%aN", "--name-only", "--diff-filter=ACMR", "-100"],
             cwd=repo_root, capture_output=True, text=True, timeout=15,
         )

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import subprocess
+import subprocess  # nosec B404
 from pathlib import Path
 
 from ..storage import Collections, get_storage
@@ -11,7 +11,7 @@ from ..storage import Collections, get_storage
 def _git_main_branch(repo_root: Path) -> str:
     """Detect the main branch name."""
     for name in ("main", "master", "develop"):
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 B607
             ["git", "rev-parse", "--verify", name],
             cwd=repo_root, capture_output=True, text=True, timeout=5,
         )
@@ -25,21 +25,21 @@ def _git_branch_diff(repo_root: Path) -> tuple[str, str, str]:
     try:
         base = _git_main_branch(repo_root)
         # Merge base
-        merge_base = subprocess.run(
+        merge_base = subprocess.run(  # nosec B603 B607
             ["git", "merge-base", base, "HEAD"],
             cwd=repo_root, capture_output=True, text=True, timeout=5,
         )
         ref = merge_base.stdout.strip() if merge_base.returncode == 0 else base
 
-        stat = subprocess.run(
+        stat = subprocess.run(  # nosec B603 B607
             ["git", "diff", "--stat", ref],
             cwd=repo_root, capture_output=True, text=True, timeout=10,
         )
-        diff = subprocess.run(
+        diff = subprocess.run(  # nosec B603 B607
             ["git", "diff", ref],
             cwd=repo_root, capture_output=True, text=True, timeout=10,
         )
-        log = subprocess.run(
+        log = subprocess.run(  # nosec B603 B607
             ["git", "log", "--oneline", f"{ref}..HEAD"],
             cwd=repo_root, capture_output=True, text=True, timeout=10,
         )
@@ -51,7 +51,7 @@ def _git_branch_diff(repo_root: Path) -> tuple[str, str, str]:
 def _current_branch(repo_root: Path) -> str:
     """Get current branch name."""
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 B607
             ["git", "branch", "--show-current"],
             cwd=repo_root, capture_output=True, text=True, timeout=5,
         )

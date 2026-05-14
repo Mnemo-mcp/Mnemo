@@ -1,5 +1,7 @@
 """Mnemo CLI - persistent memory for AI coding chats."""
 
+from __future__ import annotations
+
 import sys
 from pathlib import Path
 
@@ -19,6 +21,7 @@ from .clients import CLIENT_CHOICES, DEFAULT_CLIENT
 @click.group()
 def cli():
     """Mnemo - persistent memory and repo map for AI coding assistants."""
+
     pass
 
 
@@ -209,7 +212,7 @@ def update():
     # Fetch latest release info
     click.echo("Checking for updates...")
     try:
-        with urllib.request.urlopen(API_URL, timeout=10) as resp:
+        with urllib.request.urlopen(API_URL, timeout=10) as resp:  # nosec B310
             release = json_mod.loads(resp.read())
     except Exception as e:
         click.echo(f"Failed to check for updates: {e}")
@@ -255,7 +258,7 @@ def update():
     click.echo(f"Downloading {asset_name}...")
     try:
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".tmp")
-        urllib.request.urlretrieve(download_url, tmp.name)
+        urllib.request.urlretrieve(download_url, tmp.name)  # nosec B310
     except Exception as e:
         click.echo(f"Download failed: {e}")
         return
@@ -346,6 +349,69 @@ def mcp_server():
     """Run the MCP server over stdio (used by AI clients)."""
     from .mcp_server import run_stdio
     run_stdio()
+
+
+@cli.command("tool", context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
+@click.argument("tool_name")
+@click.pass_context
+def tool(ctx, tool_name: str):
+    """Run any Mnemo tool by name (CLI gateway for agents without MCP).
+
+    Examples:
+        mnemo tool recall
+        mnemo tool lookup --query AuthService
+        mnemo tool graph --action stats
+        mnemo tool remember --content "uses Redis for caching"
+        mnemo tool search_memory --query "auth" --deep true
+    """
+    import json as json_mod
+    from .mcp_server import handle_tool_call
+
+    # Normalize: allow both "recall" and "mnemo_recall"
+    if not tool_name.startswith("mnemo_"):
+        tool_name = f"mnemo_{tool_name}"
+
+    # Parse --key value pairs from extra args
+    args = {}
+    extra = ctx.args
+    i = 0
+    while i < len(extra):
+        token = extra[i]
+        if token.startswith("--"):
+            key = token.lstrip("-")
+            if i + 1 < len(extra) and not extra[i + 1].startswith("--"):
+                val = extra[i + 1]
+                # Try to parse as JSON for complex types (arrays, objects, booleans)
+                try:
+                    val = json_mod.loads(val)
+                except (json_mod.JSONDecodeError, ValueError):
+                    pass
+                args[key] = val
+                i += 2
+            else:
+                args[key] = True
+                i += 1
+        else:
+            i += 1
+
+    result = handle_tool_call(tool_name, args)
+    # handle_tool_call returns a dict with content
+    content = result.get("content", [])
+    for block in content:
+        if block.get("type") == "text":
+            click.echo(block["text"])
+
+
+@cli.command("tools")
+def tools_list():
+    """List all available Mnemo tools."""
+    from .tool_registry import all_tools
+
+    for t in all_tools():
+        name = t["name"].replace("mnemo_", "")
+        click.echo(f"  {name:25s} {t['description'][:80]}")
+    click.echo("\nUsage: mnemo tool <name> [--arg value ...]")
+    click.echo("Example: mnemo tool lookup --query AuthService")
 
 
 @cli.command()

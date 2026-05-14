@@ -29,8 +29,54 @@ def _validate_required(arguments: dict, required: list[str]) -> str | None:
     return None
 
 
+# --- Input sanitization ---
+_MAX_STRING_LENGTH = 100_000
+_MAX_ARRAY_LENGTH = 500
+
+
+def _sanitize_arguments(arguments: dict, schema: dict | None) -> str | None:
+    """Validate argument types and enforce limits. Returns error message or None."""
+    if not schema:
+        return None
+    properties = schema.get("inputSchema", {}).get("properties", {})
+    for key, value in arguments.items():
+        if key == "repo_path":
+            continue
+        prop_schema = properties.get(key, {})
+        expected_type = prop_schema.get("type")
+        # Type validation
+        if expected_type == "string" and not isinstance(value, str):
+            arguments[key] = str(value) if value is not None else ""
+        elif expected_type == "integer" and not isinstance(value, int):
+            try:
+                arguments[key] = int(value)
+            except (ValueError, TypeError):
+                return f"Field '{key}' must be an integer"
+        elif expected_type == "boolean" and not isinstance(value, bool):
+            arguments[key] = bool(value)
+        elif expected_type == "array" and not isinstance(value, list):
+            return f"Field '{key}' must be an array"
+        # Length limits
+        if isinstance(value, str) and len(value) > _MAX_STRING_LENGTH:
+            return f"Field '{key}' exceeds maximum length ({_MAX_STRING_LENGTH} chars)"
+        if isinstance(value, list) and len(value) > _MAX_ARRAY_LENGTH:
+            return f"Field '{key}' exceeds maximum array length ({_MAX_ARRAY_LENGTH} items)"
+    # Path traversal check for file-related arguments
+    for key in ("file", "query", "repo_path"):
+        val = arguments.get(key, "")
+        if isinstance(val, str) and ".." in val.split("/"):
+            # Allow .. only if it resolves within a reasonable path
+            try:
+                resolved = Path(val).resolve()
+                if str(resolved).startswith("/etc") or str(resolved).startswith("/proc"):
+                    return f"Field '{key}' contains disallowed path"
+            except (ValueError, OSError):
+                return f"Field '{key}' contains invalid path"
+    return None
+
+
 def handle_tool_call(tool_name: str, arguments: dict) -> dict:
-    """Route MCP tool calls with input validation."""
+    """Route MCP tool calls with input validation and sanitization."""
     # Validate required fields from schema (O(1) lookup via registry)
     from .tool_registry import get_schema as _get_schema
     schema = _get_schema(tool_name)
@@ -38,6 +84,10 @@ def handle_tool_call(tool_name: str, arguments: dict) -> dict:
         required = schema.get("inputSchema", {}).get("required", [])
         required = [r for r in required if r != "repo_path"]
         err = _validate_required(arguments, required)
+        if err:
+            return {"content": [{"type": "text", "text": err}], "isError": True}
+        # Sanitize inputs
+        err = _sanitize_arguments(arguments, schema)
         if err:
             return {"content": [{"type": "text", "text": err}], "isError": True}
     elif tool_name == "mnemo_init":
@@ -69,10 +119,8 @@ def handle_tool_call(tool_name: str, arguments: dict) -> dict:
     handler = _registry_handler(tool_name)
     if handler:
         try:
-            result = handler(repo_root, arguments)
-            # Enrich response with proactive context
-            from .enrichment import enrich_response
-            result = enrich_response(repo_root, tool_name, result, arguments)
+            from .middleware import apply_middleware
+            result = apply_middleware(tool_name, arguments, repo_root, handler)
             return {"content": [{"type": "text", "text": result}]}
         except Exception as exc:
             return {"content": [{"type": "text", "text": f"Error: {exc}"}], "isError": True}
