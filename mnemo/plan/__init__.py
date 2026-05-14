@@ -498,7 +498,7 @@ def _promote_plan(repo_root: Path, title: str) -> str:
 # --- Auto-plan detection ---
 
 _PLAN_SIGNALS = re.compile(
-    r'\b(migrate|migration|refactor|implement|add support|convert|replace|upgrade|move to|switch to|introduce|build|create|set up)\b',
+    r'\b(plan|migrate|migration|refactor|implement|add support|convert|replace|upgrade|move to|switch to|introduce|build|create|set up)\b',
     re.I,
 )
 
