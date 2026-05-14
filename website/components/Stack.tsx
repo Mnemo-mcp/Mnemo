@@ -1,41 +1,33 @@
 export default function Stack() {
-  const cards = [
-    {
-      title: 'Knowledge Graph',
-      description: 'NetworkX graph with 880+ nodes and 1455+ edges. Services, classes, interfaces, methods, packages, and people connected by structural relationships across 14 languages.',
-      color: 'border-accent-pink',
-      text: 'text-accent-pink',
-    },
-    {
-      title: 'Memory Lifecycle',
-      description: 'Tiered retention with Ebbinghaus decay. Memories auto-categorize, auto-create plans, detect contradictions, and enrich every response with proactive context.',
-      color: 'border-accent-blue',
-      text: 'text-accent-blue',
-    },
-    {
-      title: 'Hybrid Search',
-      description: 'BM25 + ChromaDB vector + graph traversal, fused via Reciprocal Rank Fusion. Finds code by meaning, not just filename. Zero external databases.',
-      color: 'border-accent-green',
-      text: 'text-accent-green',
-    },
-  ];
-
   return (
-    <section id="stack" className="py-24 px-6">
+    <section id="stack" className="py-24 px-6 border-t border-border-subtle">
       <div className="max-w-5xl mx-auto">
-        <h2 className="text-2xl md:text-3xl font-bold text-center mb-3">
-          <span className="text-gradient">Three pillars of engineering cognition</span>
-        </h2>
-        <p className="text-gray-500 text-sm text-center mb-12 max-w-xl mx-auto">
-          Each pillar gives your AI agent a deeper, persistent understanding of your codebase that survives across sessions.
-        </p>
-        <div className="grid md:grid-cols-3 gap-4">
-          {cards.map(card => (
-            <div key={card.title} className={`card p-6 border-t-2 ${card.color}`}>
-              <h3 className={`text-sm font-semibold mb-3 ${card.text}`}>{card.title}</h3>
-              <p className="text-xs text-gray-500 leading-relaxed">{card.description}</p>
-            </div>
-          ))}
+        <div className="accent-line mb-6" />
+        <h2 className="heading text-2xl md:text-3xl mb-4">Three pillars of engineering cognition</h2>
+        <p className="text-text-secondary text-sm mb-14 max-w-lg">Each gives your AI agent a deeper, persistent understanding that survives across sessions.</p>
+
+        <div className="grid md:grid-cols-3 gap-px bg-border-subtle">
+          <div className="bg-surface p-8">
+            <span className="font-mono text-xs text-accent tracking-wider">01</span>
+            <h3 className="heading text-lg mt-3 mb-3">Knowledge Graph</h3>
+            <p className="text-sm text-text-secondary leading-relaxed">
+              NetworkX graph with 880+ nodes. Services, classes, interfaces, methods, and people connected by structural relationships. Tree-sitter parses 14 languages into AST. Query neighbors, paths, hubs, and impact.
+            </p>
+          </div>
+          <div className="bg-surface p-8">
+            <span className="font-mono text-xs text-accent tracking-wider">02</span>
+            <h3 className="heading text-lg mt-3 mb-3">Memory Lifecycle</h3>
+            <p className="text-sm text-text-secondary leading-relaxed">
+              Tiered retention with decay scoring. Memories auto-categorize, detect contradictions, and enrich every response with proactive context. Branch-aware isolation prevents context bleed.
+            </p>
+          </div>
+          <div className="bg-surface p-8">
+            <span className="font-mono text-xs text-accent tracking-wider">03</span>
+            <h3 className="heading text-lg mt-3 mb-3">Hybrid Search</h3>
+            <p className="text-sm text-text-secondary leading-relaxed">
+              BM25 keyword + ChromaDB vector + graph traversal, fused via Reciprocal Rank Fusion. Finds code by meaning, not filename. Falls back gracefully without ChromaDB.
+            </p>
+          </div>
         </div>
       </div>
     </section>

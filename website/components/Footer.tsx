@@ -1,23 +1,20 @@
 export default function Footer() {
   return (
-    <footer className="border-t border-white/[0.06] py-10 px-6">
-      <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="flex items-center gap-2">
-          <img src="/Mnemo/icon.png" alt="Mnemo" className="w-6 h-6 rounded-md" />
-          <span className="font-semibold text-sm">Mnemo</span>
+    <footer className="border-t border-border-subtle py-12 px-6">
+      <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
+        <div className="flex items-center gap-3">
+          <img src="/Mnemo/icon.png" alt="Mnemo" className="w-5 h-5 rounded-sm" />
+          <span className="font-display text-sm font-bold">Mnemo</span>
+          <span className="text-xs text-text-muted">v0.4.0</span>
         </div>
-        <div className="flex items-center gap-6 text-xs text-gray-500">
-          <a href="https://github.com/Mnemo-mcp/Mnemo" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
-            GitHub
-          </a>
-          <a href="https://github.com/Mnemo-mcp/Mnemo/issues" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
-            Issues
-          </a>
-          <a href="https://github.com/Mnemo-mcp/Mnemo/releases" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
-            Releases
-          </a>
+
+        <div className="flex items-center gap-8">
+          <a href="https://pypi.org/project/mnemo-dev/" className="text-xs text-text-muted hover:text-accent transition-colors font-mono">PyPI</a>
+          <a href="https://www.npmjs.com/package/@mnemo-dev/mcp" className="text-xs text-text-muted hover:text-accent transition-colors font-mono">npm</a>
+          <a href="https://github.com/Mnemo-mcp/Mnemo" className="text-xs text-text-muted hover:text-accent transition-colors font-mono">GitHub</a>
         </div>
-        <span className="text-[10px] text-gray-600 uppercase tracking-wider">AGPL-3.0</span>
+
+        <p className="text-xs text-text-muted">AGPL-3.0</p>
       </div>
     </footer>
   );

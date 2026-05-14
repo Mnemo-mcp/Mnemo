@@ -1,67 +1,56 @@
 'use client';
 
-import Terminal from './Terminal';
-import Stats from './Stats';
+import { useEffect, useState } from 'react';
+
+const STATS = [
+  { value: '56', label: 'MCP Tools' },
+  { value: '14', label: 'Languages' },
+  { value: '140+', label: 'Tests' },
+  { value: '0', label: 'External DBs' },
+];
 
 export default function Hero() {
-  const terminalLines = [
-    '$ mnemo init',
-    '[mnemo] Parsed 157 files · 14 languages · tree-sitter AST',
-    '[mnemo] Graph built: 880 nodes, 1455 edges',
-    '[mnemo] Architecture: Clean Architecture + CQRS detected',
-    '[mnemo] 56 MCP tools online. Ready.',
-    '',
-    '$ mnemo recall',
-    '# Active Context',
-    '  Decision: CosmosDB for persistence (team expertise)',
-    '  Pattern: Handler-per-payer integration strategy',
-    '  Plan: SOAP Migration [2/4] → next: update XML models',
-    '  Warning: PaymentService has 3 regression risks',
-  ];
+  const [visible, setVisible] = useState(false);
+  useEffect(() => setVisible(true), []);
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center pt-20 pb-16 px-6 overflow-hidden">
-      <div className="absolute inset-0 grid-bg opacity-40" />
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent-pink/5 rounded-full blur-[128px]" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent-blue/5 rounded-full blur-[128px]" />
+    <section className="min-h-screen flex flex-col justify-center pt-24 pb-20 px-6">
+      <div className="max-w-5xl mx-auto">
+        <div className={`transition-all duration-700 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+          <div className="accent-line mb-8" />
 
-      <div className="relative z-10 max-w-4xl mx-auto text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1 border border-accent-pink/30 text-accent-pink text-xs font-medium tracking-wider uppercase mb-8 rounded-full">
-          Local-first · No external databases · 56 MCP tools
+          <h1 className="heading text-4xl sm:text-5xl md:text-6xl lg:text-7xl leading-[1.1] mb-8">
+            Your agent forgets everything.
+            <br />
+            <span className="text-accent">Mnemo doesn&apos;t.</span>
+          </h1>
+
+          <p className="font-body text-lg md:text-xl text-text-secondary max-w-2xl leading-relaxed mb-6">
+            Persistent engineering cognition for AI coding agents. One local process gives your agent a knowledge graph, memory lifecycle, and hybrid search engine across every session.
+          </p>
+
+          <p className="text-sm text-text-muted max-w-xl mb-12">
+            Works with Amazon Q, Cursor, Claude Code, Kiro, Copilot, Gemini CLI, and 5 more MCP clients. No external databases. No API keys. Everything in .mnemo/.
+          </p>
+
+          <div className="flex flex-wrap gap-4 mb-16">
+            <a href="#install" className="px-6 py-3 text-sm font-semibold bg-accent text-surface rounded-sm hover:bg-accent-bright transition-colors">
+              Install Mnemo
+            </a>
+            <a href="https://github.com/Mnemo-mcp/Mnemo" className="px-6 py-3 text-sm font-semibold border border-border text-text-primary rounded-sm hover:border-accent/50 transition-colors">
+              View Source
+            </a>
+          </div>
         </div>
 
-        <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold leading-[1.05] mb-6 tracking-tight">
-          <span className="text-white">Your agent forgets</span>
-          <br />
-          <span className="text-gradient">everything.</span>
-          <br />
-          <span className="text-white">Mnemo doesn&apos;t.</span>
-        </h1>
-
-        <p className="text-base md:text-lg text-gray-400 max-w-2xl mx-auto mb-4 leading-relaxed">
-          Persistent engineering cognition for AI coding agents.
-          A knowledge graph, memory lifecycle, and hybrid search engine
-          that runs as one local process — no infrastructure required.
-        </p>
-
-        <p className="text-sm text-gray-600 max-w-xl mx-auto mb-10">
-          Works with Amazon Q, Cursor, Claude Code, Kiro, Copilot, Gemini CLI, and 5 more MCP clients.
-        </p>
-
-        <div className="flex flex-wrap justify-center gap-4 mb-12">
-          <a href="#install" className="px-6 py-3 text-sm font-semibold bg-accent-pink text-white rounded-lg hover:bg-accent-pink/90 transition-colors">
-            Install Mnemo
-          </a>
-          <a href="https://github.com/Mnemo-mcp/Mnemo" className="px-6 py-3 text-sm font-semibold border border-white/20 text-white rounded-lg hover:bg-white/5 transition-colors">
-            Source on GitHub
-          </a>
+        <div className={`grid grid-cols-2 sm:grid-cols-4 gap-8 pt-12 border-t border-border-subtle transition-all duration-700 delay-200 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+          {STATS.map((s) => (
+            <div key={s.label}>
+              <div className="font-display text-3xl md:text-4xl font-bold text-accent">{s.value}</div>
+              <div className="text-xs text-text-muted mt-1 uppercase tracking-[0.15em] font-mono">{s.label}</div>
+            </div>
+          ))}
         </div>
-
-        <div className="max-w-2xl mx-auto mb-12">
-          <Terminal lines={terminalLines} />
-        </div>
-
-        <Stats />
       </div>
     </section>
   );

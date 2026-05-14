@@ -2,36 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
 
 @layer base {
   body {
-    @apply bg-surface text-white antialiased font-mono;
+    @apply bg-surface text-text-primary antialiased font-body;
+    font-feature-settings: 'kern' 1, 'liga' 1;
+  }
+
+  ::selection {
+    background: oklch(0.72 0.14 55 / 0.3);
   }
 }
 
 @layer utilities {
-  .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-accent-pink to-accent-blue;
+  .heading {
+    @apply font-display tracking-tight;
   }
 
   .card {
-    @apply bg-surface-raised border border-white/[0.06] rounded-lg;
+    @apply bg-surface-raised border border-border-subtle rounded-sm;
   }
 
-  .grid-bg {
-    background-image:
-      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-    background-size: 64px 64px;
+  .accent-line {
+    @apply w-12 h-0.5 bg-accent;
   }
-}
-
-@keyframes fadeUp {
-  0% { opacity: 0; transform: translateY(12px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-
-.animate-fade-up {
-  animation: fadeUp 0.5s ease-out forwards;
 }
