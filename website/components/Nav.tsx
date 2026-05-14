@@ -21,9 +21,7 @@ export default function Nav() {
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-surface/90 backdrop-blur-md border-b border-white/[0.06]' : ''}`}>
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
         <a href="#" className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-md bg-accent-pink flex items-center justify-center font-bold text-xs text-white">
-            M
-          </div>
+          <img src="/Mnemo/icon.png" alt="Mnemo" className="w-7 h-7 rounded-md" />
           <span className="font-semibold text-sm">Mnemo</span>
         </a>
 
