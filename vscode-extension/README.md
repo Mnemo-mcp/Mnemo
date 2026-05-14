@@ -1,6 +1,6 @@
 # Mnemo
 
-**[Website](https://mnemo-mcp.github.io/Mnemo/)** · **[PyPI](https://pypi.org/project/mnemo-dev/)** · **[GitHub](https://github.com/Mnemo-mcp/Mnemo)**
+**[Website](https://mnemo-mcp.github.io/Mnemo/)** · **[PyPI](https://pypi.org/project/mnemo-dev/)** · **[npm](https://www.npmjs.com/package/@mnemo-dev/mcp)** · **[GitHub](https://github.com/Mnemo-mcp/Mnemo)**
 
 Persistent memory, knowledge graph, and code intelligence for AI coding assistants. One install gives your AI agent full project context across every chat session.
 
