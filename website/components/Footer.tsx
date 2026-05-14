@@ -3,9 +3,7 @@ export default function Footer() {
     <footer className="border-t border-white/[0.06] py-10 px-6">
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-accent-pink flex items-center justify-center font-bold text-[10px] text-white">
-            M
-          </div>
+          <img src="/Mnemo/icon.png" alt="Mnemo" className="w-6 h-6 rounded-md" />
           <span className="font-semibold text-sm">Mnemo</span>
         </div>
         <div className="flex items-center gap-6 text-xs text-gray-500">
