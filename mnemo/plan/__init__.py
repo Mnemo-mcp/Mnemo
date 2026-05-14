@@ -313,8 +313,9 @@ def auto_detect_completion(repo_root: Path, text: str) -> str | None:
 
 
 def _sync_tasks_md(repo_root: Path, plans: list[dict]) -> None:
-    """Sync plans to TASKS.md — append/update the Active Plans section."""
-    tasks_md = repo_root / "TASKS.md"
+    """Sync plans to .mnemo/TASKS.md."""
+    from ..config import mnemo_path
+    tasks_md = mnemo_path(repo_root) / "TASKS.md"
 
     # Build the active plans section
     section_lines = ["\n## Active Plans\n"]
@@ -562,7 +563,15 @@ def _extract_plan_title(text: str) -> str:
 
 
 def auto_create_plan_from_text(repo_root: Path, text: str, source: str = "memory") -> str | None:
-    """If text looks like a plan, auto-create it. Returns message or None."""
+    """If text looks like a plan, auto-create it. Returns message or None.
+    
+    Only triggers from explicit plan creation (source='plan'), not from
+    mnemo_remember which would create unwanted plans from normal context.
+    """
+    # Only auto-create plans from explicit sources, not from remember
+    if source == "memory":
+        return None
+
     if not _looks_like_plan(text):
         return None
 

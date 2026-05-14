@@ -8,7 +8,7 @@ from ..tool_registry import tool
 
 
 @tool("mnemo_plan",
-      "Plan mode — create, track, and update task plans. Actions: create (new plan), done (mark task complete), add (add task to plan), remove (remove task), status (show progress). Plans auto-sync to TASKS.md.",
+      "Plan mode — create, track, and update task plans. Actions: create (new plan), done (mark task complete), add (add task to plan), remove (remove task), status (show progress).",
       properties={
           "action": {"type": "string", "description": "create, done, add, remove, or status"},
           "title": {"type": "string", "description": "Plan title (for create) or task title (for add)"},
