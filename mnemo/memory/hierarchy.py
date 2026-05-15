@@ -40,7 +40,7 @@ def assign_tier(category: str, content: str) -> str:
         tier = "persistent"
 
     # Demote to working if content is very short/transient
-    if len(content) < 20 and tier == "session":
+    if content and len(content) < 20 and tier == "session":
         tier = "working"
 
     return tier

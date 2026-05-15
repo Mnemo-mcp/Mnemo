@@ -85,6 +85,7 @@ def _resolve_entities(repo_root: Path, content: str) -> str:
             content = re.sub(r'\b(this service|the service)\b', svc_match.group(1), content, flags=re.I)
     except Exception as exc:
         logger.debug(f"Entity resolution failed: {exc}")
+    return content
 
 
 def add_memory(repo_root: Path, content: str, category: str = "general", source: str = "user", tags: list[str] | None = None) -> dict[str, Any]:
@@ -104,7 +105,8 @@ def add_memory(repo_root: Path, content: str, category: str = "general", source:
 
     # Deduplication
     for existing in entries[-20:]:
-        if _text_similarity(content, existing.get("content", "")) >= DEDUP_SIMILARITY_THRESHOLD:
+        existing_content = existing.get("content") or ""
+        if existing_content and _text_similarity(content, existing_content) >= DEDUP_SIMILARITY_THRESHOLD:
             existing["timestamp"] = time.time()
             existing["recall_count"] = existing.get("recall_count", 0)
             storage.write_collection(Collections.MEMORY, entries)
@@ -142,7 +144,10 @@ def add_memory(repo_root: Path, content: str, category: str = "general", source:
     # Contradiction detection — supersede older memories with similar content in same category
     same_cat = [e for e in entries if e.get("category") == category and not e.get("superseded_by")][-30:]
     for existing in same_cat:
-        sim = _text_similarity(content, existing.get("content", ""))
+        existing_content = existing.get("content") or ""
+        if not existing_content:
+            continue
+        sim = _text_similarity(content, existing_content)
         if CONTRADICTION_SIMILARITY_THRESHOLD <= sim < DEDUP_SIMILARITY_THRESHOLD:
             existing["superseded_by"] = entry["id"]
             existing["superseded_at"] = time.time()

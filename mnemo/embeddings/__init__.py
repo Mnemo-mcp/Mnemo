@@ -15,6 +15,8 @@ from ..utils.synonyms import expand_synonyms
 
 
 def _tokenize(text: str) -> list[str]:
+    if not text:
+        return []
     normalized = text.lower().replace("_", " ")
     tokens = re.findall(r"[a-zA-Z0-9]+", normalized)
     return [stem(t) for t in tokens]
