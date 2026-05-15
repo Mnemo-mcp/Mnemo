@@ -13,7 +13,7 @@ from ..repo_map import _extract_file, MAX_FILE_SIZE
 from ..storage import Collections, get_storage
 
 
-def build_graph(repo_root: Path, graph: LocalGraph | None = None) -> LocalGraph:
+def build_graph(repo_root: Path, graph: LocalGraph | None = None, scanned: list | None = None) -> LocalGraph:
     """Build the full knowledge graph for a repository."""
     if graph is None:
         graph = LocalGraph(repo_root)
@@ -23,31 +23,19 @@ def build_graph(repo_root: Path, graph: LocalGraph | None = None) -> LocalGraph:
     all_class_names: set[str] = set()
     file_sources: dict[str, str] = {}
 
-    # Pass 1: Create service, file, class, interface, method nodes
-    for ext, language in SUPPORTED_EXTENSIONS.items():
-        for filepath in repo_root.rglob(f"*{ext}"):
-            if should_ignore(filepath) or filepath.stat().st_size > MAX_FILE_SIZE:
-                continue
-            try:
-                source = filepath.read_bytes()
-            except (OSError, PermissionError):
-                continue
-
-            rel = str(filepath.relative_to(repo_root))
+    # Use pre-scanned data if available, otherwise scan from disk
+    if scanned is not None:
+        for rel, language, source, info in scanned:
             parts = rel.split("/")
             service = parts[0] if len(parts) > 1 else "root"
 
-            # Service node
             service_id = f"service:{service}"
             graph.upsert_node(Node(id=service_id, type="service", name=service))
 
-            # File node
             file_id = f"file:{rel}"
             graph.upsert_node(Node(id=file_id, type="file", name=rel, properties={"language": language}))
             graph.upsert_edge(Edge(source=service_id, target=file_id, type="contains"))
 
-            # Parse
-            info = _extract_file(source, language)
             if not info:
                 continue
 
@@ -61,13 +49,11 @@ def build_graph(repo_root: Path, graph: LocalGraph | None = None) -> LocalGraph:
                 graph.upsert_node(Node(id=cls_id, type="class", name=name, properties={"file": rel, "implements": impl}))
                 graph.upsert_edge(Edge(source=file_id, target=cls_id, type="defines"))
 
-                # Implements/inherits edges
                 if impl:
                     for base in re.split(r'[,\s]+', impl):
                         base = base.strip()
                         if not base:
                             continue
-                        # Heuristic: starts with I and uppercase = interface
                         if base.startswith("I") and len(base) > 1 and base[1].isupper():
                             iface_id = f"interface:{base}"
                             graph.upsert_node(Node(id=iface_id, type="interface", name=base))
@@ -77,7 +63,6 @@ def build_graph(repo_root: Path, graph: LocalGraph | None = None) -> LocalGraph:
                             graph.upsert_node(Node(id=base_id, type="class", name=base))
                             graph.upsert_edge(Edge(source=cls_id, target=base_id, type="inherits"))
 
-                # Method nodes
                 for method_sig in cls.get("methods", []):
                     mname = method_sig.split("(")[0].split()[-1] if method_sig else ""
                     if mname and not mname.startswith("_"):
@@ -91,6 +76,69 @@ def build_graph(repo_root: Path, graph: LocalGraph | None = None) -> LocalGraph:
                     func_id = f"function:{rel}:{fname}"
                     graph.upsert_node(Node(id=func_id, type="function", name=fname, properties={"signature": func, "file": rel}))
                     graph.upsert_edge(Edge(source=file_id, target=func_id, type="defines"))
+    else:
+        # Pass 1: Create service, file, class, interface, method nodes
+        for ext, language in SUPPORTED_EXTENSIONS.items():
+            for filepath in repo_root.rglob(f"*{ext}"):
+                if should_ignore(filepath) or filepath.stat().st_size > MAX_FILE_SIZE:
+                    continue
+                try:
+                    source = filepath.read_bytes()
+                except (OSError, PermissionError):
+                    continue
+
+                rel = str(filepath.relative_to(repo_root))
+                parts = rel.split("/")
+                service = parts[0] if len(parts) > 1 else "root"
+
+                service_id = f"service:{service}"
+                graph.upsert_node(Node(id=service_id, type="service", name=service))
+
+                file_id = f"file:{rel}"
+                graph.upsert_node(Node(id=file_id, type="file", name=rel, properties={"language": language}))
+                graph.upsert_edge(Edge(source=service_id, target=file_id, type="contains"))
+
+                info = _extract_file(source, language)
+                if not info:
+                    continue
+
+                file_sources[rel] = source.decode(errors="replace")
+
+                for cls in info.get("classes", []):
+                    name = cls["name"]
+                    all_class_names.add(name)
+                    impl = cls.get("implements", "")
+                    cls_id = f"class:{name}"
+                    graph.upsert_node(Node(id=cls_id, type="class", name=name, properties={"file": rel, "implements": impl}))
+                    graph.upsert_edge(Edge(source=file_id, target=cls_id, type="defines"))
+
+                    if impl:
+                        for base in re.split(r'[,\s]+', impl):
+                            base = base.strip()
+                            if not base:
+                                continue
+                            if base.startswith("I") and len(base) > 1 and base[1].isupper():
+                                iface_id = f"interface:{base}"
+                                graph.upsert_node(Node(id=iface_id, type="interface", name=base))
+                                graph.upsert_edge(Edge(source=cls_id, target=iface_id, type="implements"))
+                            else:
+                                base_id = f"class:{base}"
+                                graph.upsert_node(Node(id=base_id, type="class", name=base))
+                                graph.upsert_edge(Edge(source=cls_id, target=base_id, type="inherits"))
+
+                    for method_sig in cls.get("methods", []):
+                        mname = method_sig.split("(")[0].split()[-1] if method_sig else ""
+                        if mname and not mname.startswith("_"):
+                            method_id = f"method:{name}.{mname}"
+                            graph.upsert_node(Node(id=method_id, type="method", name=f"{name}.{mname}", properties={"signature": method_sig, "file": rel}))
+                            graph.upsert_edge(Edge(source=cls_id, target=method_id, type="has_method"))
+
+                for func in info.get("functions", []):
+                    fname = func.split("(")[0].replace("def ", "").replace("func ", "").strip()
+                    if fname and not fname.startswith("_"):
+                        func_id = f"function:{rel}:{fname}"
+                        graph.upsert_node(Node(id=func_id, type="function", name=fname, properties={"signature": func, "file": rel}))
+                        graph.upsert_edge(Edge(source=file_id, target=func_id, type="defines"))
 
     # Pass 2: Call edges (which files reference which classes)
     for rel, source_text in file_sources.items():
