@@ -38,7 +38,7 @@ def ask(repo_root: Path, query: str) -> str:
     # Extract entity from query (longest capitalized word or quoted string)
     entity = _extract_entity(query)
 
-    from .tool_registry import get_handler
+    from ..tool_registry import get_handler
 
     results = []
 
