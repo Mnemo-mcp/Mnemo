@@ -38,6 +38,80 @@ def refresh_context_files(repo_root: Path) -> None:
             path.write_text(build_rule_with_context(repo_root, target), encoding="utf-8")
 
 
+def _generate_legacy_files(repo_root: Path) -> None:
+    """Generate summary.md and tree.md from LadybugDB for backward compat (recall, context files)."""
+    import json
+    from .engine.db import open_db, get_db_path
+    if not get_db_path(repo_root).exists():
+        return
+
+    base = mnemo_path(repo_root)
+    _, conn = open_db(repo_root)
+    lines = []
+    total_nodes = 0
+    total_edges = 0
+
+    try:
+        r = conn.execute("MATCH (n) RETURN count(n)")
+        total_nodes = r.get_next()[0]
+        r = conn.execute("MATCH ()-[e]->() RETURN count(e)")
+        total_edges = r.get_next()[0]
+
+        # Files by service
+        r = conn.execute("MATCH (f:File) RETURN f.path")
+        files_by_svc: dict[str, int] = {}
+        while r.has_next():
+            path = r.get_next()[0]
+            svc = path.split("/")[0] if "/" in path else "."
+            files_by_svc[svc] = files_by_svc.get(svc, 0) + 1
+
+        # Classes by service
+        r = conn.execute("MATCH (c:Class) RETURN c.name, c.file")
+        classes_by_svc: dict[str, list[str]] = {}
+        while r.has_next():
+            row = r.get_next()
+            svc = row[1].split("/")[0] if "/" in row[1] else "."
+            classes_by_svc.setdefault(svc, []).append(row[0])
+
+        # Function count
+        r = conn.execute("MATCH (f:Function) RETURN count(f)")
+        fn_count = r.get_next()[0]
+
+        # Communities
+        r = conn.execute("MATCH (c:Community) RETURN c.name LIMIT 5")
+        hubs = []
+        while r.has_next():
+            hubs.append(r.get_next()[0])
+
+        # Build tree
+        lines.append("# Repo Map")
+        lines.append("(use mnemo_lookup for method-level details, mnemo_query for relationships)")
+        lines.append("")
+        lines.append(f"Knowledge Graph: {total_nodes} nodes, {total_edges} edges")
+        if hubs:
+            lines.append(f"Key clusters: {', '.join(hubs)}")
+        lines.append("")
+
+        for svc in sorted(files_by_svc.keys()):
+            fc = files_by_svc[svc]
+            classes = classes_by_svc.get(svc, [])
+            lines.append(f"{svc}/ ({fc} files)")
+            if classes:
+                shown = sorted(set(classes))[:8]
+                lines.append(f"  Key classes: {', '.join(shown)}")
+                if len(classes) > 8:
+                    lines.append(f"  ... +{len(classes) - 8} more classes")
+            lines.append(f"  Functions: {fn_count}" if svc == "." else "")
+
+    except RuntimeError:
+        lines = ["(graph not available — run mnemo init)"]
+
+    tree_content = "\n".join(line for line in lines if line is not None)
+    (base / "tree.md").write_text(tree_content, encoding="utf-8")
+    (base / "summary.md").write_text(tree_content, encoding="utf-8")
+    (base / "graph_meta.json").write_text(json.dumps({"nodes": total_nodes, "edges": total_edges}), encoding="utf-8")
+
+
 def _ensure_gitignore(repo_root: Path) -> None:
     """Ensure local Mnemo data is ignored by git."""
     gitignore = repo_root / ".gitignore"
@@ -62,6 +136,9 @@ def init(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
     print("⏳ Indexing repository...", flush=True)
     from .engine.pipeline import run_pipeline
     stats = run_pipeline(repo_root, force=False)
+
+    # Generate legacy files (summary.md, tree.md) from LadybugDB for recall/context
+    _generate_legacy_files(repo_root)
 
     # Generate default rules.yaml if not exists
     from .drift import _init_rules

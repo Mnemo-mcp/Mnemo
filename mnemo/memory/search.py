@@ -114,7 +114,22 @@ def search_memory(repo_root: Path, query: str, deep: bool = False, tags: list[st
         if rid not in all_ids:
             all_ids[rid] = r
 
-    # Graph-boosted search
+    # Graph-boosted search (new engine: LadybugDB)
+    try:
+        from ..engine.memory_graph import graph_boosted_search
+        lbug_results = graph_boosted_search(repo_root, query, limit=limit)
+        for rank, r in enumerate(lbug_results):
+            rid = r.get("id", f"graph-{rank}")
+            # Normalize ID format
+            if rid.startswith("mem:"):
+                rid = f"memory-{rid.replace('mem:', '')}"
+            graph_rank[rid] = rank
+            if rid not in all_ids:
+                all_ids[rid] = {"id": rid, "content": r.get("content", ""), "metadata": {"category": r.get("category", "general")}}
+    except Exception:
+        pass
+
+    # Graph-boosted search (old engine: NetworkX — fallback)
     try:
         from ..graph.local import LocalGraph
         graph = LocalGraph(repo_root)
@@ -193,6 +208,34 @@ def search_memory(repo_root: Path, query: str, deep: bool = False, tags: list[st
 
 def lookup(repo_root: Path, query: str) -> str:
     """Look up detailed info for a specific file or folder - parses on demand."""
+    # Fast path: try LadybugDB first
+    try:
+        from ..engine.db import open_db, get_db_path
+        if get_db_path(repo_root).exists():
+            _, conn = open_db(repo_root)
+            # Search for matching classes/functions
+            results = []
+            r = conn.execute(f"MATCH (c:Class) WHERE c.name CONTAINS '{query}' OR c.file CONTAINS '{query}' RETURN c.name, c.file, c.implements LIMIT 10")
+            while r.has_next():
+                row = r.get_next()
+                results.append(f"**{row[0]}** ({row[1]})" + (f" : {row[2]}" if row[2] else ""))
+                # Get methods
+                r2 = conn.execute(f"MATCH (c:Class {{name: '{row[0]}'}})-[:HAS_METHOD]->(m:Method) RETURN m.name, m.signature")
+                while r2.has_next():
+                    mrow = r2.get_next()
+                    results.append(f"  {mrow[1][:100]}")
+
+            r = conn.execute(f"MATCH (f:Function) WHERE f.name CONTAINS '{query}' OR f.file CONTAINS '{query}' RETURN f.name, f.file, f.signature LIMIT 10")
+            while r.has_next():
+                row = r.get_next()
+                results.append(f"**{row[0]}** ({row[1]}): {row[2][:80]}")
+
+            if results:
+                return f"# Lookup: {query}\n\n" + "\n".join(results)
+    except Exception:
+        pass
+
+    # Fallback: parse from disk
     from ..repo_map import MAX_FILE_SIZE, SUPPORTED_EXTENSIONS, _extract_file, _should_ignore
     from ..chunking import make_code_chunks
 

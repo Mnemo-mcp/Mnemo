@@ -12,7 +12,41 @@ def query_graph(repo_root: Path, action: str, **kwargs) -> str:
     """Execute a graph query and return formatted markdown."""
     graph = LocalGraph(repo_root)
     if not graph.exists():
-        return "No knowledge graph found. Run `mnemo map` to build it."
+        # Try LadybugDB engine
+        try:
+            from ..engine.db import open_db, get_db_path
+            if get_db_path(repo_root).exists():
+                _, conn = open_db(repo_root)
+                if action == "stats":
+                    r = conn.execute("MATCH (n) RETURN count(n)")
+                    nodes = r.get_next()[0]
+                    r = conn.execute("MATCH ()-[e]->() RETURN count(e)")
+                    edges = r.get_next()[0]
+                    r = conn.execute("MATCH (c:Class) RETURN count(c)")
+                    classes = r.get_next()[0]
+                    r = conn.execute("MATCH (f:Function) RETURN count(f)")
+                    funcs = r.get_next()[0]
+                    r = conn.execute("MATCH (m:Method) RETURN count(m)")
+                    methods = r.get_next()[0]
+                    r = conn.execute("MATCH (c:Community) RETURN count(c)")
+                    comms = r.get_next()[0]
+                    return (
+                        f"Nodes: {nodes}, Edges: {edges}\n"
+                        f"Classes: {classes}, Functions: {funcs}, Methods: {methods}\n"
+                        f"Communities: {comms}\n"
+                        f"(Source: LadybugDB engine)"
+                    )
+                elif action == "find":
+                    name = kwargs.get("name", "")
+                    if name:
+                        from ..tools.engine import _search
+                        return _search(repo_root, {"query": name, "limit": 20})
+                    return "Provide a name to search for."
+                else:
+                    return "Use mnemo_query for Cypher queries, or mnemo_symbol/mnemo_impact for code intelligence."
+        except Exception:
+            pass
+        return "No knowledge graph found. Run `mnemo init` to build it."
 
     if action == "stats":
         return _format_stats(graph)
