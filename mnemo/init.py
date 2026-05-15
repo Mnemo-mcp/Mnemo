@@ -59,6 +59,7 @@ def init(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
     base = mnemo_path(repo_root)
     base.mkdir(exist_ok=True)
 
+    print("⏳ Scanning repository...", flush=True)
     save_repo_map(repo_root)
 
     # MNO-028: Auto-install ChromaDB for semantic search
@@ -67,7 +68,7 @@ def init(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
     except ImportError:
         import subprocess  # noqa: F811
         import sys
-        print("Installing semantic search (chromadb)...")
+        print("⏳ Installing semantic search (chromadb)... this may take a minute", flush=True)
         try:
             subprocess.check_call(
                 [sys.executable, "-m", "pip", "install", "chromadb>=0.5", "--quiet"],
@@ -75,9 +76,10 @@ def init(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
                 stderr=subprocess.DEVNULL,
             )
         except Exception:
-            print("Warning: chromadb install failed. Semantic search will use keyword fallback.")
+            print("⚠️  chromadb install failed. Semantic search will use keyword fallback.")
 
     # Generate repo identity (MNO-802)
+    print("⏳ Generating repo identity...", flush=True)
     from .repo_map.identity import save_identity
     save_identity(repo_root)
 
@@ -86,9 +88,9 @@ def init(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
     _init_rules(repo_root)
 
     from .knowledge import init_knowledge
-
     init_knowledge(repo_root)
 
+    print("⏳ Detecting patterns...", flush=True)
     from .intelligence import detect_patterns
 
     patterns = detect_patterns(repo_root)
@@ -127,6 +129,7 @@ def init(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
             lines.append(f"- {target.display_name} MCP {state} at {display_path}")
 
     # Auto-install hooks + skills for clients that support them
+    print("⏳ Installing hooks and agent config...", flush=True)
     from .hooks import install_hooks
     for target in targets:
         if target.key == "kiro":

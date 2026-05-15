@@ -113,22 +113,57 @@ def reset(path: str):
     repo_root = Path(path).resolve()
     base = mnemo_path(repo_root)
 
-    # Remove .mnemo/ data
-    if base.exists():
-        shutil.rmtree(base)
-        click.echo(".mnemo/ deleted.")
-    else:
+    if not base.exists():
         click.echo("Nothing to reset - .mnemo/ not found.")
         return
 
+    # Remove .mnemo/ data
+    click.echo("⏳ Removing .mnemo/ data...")
+    shutil.rmtree(base)
+    click.echo("  ✓ .mnemo/ deleted")
+
     # Remove client context files
+    click.echo("⏳ Removing context files...")
     for target in CLIENTS.values():
         ctx = context_path(repo_root, target)
         if ctx and ctx.exists():
             ctx.unlink()
-            click.echo(f"Removed {ctx.relative_to(repo_root)}")
+            click.echo(f"  ✓ Removed {ctx.relative_to(repo_root)}")
 
-    click.echo("Run `mnemo init` to start fresh.")
+    # Remove generated Kiro files
+    click.echo("⏳ Removing generated Kiro/agent files...")
+    kiro_dirs = [
+        repo_root / ".kiro" / "hooks",
+        repo_root / ".kiro" / "agents",
+        repo_root / ".kiro" / "skills",
+    ]
+    for d in kiro_dirs:
+        if d.exists():
+            shutil.rmtree(d)
+            click.echo(f"  ✓ Removed {d.relative_to(repo_root)}/")
+
+    kiro_mcp = repo_root / ".kiro" / "settings" / "mcp.json"
+    if kiro_mcp.exists():
+        kiro_mcp.unlink()
+        click.echo(f"  ✓ Removed {kiro_mcp.relative_to(repo_root)}")
+
+    # Remove .kiro/ dir itself if empty
+    kiro_dir = repo_root / ".kiro"
+    if kiro_dir.exists() and not any(kiro_dir.rglob("*")):
+        shutil.rmtree(kiro_dir)
+        click.echo("  ✓ Removed empty .kiro/")
+
+    # Remove Claude Code hooks
+    claude_hooks = repo_root / ".claude" / "hooks"
+    if claude_hooks.exists():
+        shutil.rmtree(claude_hooks)
+        click.echo(f"  ✓ Removed {claude_hooks.relative_to(repo_root)}/")
+    claude_guide = repo_root / ".claude" / "mnemo-guide.md"
+    if claude_guide.exists():
+        claude_guide.unlink()
+        click.echo(f"  ✓ Removed {claude_guide.relative_to(repo_root)}")
+
+    click.echo("\n✅ Reset complete. Run `mnemo init` to start fresh.")
 
 
 @cli.command()
