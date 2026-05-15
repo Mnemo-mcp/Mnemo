@@ -23,7 +23,7 @@ class TestMCPToolList:
     """Test that tools/list returns valid schemas."""
 
     def test_tools_list_not_empty(self):
-        assert len(TOOLS) > 50
+        assert len(TOOLS) >= 15
 
     def test_all_tools_have_required_fields(self):
         for tool in TOOLS:

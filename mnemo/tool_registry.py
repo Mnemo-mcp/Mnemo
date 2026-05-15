@@ -47,6 +47,37 @@ def tool(name: str, description: str, properties: dict | None = None, required: 
     return decorator
 
 
+# Core tool set — only these are exposed to agents
+_CORE_TOOLS = {
+    "mnemo_recall", "mnemo_remember", "mnemo_decide", "mnemo_search",
+    "mnemo_plan", "mnemo_graph", "mnemo_lookup", "mnemo_audit",
+    "mnemo_record", "mnemo_generate", "mnemo_map", "mnemo_context",
+    "mnemo_forget", "mnemo_ask", "mnemo_lesson",
+}
+
+
+def all_tools() -> list[dict]:
+    """Return only core tools in MCP tools/list format (15 tools)."""
+    _ensure_loaded()
+    return [
+        {"name": name, "description": schema.get("description", ""), "inputSchema": schema.get("inputSchema", {})}
+        for name, (_, schema) in _REGISTRY.items()
+        if name in _CORE_TOOLS
+    ]
+
+
+def registered_names() -> list[str]:
+    """Return core tool names exposed to agents."""
+    _ensure_loaded()
+    return [n for n in _REGISTRY.keys() if n in _CORE_TOOLS]
+
+
+def all_registered_names() -> list[str]:
+    """Return ALL registered tool names (including internal/aliases)."""
+    _ensure_loaded()
+    return list(_REGISTRY.keys())
+
+
 _tools_loaded = False
 
 
@@ -73,19 +104,7 @@ def get_schema(name: str) -> dict | None:
     return entry[1] if entry else None
 
 
-def all_tools() -> list[dict]:
-    """Return all registered tools in MCP tools/list format."""
-    _ensure_loaded()
-    return [
-        {"name": name, "description": schema.get("description", ""), "inputSchema": schema.get("inputSchema", {})}
-        for name, (_, schema) in _REGISTRY.items()
-    ]
 
-
-def registered_names() -> list[str]:
-    """Return all registered tool names."""
-    _ensure_loaded()
-    return list(_REGISTRY.keys())
 
 
 _hooks_wired = False
