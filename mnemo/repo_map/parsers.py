@@ -6,14 +6,22 @@ from ..utils.logger import get_logger
 
 logger = get_logger("repo_map")
 
+_parser_cache: dict[str, object] = {}
+
 
 def _get_parser(language: str):
+    if language in _parser_cache:
+        return _parser_cache[language]
+
     from tree_sitter import Language, Parser
 
     lang = _resolve_language(language)
     if not lang:
+        _parser_cache[language] = None
         return None
-    return Parser(Language(lang))
+    parser = Parser(Language(lang))
+    _parser_cache[language] = parser
+    return parser
 
 
 def _resolve_language(language: str):

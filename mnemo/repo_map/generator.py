@@ -26,21 +26,44 @@ def _save_index_manifest(repo_root: Path, files: set[str]) -> None:
 
 def _scan_repo(repo_root: Path) -> list[tuple[str, str, bytes, dict[str, Any] | None]]:
     """Single scan pass: returns list of (rel_path, language, source, parsed_info)."""
+    import os
+
     # Try Roslyn for C# if .NET SDK is available
     from ..analyzers import roslyn_available, run_roslyn_analyzer, roslyn_to_mnemo_format
     roslyn_data: dict[str, dict] = {}
     if roslyn_available(repo_root):
+        print("  Running Roslyn analyzer for C#...", flush=True)
         results = run_roslyn_analyzer(repo_root)
         if results:
             roslyn_data = roslyn_to_mnemo_format(results, repo_root)
+            print(f"  Roslyn analyzed {len(roslyn_data)} C# files", flush=True)
+
+    # Build extension lookup
+    ext_to_lang = {ext: lang for ext, lang in SUPPORTED_EXTENSIONS.items()}
 
     file_count = 0
     scanned: list[tuple[str, str, bytes, dict[str, Any] | None]] = []
 
-    for ext, language in SUPPORTED_EXTENSIONS.items():
-        for filepath in repo_root.rglob(f"*{ext}"):
-            if _should_ignore(filepath) or filepath.stat().st_size > MAX_FILE_SIZE:
+    # Single os.walk pass instead of 20+ rglob calls
+    from ..config import IGNORE_DIRS
+    for dirpath, dirnames, filenames in os.walk(repo_root):
+        # Prune ignored directories in-place
+        dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
+
+        for filename in filenames:
+            # Check extension
+            ext = None
+            for e in ext_to_lang:
+                if filename.endswith(e):
+                    ext = e
+                    break
+            if ext is None:
                 continue
+
+            filepath = Path(dirpath) / filename
+            if filepath.stat().st_size > MAX_FILE_SIZE:
+                continue
+
             try:
                 source = filepath.read_bytes()
             except (OSError, PermissionError):
@@ -51,6 +74,7 @@ def _scan_repo(repo_root: Path) -> list[tuple[str, str, bytes, dict[str, Any] | 
                 print(f"  Scanned {file_count} files...", flush=True)
 
             rel = str(filepath.relative_to(repo_root))
+            language = ext_to_lang[ext]
             info = roslyn_data.get(rel) or _extract_file(source, language)
             scanned.append((rel, language, source, info))
 

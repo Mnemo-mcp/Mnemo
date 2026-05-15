@@ -25,13 +25,18 @@ def generate_identity(repo_root: Path) -> dict[str, Any]:
     for pkgs in deps.values():
         all_deps.extend(pkg.split()[0] for pkg in pkgs)
 
-    # Detect language distribution
-    from ..config import SUPPORTED_EXTENSIONS
+    # Detect language distribution using os.walk (single pass, not 20 rglobs)
+    import os
+    from ..config import SUPPORTED_EXTENSIONS, IGNORE_DIRS
     lang_counts: dict[str, int] = {}
-    for ext, lang in SUPPORTED_EXTENSIONS.items():
-        count = len(list(repo_root.rglob(f"*{ext}")))
-        if count > 0:
-            lang_counts[lang] = lang_counts.get(lang, 0) + count
+    ext_to_lang = {ext: lang for ext, lang in SUPPORTED_EXTENSIONS.items()}
+    for dirpath, dirnames, filenames in os.walk(repo_root):
+        dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
+        for filename in filenames:
+            for ext, lang in ext_to_lang.items():
+                if filename.endswith(ext):
+                    lang_counts[lang] = lang_counts.get(lang, 0) + 1
+                    break
 
     # Sort by count
     primary_languages = sorted(lang_counts.items(), key=lambda x: x[1], reverse=True)[:5]

@@ -90,16 +90,15 @@ def init(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
     from .knowledge import init_knowledge
     init_knowledge(repo_root)
 
-    print("⏳ Detecting patterns...", flush=True)
-    from .intelligence import detect_patterns
-
-    patterns = detect_patterns(repo_root)
+    # Patterns already detected by save_identity — reuse from identity file
+    from .repo_map.identity import load_identity
+    identity = load_identity(repo_root)
     context_data = {
         "repo_root": str(repo_root),
         "initialized": True,
     }
-    if patterns:
-        context_data["patterns"] = patterns
+    if identity and identity.get("patterns"):
+        context_data["patterns"] = identity["patterns"]
     save_context(repo_root, context_data)
 
     _ensure_gitignore(repo_root)

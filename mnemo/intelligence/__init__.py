@@ -52,35 +52,35 @@ def detect_service_calls(repo_root: Path) -> dict[str, list[str]]:
 
 def detect_dependencies(repo_root: Path) -> dict[str, list[str]]:
     """Parse .csproj, package.json, requirements.txt for dependencies."""
+    import os
+
     deps: dict[str, list[str]] = {}
 
-    # .csproj files (NuGet)
-    for csproj in repo_root.rglob("*.csproj"):
-        if _should_ignore(csproj):
-            continue
-        try:
-            content = csproj.read_text(errors="replace")
-        except (OSError, PermissionError):
-            continue
-        packages = re.findall(r'<PackageReference\s+Include="([^"]+)"(?:\s+Version="([^"]*)")?', content)
-        if packages:
-            name = csproj.stem
-            deps[name] = [f"{pkg} {ver}".strip() for pkg, ver in packages]
+    for dirpath, dirnames, filenames in os.walk(repo_root):
+        dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
+        for filename in filenames:
+            filepath = Path(dirpath) / filename
 
-    # package.json
-    for pkg_json in repo_root.rglob("package.json"):
-        if _should_ignore(pkg_json):
-            continue
-        try:
-            data = json.loads(pkg_json.read_text())
-        except (OSError, json.JSONDecodeError):
-            continue
-        all_deps = {}
-        all_deps.update(data.get("dependencies", {}))
-        all_deps.update(data.get("devDependencies", {}))
-        if all_deps:
-            name = data.get("name", pkg_json.parent.name)
-            deps[name] = [f"{k} {v}" for k, v in all_deps.items()]
+            if filename.endswith(".csproj"):
+                try:
+                    content = filepath.read_text(errors="replace")
+                except (OSError, PermissionError):
+                    continue
+                packages = re.findall(r'<PackageReference\s+Include="([^"]+)"(?:\s+Version="([^"]*)")?', content)
+                if packages:
+                    deps[filepath.stem] = [f"{pkg} {ver}".strip() for pkg, ver in packages]
+
+            elif filename == "package.json":
+                try:
+                    data = json.loads(filepath.read_text())
+                except (OSError, json.JSONDecodeError):
+                    continue
+                all_deps = {}
+                all_deps.update(data.get("dependencies", {}))
+                all_deps.update(data.get("devDependencies", {}))
+                if all_deps:
+                    name = data.get("name", filepath.parent.name)
+                    deps[name] = [f"{k} {v}" for k, v in all_deps.items()]
 
     return deps
 
@@ -89,12 +89,42 @@ def detect_dependencies(repo_root: Path) -> dict[str, list[str]]:
 
 def detect_patterns(repo_root: Path) -> list[str]:
     """Detect common code patterns and conventions."""
+    import os
+
     patterns: list[str] = []
 
-    # Check for common .NET patterns
-    controllers = list(repo_root.rglob("*Controller.cs"))
+    # Single walk to collect categorized files
+    controllers: list[Path] = []
+    repos: list[Path] = []
+    interfaces: list[Path] = []
+    handlers: list[Path] = []
+    program_files: list[Path] = []
+    test_files: list[Path] = []
+    cs_files: list[Path] = []
+
+    for dirpath, dirnames, filenames in os.walk(repo_root):
+        dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
+        for filename in filenames:
+            if not filename.endswith(".cs"):
+                continue
+            filepath = Path(dirpath) / filename
+            if filename.endswith("Controller.cs"):
+                controllers.append(filepath)
+            if filename.endswith("Repository.cs"):
+                if filename.startswith("I"):
+                    interfaces.append(filepath)
+                else:
+                    repos.append(filepath)
+            if filename.endswith("Handler.cs"):
+                handlers.append(filepath)
+            if filename == "Program.cs":
+                program_files.append(filepath)
+            if filename.endswith("Tests.cs"):
+                test_files.append(filepath)
+            cs_files.append(filepath)
+
+    # Check controller patterns
     if controllers:
-        # Check what they inherit from
         for c in controllers[:3]:
             try:
                 content = c.read_text(errors="replace")
@@ -107,21 +137,14 @@ def detect_patterns(repo_root: Path) -> list[str]:
             except (OSError, PermissionError):
                 continue
 
-    # Check for repository pattern
-    repos = list(repo_root.rglob("*Repository.cs"))
-    interfaces = list(repo_root.rglob("I*Repository.cs"))
     if repos and interfaces:
         patterns.append(f"Repository pattern with interfaces ({len(interfaces)} interfaces, {len(repos)} implementations)")
 
-    # Check for handler/strategy pattern
-    handlers = list(repo_root.rglob("*Handler.cs"))
     if len(handlers) > 2:
         patterns.append(f"Strategy/Handler pattern ({len(handlers)} handlers found)")
 
     # Check for DI registration
-    for f in repo_root.rglob("Program.cs"):
-        if _should_ignore(f):
-            continue
+    for f in program_files:
         try:
             content = f.read_text(errors="replace")
             if "AddScoped" in content or "AddTransient" in content or "AddSingleton" in content:
@@ -131,7 +154,6 @@ def detect_patterns(repo_root: Path) -> list[str]:
             continue
 
     # Check for test patterns
-    test_files = list(repo_root.rglob("*Tests.cs"))
     if test_files:
         try:
             sample = test_files[0].read_text(errors="replace")
@@ -147,8 +169,7 @@ def detect_patterns(repo_root: Path) -> list[str]:
             pass
 
     # Check for CosmosDB
-    cosmos_files = [f for f in repo_root.rglob("*.cs") if not _should_ignore(f)]
-    for f in cosmos_files[:50]:
+    for f in cs_files[:50]:
         try:
             if "CosmosClient" in f.read_text(errors="replace"):
                 patterns.append("Data layer: Azure CosmosDB")
@@ -161,9 +182,15 @@ def detect_patterns(repo_root: Path) -> list[str]:
 
 def classify_architecture(repo_root: Path) -> list[dict[str, Any]]:
     """Classify high-level architecture styles with evidence."""
+    import os
+
     findings: list[dict[str, Any]] = []
-    paths = [p for p in repo_root.rglob("*") if not _should_ignore(p)]
-    names = [str(p).lower() for p in paths]
+    # Single os.walk instead of rglob("*")
+    names: list[str] = []
+    for dirpath, dirnames, filenames in os.walk(repo_root):
+        dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
+        for name in dirnames + filenames:
+            names.append(name.lower())
     text_blob = " ".join(names)
 
     checks = [
