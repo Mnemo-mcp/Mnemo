@@ -179,6 +179,12 @@ def forget_memory(repo_root: Path, memory_id: int) -> str:
     if len(entries) == before:
         return f"Memory #{memory_id} not found."
     storage.write_collection(Collections.MEMORY, entries)
+    # Remove from LadybugDB graph
+    try:
+        from ..engine.memory_graph import evict_memory_from_graph
+        evict_memory_from_graph(repo_root, memory_id)
+    except Exception:
+        pass
     _refresh_rule(repo_root)
     return f"Memory #{memory_id} deleted."
 

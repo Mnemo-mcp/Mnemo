@@ -402,6 +402,15 @@ def auto_forget_sweep(repo_root: Path) -> str:
 
     storage.write_collection(Collections.MEMORY, entries)
 
+    # Sync LadybugDB — remove evicted/superseded memory nodes
+    try:
+        from ..engine.memory_graph import sync_graph_with_memory
+        removed = sync_graph_with_memory(repo_root)
+        if removed:
+            actions.append(f"Graph synced: {removed} stale nodes removed")
+    except Exception:
+        pass
+
     if actions:
         record_audit(repo_root, "auto_forget_sweep", "", "memory", "; ".join(actions))
 

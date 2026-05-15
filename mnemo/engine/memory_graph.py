@@ -323,3 +323,67 @@ def _rrf_merge(keyword_results: list[dict], graph_results: list[dict], limit: in
 def _escape(s: str) -> str:
     """Escape string for Cypher."""
     return s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ").replace("\r", "")
+
+
+def evict_memory_from_graph(repo_root: Path, memory_id: int) -> None:
+    """Remove an evicted/forgotten memory node and its edges from LadybugDB."""
+    from .db import open_db, get_db_path
+    if not get_db_path(repo_root).exists():
+        return
+    _, conn = open_db(repo_root)
+    node_id = f"mem:{memory_id}"
+    try:
+        # Delete edges first, then node
+        conn.execute(f"MATCH (m:Memory {{id: '{node_id}'}})-[e]->() DELETE e")
+        conn.execute(f"MATCH ()-[e]->(m:Memory {{id: '{node_id}'}}) DELETE e")
+        conn.execute(f"MATCH (m:Memory {{id: '{node_id}'}}) DELETE m")
+    except RuntimeError:
+        pass
+
+
+def supersede_memory_in_graph(repo_root: Path, memory_id: int) -> None:
+    """Mark a memory as superseded (remove from graph so it doesn't appear in search)."""
+    evict_memory_from_graph(repo_root, memory_id)
+
+
+def sync_graph_with_memory(repo_root: Path) -> int:
+    """Sync LadybugDB memory nodes with memory.json — remove stale nodes. Returns removed count."""
+    import json
+    from .db import open_db, get_db_path
+    from ..config import mnemo_path
+
+    if not get_db_path(repo_root).exists():
+        return 0
+
+    # Load active memory IDs from memory.json
+    mem_file = mnemo_path(repo_root) / "memory.json"
+    if not mem_file.exists():
+        return 0
+
+    try:
+        entries = json.loads(mem_file.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return 0
+
+    active_ids = {
+        f"mem:{e['id']}" for e in entries
+        if not e.get("evicted") and not e.get("superseded_by")
+    }
+
+    # Find memory nodes in LadybugDB that aren't in active set
+    _, conn = open_db(repo_root)
+    r = conn.execute("MATCH (m:Memory) RETURN m.id")
+    graph_ids = set()
+    while r.has_next():
+        graph_ids.add(r.get_next()[0])
+
+    stale = graph_ids - active_ids
+    for node_id in stale:
+        try:
+            conn.execute(f"MATCH (m:Memory {{id: '{node_id}'}})-[e]->() DELETE e")
+            conn.execute(f"MATCH ()-[e]->(m:Memory {{id: '{node_id}'}}) DELETE e")
+            conn.execute(f"MATCH (m:Memory {{id: '{node_id}'}}) DELETE m")
+        except RuntimeError:
+            pass
+
+    return len(stale)
