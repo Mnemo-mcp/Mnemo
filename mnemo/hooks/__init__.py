@@ -17,10 +17,9 @@ _KIRO_AGENT_CONFIG_TEMPLATE = """\
 {
   "name": "mnemo-enhanced",
   "description": "Mnemo-powered agent with persistent memory, automatic learning, and lifecycle hooks",
-  "model": "claude-sonnet-4-20250514",
   "useLegacyMcpJson": true,
 
-  "prompt": "You are an engineering assistant powered by Mnemo — a persistent memory system that remembers everything across sessions.\\n\\n## Context Loading\\n\\nYour project context (memories, decisions, active tasks, knowledge graph) is AUTOMATICALLY loaded at session start by the agentSpawn hook. You already have it in your context above as <mnemo-context>. You do NOT need to call mnemo_recall yourself — it was already done.\\n\\nIf context appears missing or the user asks to see memories, use the MCP tool `mnemo_recall` — do NOT read files from disk. NEVER read .kiro/skills/mnemo/SKILL.md or any .mnemo/ files. All memory operations are MCP tool calls only.\\n\\n## How You Work\\n\\n1. CONTEXT IS PRE-LOADED — check the <mnemo-context> block above for your memories and decisions.\\n2. SEARCH BEFORE ASKING — before asking the user something, use the MCP tool mnemo_search_memory. They may have told you in a past session.\\n3. REMEMBER IMPORTANT THINGS — use the MCP tool mnemo_remember for decisions, patterns, fixes, and preferences.\\n4. DECISIONS ARE PERMANENT — use the MCP tool mnemo_decide for architectural choices. These never get evicted.\\n5. LEARNINGS ARE AUTO-CAPTURED — the stop hook detects problem-solving patterns in your responses and saves them automatically.\\n\\n## IMPORTANT: All mnemo_* operations are MCP tool calls\\n\\nEvery mnemo_* operation (mnemo_recall, mnemo_remember, mnemo_search_memory, mnemo_decide, mnemo_plan, mnemo_graph, etc.) is an MCP tool call to the 'mnemo' MCP server. The tool names are prefixed with 'mnemo_' — for example, to recall memories you call the tool named `mnemo_recall`, NOT a tool named `mnemo` with an action parameter. NEVER try to read .mnemo/ files or .kiro/ files to get this information. Always use the MCP tools directly.\\n\\nCorrect: call tool `mnemo_recall` with no parameters\\nCorrect: call tool `mnemo_search_memory` with parameter query='...'\\nWRONG: call tool `mnemo` with parameter action='recall'\\nWRONG: read file .mnemo/memory.json\\n\\n## When Working on Tasks\\n\\n- Check if there's an active plan (mnemo_plan with action: status)\\n- Mark tasks done as you complete them (mnemo_plan with action: done, task_id: MNO-XXX)\\n- Use mnemo_graph to understand code relationships before making changes\\n- Use mnemo_lookup for method-level details of specific files\\n\\n## Memory Slots (Structured Context)\\n\\nUse mnemo_slot_set/mnemo_slot_get for:\\n- project_context — what this project is about\\n- user_preferences — coding style, conventions\\n- conventions — project-specific rules\\n- pending_items — things to follow up on\\n- known_gotchas — traps and pitfalls\\n\\n## What NOT to Remember\\n\\n- Temporary debugging output\\n- Secrets or credentials (auto-stripped anyway)\\n- Obvious things the code already shows\\n- Duplicate information already in memory",
+  "prompt": "You are an engineering assistant powered by Mnemo — a persistent memory system that remembers everything across sessions.\\n\\n## Context Loading\\n\\nYour project context (memories, decisions, active tasks, knowledge graph) is AUTOMATICALLY loaded at session start by the agentSpawn hook. You already have it in your context above as <mnemo-context>. You do NOT need to call mnemo_recall yourself — it was already done.\\n\\nIf context appears missing or the user asks to see memories, use the MCP tool `mnemo_recall` — do NOT read files from disk. NEVER read .kiro/skills/mnemo/SKILL.md or any .mnemo/ files. All memory operations are MCP tool calls only.\\n\\n## How You Work\\n\\n1. CONTEXT IS PRE-LOADED — check the <mnemo-context> block above for your memories and decisions.\\n2. SEARCH BEFORE ASKING — before asking the user something, use the MCP tool mnemo_search_memory. They may have told you in a past session.\\n3. REMEMBER IMPORTANT THINGS — use the MCP tool mnemo_remember for decisions, patterns, fixes, and preferences.\\n4. DECISIONS ARE PERMANENT — use the MCP tool mnemo_decide for architectural choices. These never get evicted.\\n5. LEARNINGS ARE AUTO-CAPTURED — the stop hook detects problem-solving patterns in your responses and saves them automatically.\\n\\n## IMPORTANT: All mnemo_* operations are MCP tool calls\\n\\nEvery mnemo_* operation (mnemo_recall, mnemo_remember, mnemo_search_memory, mnemo_decide, mnemo_plan, mnemo_graph, etc.) is an MCP tool call to the 'mnemo' MCP server. The tool names are prefixed with 'mnemo_' — for example, to recall memories you call the tool named `mnemo_recall`, NOT a tool named `mnemo` with an action parameter. NEVER try to read .mnemo/ files or .kiro/ files to get this information. Always use the MCP tools directly.\\n\\nCorrect: call tool `mnemo_recall` with no parameters\\nCorrect: call tool `mnemo_search_memory` with parameter query='...'\\nWRONG: call tool `mnemo` with parameter action='recall'\\nWRONG: read file .mnemo/memory.json\\n\\n## When Working on Tasks\\n\\n- Check if there's an active plan (mnemo_plan with action: status)\\n- Mark tasks done as you complete them (mnemo_plan with action: done, task_id: MNO-XXX)\\n- Use mnemo_graph to understand code relationships before making changes\\n- Use mnemo_lookup for method-level details of specific files\\n- Use mnemo_search for hybrid code search (BM25 + vector + graph)\\n\\n## Memory Slots (Structured Context)\\n\\nUse mnemo_slot_set/mnemo_slot_get for:\\n- project_context — what this project is about\\n- user_preferences — coding style, conventions\\n- conventions — project-specific rules\\n- pending_items — things to follow up on\\n- known_gotchas — traps and pitfalls\\n\\n## What NOT to Remember\\n\\n- Temporary debugging output\\n- Secrets or credentials (auto-stripped anyway)\\n- Obvious things the code already shows\\n- Duplicate information already in memory",
 
   "tools": [
     "read", "write", "shell", "grep", "glob", "code",
@@ -32,22 +31,7 @@ _KIRO_AGENT_CONFIG_TEMPLATE = """\
     "read", "write", "shell", "grep", "glob", "code",
     "use_aws", "web_search", "web_fetch",
     "knowledge", "subagent", "todo_list",
-    "mnemo_recall", "mnemo_remember", "mnemo_search_memory", "mnemo_decide",
-    "mnemo_forget", "mnemo_plan", "mnemo_task", "mnemo_task_done",
-    "mnemo_graph", "mnemo_lookup", "mnemo_map", "mnemo_similar",
-    "mnemo_impact", "mnemo_search_api", "mnemo_discover_apis",
-    "mnemo_check_security", "mnemo_check_conventions", "mnemo_check_regressions",
-    "mnemo_breaking_changes", "mnemo_dead_code", "mnemo_health", "mnemo_drift",
-    "mnemo_commit_message", "mnemo_pr_description", "mnemo_context",
-    "mnemo_context_for_task", "mnemo_slot_get", "mnemo_slot_set",
-    "mnemo_knowledge", "mnemo_team", "mnemo_who_touched",
-    "mnemo_add_error", "mnemo_search_errors", "mnemo_add_incident", "mnemo_incidents",
-    "mnemo_add_review", "mnemo_reviews", "mnemo_add_correction", "mnemo_corrections",
-    "mnemo_add_regression", "mnemo_add_security_pattern",
-    "mnemo_dependencies", "mnemo_cross_search", "mnemo_cross_impact", "mnemo_links",
-    "mnemo_velocity", "mnemo_temporal", "mnemo_tests", "mnemo_onboarding",
-    "mnemo_snapshot", "mnemo_intelligence", "mnemo_lesson", "mnemo_episode",
-    "mnemo_check", "mnemo_hooks_install", "mnemo_ask"
+    "mnemo:*"
   ],
 
   "resources": [],
@@ -98,62 +82,58 @@ _KIRO_AGENT_CONFIG_TEMPLATE = """\
 
 _MNEMO_SKILL = """---
 name: mnemo-memory-system
-description: How to use Mnemo persistent memory effectively. Use when working with project context, decisions, plans, or when you need to recall past work.
+description: Reference for Mnemo MCP tool names and parameters. Use only when you need to look up the exact syntax of a specific mnemo tool.
+inclusion: on_demand
 ---
 
 # Mnemo — Persistent Engineering Memory
 
-Mnemo gives you persistent memory across sessions. Here's how to use it well.
+Mnemo gives you persistent memory across sessions. Context is automatically loaded at session start via the agentSpawn hook.
 
-## On Every Session Start
+## Context Loading (Automatic)
 
-Call `mnemo_recall` first. It returns:
-- Project context and architecture
-- Active decisions
-- Pinned memory slots
-- Hot memories (most relevant)
-- Active plan status with next task
-- Knowledge graph summary
+The agentSpawn hook automatically calls `mnemo_recall` and injects the result into your context. You do NOT need to call mnemo_recall yourself — it's already done. If for some reason context appears missing, call the MCP tool `mnemo_recall` (do NOT read files — use the tool).
 
-## Remembering Things
+## What You Should Do
 
-Use `mnemo_remember` for important context:
-- Architecture decisions and their reasoning
-- Bug fixes and what caused them
+### Search Before Asking
+Before asking the user something, search memory via the MCP tool: `mnemo_search_memory`. They may have told you in a past session.
+
+### Record Decisions
+Use the MCP tool `mnemo_decide` for architectural choices — these are permanent and never evicted.
+
+### Remember Important Context
+Use the MCP tool `mnemo_remember` for:
+- Bug fixes and root causes
 - Patterns discovered in the codebase
 - User preferences and conventions
+- Important findings during investigation
 
-Use `mnemo_decide` for architectural decisions — these are pinned and never forgotten.
+### Track Plans
+- Check active plans: `mnemo_plan` with action "status"
+- Mark tasks done: `mnemo_plan` with action "done" and task_id
+- Plans auto-create when you describe multi-step work
 
-## Before Asking the User
+### Understand Code
+- `mnemo_graph` — query the knowledge graph (neighbors, paths, hubs, why)
+- `mnemo_lookup` — method-level details for a file
+- `mnemo_search` — hybrid search (BM25 + vector + graph)
+- `mnemo_impact` — what breaks if you change something
 
-Search memory first: `mnemo_search_memory --query "topic"`. The user may have already told you this in a previous session.
-
-## Plans and Tasks
-
-When the user describes multi-step work, Mnemo auto-creates a plan. Use `mnemo_plan --action status` to check progress. Mark tasks done with `mnemo_plan --action done --task_id MNO-XXX`.
-
-## Memory Slots
-
-Use `mnemo_slot_set` to store structured context:
+### Memory Slots
+Use `mnemo_slot_set`/`mnemo_slot_get` for structured context:
 - `project_context` — what this project is about
 - `user_preferences` — coding style, conventions
-- `conventions` — project-specific rules
 - `pending_items` — things to follow up on
 - `known_gotchas` — traps and pitfalls
 
-## Code Understanding
+## Important: All Mnemo operations are MCP TOOL CALLS
 
-- `mnemo_graph` — query the knowledge graph (neighbors, paths, hubs)
-- `mnemo_lookup` — get method-level details for a file
-- `mnemo_search` — hybrid search across code (BM25 + vector + graph)
-- `mnemo_intelligence` — full code intelligence report
+Every `mnemo_*` operation is an MCP tool call to the "mnemo" server. Do NOT try to read files to get this information. Use the tools directly.
 
 ## What NOT to Remember
-
-Don't store:
 - Temporary debugging output
-- Secrets or credentials (they get auto-stripped anyway)
+- Secrets or credentials (auto-stripped anyway)
 - Obvious things the code already shows
 - Duplicate information already in memory
 """
@@ -253,46 +233,172 @@ def _install_kiro_hooks(repo_root: Path) -> str:
 
     # Generate hook scripts (portable — use mnemo from PATH)
     _write_hook(hooks_dir / "agent-spawn.sh", f"""#!/bin/sh
-# Mnemo agentSpawn hook — loads context into agent
+# Mnemo agentSpawn hook — loads full project context into agent
+# stdout → injected into agent context | stderr → shown as warning
+# Fail-safe: always exits 0
+
 MNEMO="{mnemo_bin}"
+
+# Read STDIN (Kiro sends session JSON) — consume but don't require it
 input_json=$(cat 2>/dev/null || echo "{{}}")
+
+# Load recall context
 RECALL=$("$MNEMO" tool mnemo_recall 2>/dev/null) || RECALL=""
+
 if [ -z "$RECALL" ]; then
+  echo "⚠️ Mnemo recall returned empty — memory may not be initialized." >&2
   echo "<mnemo-context>"
   echo "Mnemo memory not available. Use mnemo_recall tool to initialize."
   echo "</mnemo-context>"
   exit 0
 fi
+
+# Get active task context
+TASK=$("$MNEMO" tool mnemo_task 2>/dev/null) || TASK=""
+
+# Get plan status
+PLAN=$("$MNEMO" tool mnemo_plan --action status 2>/dev/null) || PLAN=""
+
+# Output rich context block
 cat << EOF
 <mnemo-context>
+## Session Loaded
+Time: $(date '+%Y-%m-%d %H:%M:%S %Z')
+Working Directory: $(pwd)
+
 $RECALL
+EOF
+
+# Add active task if present
+if [ -n "$TASK" ] && echo "$TASK" | grep -q "task_id"; then
+  cat << EOF
+
+## Active Task
+$TASK
+EOF
+fi
+
+# Add plan status if present
+if [ -n "$PLAN" ] && echo "$PLAN" | grep -qv "No active plans"; then
+  cat << EOF
+
+## Plan Status
+$PLAN
+EOF
+fi
+
+cat << EOF
+
+## Guidelines
+- Search memory before asking the user (mnemo_search_memory)
+- Record decisions with mnemo_decide (they persist forever)
+- Use mnemo_remember for important context
+- Check mnemo_graph for code relationships
+- Learnings are auto-captured at session end
 </mnemo-context>
 EOF
+
+echo "✅ [Mnemo] Full context loaded." >&2
 exit 0
 """)
 
     _write_hook(hooks_dir / "user-prompt-submit.sh", f"""#!/bin/sh
-# Mnemo userPromptSubmit — search relevant memories for prompt (MNO-013)
+# Mnemo userPromptSubmit hook — searches relevant memories for current prompt
+# stdout → injected as context before the prompt | stderr → warnings
+# Fail-safe: always exits 0
+
 MNEMO="{mnemo_bin}"
+
+# Read STDIN (Kiro sends JSON with .message or .prompt)
 input_json=$(cat 2>/dev/null || echo "{{}}")
-prompt=$(echo "$input_json" | grep -o '"prompt"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"prompt"[[:space:]]*:[[:space:]]*"//;s/"$//')
-if [ -z "$prompt" ]; then
+
+# Extract user message
+USER_PROMPT=""
+if command -v jq >/dev/null 2>&1; then
+  USER_PROMPT=$(echo "$input_json" | jq -r '.message // .prompt // .content // empty' 2>/dev/null) || true
+fi
+
+# Fallback: try simple grep extraction
+if [ -z "$USER_PROMPT" ]; then
+  USER_PROMPT=$(echo "$input_json" | grep -o '"message":"[^"]*"' | head -1 | sed 's/"message":"//;s/"$//') || true
+fi
+
+# Skip if no prompt or too short
+if [ -z "$USER_PROMPT" ] || [ ${{#USER_PROMPT}} -lt 10 ]; then
   exit 0
 fi
-results=$("$MNEMO" tool mnemo_search_memory --query "$prompt" 2>/dev/null | head -c 2000)
-if [ -z "$results" ]; then
-  exit 0
+
+# Skip simple greetings and acknowledgments
+LOWER_PROMPT=$(echo "$USER_PROMPT" | tr '[:upper:]' '[:lower:]')
+case "$LOWER_PROMPT" in
+  "hi"|"hello"|"hey"|"thanks"|"thank you"|"ok"|"okay"|"yes"|"no"|"sure"|"got it"|"cool")
+    exit 0 ;;
+esac
+
+# Search for relevant memories (truncate query to 100 chars)
+QUERY=$(echo "$USER_PROMPT" | head -c 100)
+RESULTS=$("$MNEMO" tool mnemo_search_memory --query "$QUERY" 2>/dev/null) || RESULTS=""
+
+# Only output if we found relevant results
+if [ -n "$RESULTS" ] && echo "$RESULTS" | grep -qv "No results"; then
+  RESULT_COUNT=$(echo "$RESULTS" | grep -c "^-" 2>/dev/null || echo "0")
+  if [ "$RESULT_COUNT" -gt 0 ]; then
+    cat << EOF
+<mnemo-relevant-context>
+$RESULTS
+</mnemo-relevant-context>
+EOF
+  fi
 fi
-# Truncate to max 3 results, 150 chars each, ~500 tokens total
-echo "<mnemo-relevant-context>"
-echo "$results" | head -45
-echo "</mnemo-relevant-context>"
+
 exit 0
 """)
 
     _write_hook(hooks_dir / "pre-tool-use.sh", """#!/bin/sh
-# Mnemo preToolUse — validate shell commands
+# Mnemo preToolUse hook — security validation before shell execution
+# exit 0 = allow | exit 1 = block
+# Only triggers for shell tool (via matcher in agent config)
+
+# Read STDIN (Kiro sends JSON with tool_name and tool_input)
 input_json=$(cat 2>/dev/null || echo "{}")
+
+# Extract tool input/command
+TOOL_INPUT=""
+if command -v jq >/dev/null 2>&1; then
+  TOOL_INPUT=$(echo "$input_json" | jq -r '.tool_input.command // .tool_input // empty' 2>/dev/null) || true
+fi
+
+# If we can't parse input, allow (fail-open for usability)
+if [ -z "$TOOL_INPUT" ]; then
+  exit 0
+fi
+
+# Block catastrophic commands
+if echo "$TOOL_INPUT" | grep -qE 'rm -rf /($| )|rm -rf ~|rm -rf \\$HOME|> /dev/sd|dd if=/dev/zero|mkfs\\.' 2>/dev/null; then
+  echo "🚨 [Mnemo Security] BLOCKED: Catastrophic command detected" >&2
+  echo "Command: $(echo "$TOOL_INPUT" | head -c 80)" >&2
+  exit 1
+fi
+
+# Block remote code execution patterns
+if echo "$TOOL_INPUT" | grep -qE 'curl.*\\|.*(sh|bash)|wget.*\\|.*(sh|bash)' 2>/dev/null; then
+  echo "🚨 [Mnemo Security] BLOCKED: Remote code execution pattern" >&2
+  exit 1
+fi
+
+# Block system directory modifications
+if echo "$TOOL_INPUT" | grep -qE '(>|>>|tee|mv|rm|chmod|chown).*/etc/|.*/usr/bin|.*/sbin' 2>/dev/null; then
+  echo "⛔ [Mnemo Security] BLOCKED: System directory modification" >&2
+  exit 1
+fi
+
+# Block credential exfiltration
+if echo "$TOOL_INPUT" | grep -qE 'cat.*(\\. env|credentials|\\.aws/credentials|id_rsa|\\.ssh/)|curl.*(-d|--data).*(password|token|secret)' 2>/dev/null; then
+  echo "⚠️ [Mnemo Security] BLOCKED: Potential credential access/exfiltration" >&2
+  exit 1
+fi
+
+# Allow everything else
 exit 0
 """)
 
@@ -303,31 +409,64 @@ exit 0
 """)
 
     _write_hook(hooks_dir / "stop.sh", f"""#!/bin/sh
-# Mnemo stop hook — auto-capture learnings (MNO-014)
+# Mnemo stop hook — auto-captures learnings from session responses
+# Reads STDIN (the agent's final response), detects learning patterns, saves them
+# Fail-safe: always exits 0
+
 MNEMO="{mnemo_bin}"
+
+# Read STDIN (Kiro sends JSON with .response or .content)
 input_json=$(cat 2>/dev/null || echo "{{}}")
-response=$(echo "$input_json" | python3 -c "
-import sys, json
-try:
-    data = json.load(sys.stdin)
-    print(data.get('response', ''))
-except Exception:
-    pass
-" 2>/dev/null)
-if [ -z "$response" ] || [ "${{#response}}" -lt 100 ]; then
+
+# Extract response text
+RESPONSE=""
+if command -v jq >/dev/null 2>&1; then
+  RESPONSE=$(echo "$input_json" | jq -r '.response // .content // .message // .text // empty' 2>/dev/null) || true
+fi
+
+# If no response, just exit
+if [ -z "$RESPONSE" ] || [ ${{#RESPONSE}} -lt 100 ]; then
   exit 0
 fi
-# Use Python extractor for pattern matching
-python3 -c "
-import sys
-sys.path.insert(0, '{repo_root}')
-from mnemo.hooks.extractor import extract_facts
-import subprocess, json
-response = sys.stdin.read()
-facts = extract_facts(response)
-for f in facts[:2]:
-    subprocess.run(['{mnemo_bin}', 'tool', 'mnemo_remember', '--content', f['content'], '--category', f['category']], capture_output=True)
-" <<< "$response" 2>/dev/null
+
+# Detect learning patterns in the response
+LOWER_RESPONSE=$(echo "$RESPONSE" | tr '[:upper:]' '[:lower:]')
+
+# Count learning indicators
+LEARNING_SCORE=0
+echo "$LOWER_RESPONSE" | grep -q "fixed\\|solved\\|resolved" && LEARNING_SCORE=$((LEARNING_SCORE + 1))
+echo "$LOWER_RESPONSE" | grep -q "the issue was\\|the problem was\\|root cause\\|the bug was" && LEARNING_SCORE=$((LEARNING_SCORE + 1))
+echo "$LOWER_RESPONSE" | grep -q "discovered\\|realized\\|figured out\\|learned\\|turned out" && LEARNING_SCORE=$((LEARNING_SCORE + 1))
+echo "$LOWER_RESPONSE" | grep -q "solution\\|the fix\\|working now\\|now works" && LEARNING_SCORE=$((LEARNING_SCORE + 1))
+
+# If 2+ indicators, this response contains a learning
+if [ "$LEARNING_SCORE" -ge 2 ]; then
+  SUMMARY=""
+  SUMMARY=$(echo "$RESPONSE" | grep -ioE "(the issue was|the problem was|root cause was)[^.]*\\." | head -1 | head -c 150)
+  if [ -z "$SUMMARY" ]; then
+    SUMMARY=$(echo "$RESPONSE" | grep -ioE "(fixed by|solved by|resolved by|the fix was)[^.]*\\." | head -1 | head -c 150)
+  fi
+  if [ -z "$SUMMARY" ]; then
+    SUMMARY=$(echo "$RESPONSE" | grep -ioE "(discovered|realized|figured out|learned) (that )?[^.]*\\." | head -1 | head -c 150)
+  fi
+  if [ -z "$SUMMARY" ]; then
+    SUMMARY=$(echo "$RESPONSE" | grep -iE "fixed|solved|resolved|discovered|learned" | head -1 | head -c 150)
+  fi
+
+  if [ -n "$SUMMARY" ] && [ ${{#SUMMARY}} -gt 20 ]; then
+    "$MNEMO" tool mnemo_remember --content "Auto-learned: $SUMMARY" --category "pattern" 2>/dev/null || true
+    echo "📚 [Mnemo] Learning auto-captured." >&2
+  fi
+fi
+
+# Detect decisions in the response
+echo "$LOWER_RESPONSE" | grep -q "decided to\\|decision:\\|chose to\\|going with\\|we'll use\\|architecture:" && {{
+  DECISION=$(echo "$RESPONSE" | grep -iE "decided to|decision:|chose to|going with" | head -1 | head -c 200)
+  if [ -n "$DECISION" ] && [ ${{#DECISION}} -gt 20 ]; then
+    "$MNEMO" tool mnemo_remember --content "Session decision: $DECISION" --category "general" 2>/dev/null || true
+  fi
+}}
+
 exit 0
 """)
 
