@@ -40,6 +40,7 @@ def generate_summary(repo_root: Path, index: bool = True) -> str:
         if results:
             roslyn_data = roslyn_to_mnemo_format(results, repo_root)
 
+    file_count = 0
     for ext, language in SUPPORTED_EXTENSIONS.items():
         for filepath in repo_root.rglob(f"*{ext}"):
             if _should_ignore(filepath) or filepath.stat().st_size > MAX_FILE_SIZE:
@@ -48,6 +49,10 @@ def generate_summary(repo_root: Path, index: bool = True) -> str:
                 source = filepath.read_bytes()
             except (OSError, PermissionError):
                 continue
+
+            file_count += 1
+            if file_count % 100 == 0:
+                print(f"  Scanned {file_count} files...", flush=True)
 
             rel = str(filepath.relative_to(repo_root))
             hashes[rel] = hashlib.md5(source, usedforsecurity=False).hexdigest()
@@ -101,6 +106,7 @@ def generate_summary(repo_root: Path, index: bool = True) -> str:
             for entry in sorted(tree[module][submodule]):
                 lines.append(entry)
     if index and all_chunks:
+        print(f"  Indexing {len(all_chunks)} chunks...", flush=True)
         index_chunks(repo_root, "code", all_chunks)
     return "\n".join(lines)
 
@@ -121,6 +127,7 @@ def save_repo_map(repo_root: Path, index: bool = True) -> Path:
     """Generate summary, compact tree, and knowledge graph."""
     result = save_summary(repo_root, index=index)
     # Build knowledge graph
+    print("⏳ Building knowledge graph...", flush=True)
     try:
         from ..graph.builder import build_graph
         build_graph(repo_root)
