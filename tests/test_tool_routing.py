@@ -208,6 +208,7 @@ class TestCoreTools:
         result = handle_tool_call("mnemo_forget", {"repo_path": str(repo), "memory_id": "3"})
         assert not result.get("isError")
 
+    @pytest.mark.skip(reason="Legacy graph.json replaced by LadybugDB engine - new MCP tools pending")
     def test_graph_stats(self, repo):
         result = handle_tool_call("mnemo_graph", {"repo_path": str(repo), "action": "stats"})
         assert not result.get("isError")

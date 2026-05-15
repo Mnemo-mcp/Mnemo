@@ -17,7 +17,6 @@ from .memory import save_context
 from .prompts import (
     build_rule_with_context,
 )
-from .repo_map import save_repo_map
 
 
 def _install_context_file(repo_root: Path, target: ClientTarget) -> Path | None:
@@ -59,46 +58,29 @@ def init(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
     base = mnemo_path(repo_root)
     base.mkdir(exist_ok=True)
 
-    print("⏳ Scanning repository...", flush=True)
-    save_repo_map(repo_root)
+    # Run the new v2 engine pipeline (LadybugDB + tree-sitter + scope + communities)
+    print("⏳ Indexing repository...", flush=True)
+    from .engine.pipeline import run_pipeline
+    stats = run_pipeline(repo_root, force=False)
 
-    # MNO-028: Auto-install ChromaDB for semantic search
-    try:
-        import chromadb  # noqa: F401
-    except ImportError:
-        import subprocess  # noqa: F811
-        import sys
-        print("⏳ Installing semantic search (chromadb)... this may take a minute", flush=True)
-        try:
-            subprocess.check_call(
-                [sys.executable, "-m", "pip", "install", "chromadb>=0.5", "--quiet"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        except Exception:
-            print("⚠️  chromadb install failed. Semantic search will use keyword fallback.")
-
-    # Generate repo identity (MNO-802)
-    print("⏳ Generating repo identity...", flush=True)
-    from .repo_map.identity import save_identity
-    save_identity(repo_root)
-
-    # Generate default rules.yaml if not exists (MNO-834)
+    # Generate default rules.yaml if not exists
     from .drift import _init_rules
     _init_rules(repo_root)
 
     from .knowledge import init_knowledge
     init_knowledge(repo_root)
 
-    # Patterns already detected by save_identity — reuse from identity file
-    from .repo_map.identity import load_identity
-    identity = load_identity(repo_root)
     context_data = {
         "repo_root": str(repo_root),
         "initialized": True,
     }
-    if identity and identity.get("patterns"):
-        context_data["patterns"] = identity["patterns"]
+    if stats.nodes_created:
+        context_data["engine_stats"] = {
+            "files": stats.files_scanned,
+            "nodes": stats.nodes_created,
+            "edges": stats.edges_created,
+            "total_ms": stats.total_ms,
+        }
     save_context(repo_root, context_data)
 
     _ensure_gitignore(repo_root)
@@ -112,9 +94,12 @@ def init(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
     lines = [
         "Mnemo initialized",
         f"- .mnemo/ created at {base}",
-        "- Repo map generated",
-        "- Knowledge base directory ready",
     ]
+    if stats.nodes_created:
+        lines.append(f"- Code graph: {stats.nodes_created} nodes, {stats.edges_created} edges ({stats.total_ms}ms)")
+    else:
+        lines.append(f"- Code graph: up to date ({stats.total_ms}ms)")
+    lines.append("- Knowledge base directory ready")
 
     for target, path in context_results:
         if path:

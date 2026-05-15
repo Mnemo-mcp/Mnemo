@@ -101,6 +101,15 @@ def doctor(path: str, client: str):
 
 
 @cli.command()
+@click.option("--port", "-p", default=3333, help="Port to serve on")
+@click.argument("path", default=".", type=click.Path(exists=True))
+def serve(path: str, port: int):
+    """Start the Mnemo UI dashboard. Run: mnemo serve"""
+    from .serve import serve as start_server
+    start_server(Path(path).resolve(), port=port)
+
+
+@cli.command()
 @click.argument("path", default=".", type=click.Path(exists=True))
 @click.confirmation_option(prompt="This will delete all Mnemo memory. Are you sure?")
 def reset(path: str):

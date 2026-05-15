@@ -21,7 +21,7 @@ def test_init_configures_selected_client(monkeypatch, tmp_path: Path):
 
     monkeypatch.setattr(clients, "CLIENTS", test_clients)
     monkeypatch.setattr(init_module, "CLIENTS", test_clients)
-    monkeypatch.setattr(init_module, "save_repo_map", lambda root: root / ".mnemo" / "summary.md")
+    monkeypatch.setattr("mnemo.engine.pipeline.run_pipeline", lambda root, force=False: type("S", (), {"files_scanned": 0, "nodes_created": 0, "edges_created": 0, "total_ms": 1})())
     monkeypatch.setattr("mnemo.knowledge.init_knowledge", lambda root: root / ".mnemo" / "knowledge")
     monkeypatch.setattr("mnemo.intelligence.detect_patterns", lambda root: ["Test pattern"])
     monkeypatch.setattr("mnemo.memory.recall", lambda root: "# Project Context\n")
@@ -58,7 +58,7 @@ def test_init_all_configures_every_client(monkeypatch, tmp_path: Path):
 
     monkeypatch.setattr(clients, "CLIENTS", test_clients)
     monkeypatch.setattr(init_module, "CLIENTS", test_clients)
-    monkeypatch.setattr(init_module, "save_repo_map", lambda root: root / ".mnemo" / "summary.md")
+    monkeypatch.setattr("mnemo.engine.pipeline.run_pipeline", lambda root, force=False: type("S", (), {"files_scanned": 0, "nodes_created": 0, "edges_created": 0, "total_ms": 1})())
     monkeypatch.setattr("mnemo.knowledge.init_knowledge", lambda root: root / ".mnemo" / "knowledge")
     monkeypatch.setattr("mnemo.intelligence.detect_patterns", lambda root: [])
     monkeypatch.setattr("mnemo.memory.recall", lambda root: "# Project Context\n")
