@@ -71,11 +71,14 @@ let communities = [];
 
 // Colors and shapes per type
 const TYPE_CONFIG = {
-  service:  { color: '#ffe66d', shape: 'diamond', size: 30, font: { color: '#ffe66d', size: 14, bold: true } },
-  file:     { color: '#555', shape: 'dot', size: 8, font: { color: '#666', size: 9 } },
-  class:    { color: '#ff6b6b', shape: 'dot', size: 16, font: { color: '#ff6b6b', size: 11 } },
-  method:   { color: '#4ecdc4', shape: 'dot', size: 6, font: { color: '#4ecdc4', size: 8 } },
-  function: { color: '#4ecdc4', shape: 'triangle', size: 10, font: { color: '#4ecdc4', size: 9 } },
+  service:   { color: '#ffe66d', shape: 'diamond', size: 30, font: { color: '#ffe66d', size: 14, bold: true } },
+  file:      { color: '#555', shape: 'dot', size: 8, font: { color: '#666', size: 9 } },
+  class:     { color: '#ff6b6b', shape: 'dot', size: 16, font: { color: '#ff6b6b', size: 11 } },
+  method:    { color: '#4ecdc4', shape: 'dot', size: 6, font: { color: '#4ecdc4', size: 8 } },
+  function:  { color: '#4ecdc4', shape: 'triangle', size: 10, font: { color: '#4ecdc4', size: 9 } },
+  memory:    { color: '#a855f7', shape: 'star', size: 14, font: { color: '#a855f7', size: 10 } },
+  decision:  { color: '#f59e0b', shape: 'star', size: 16, font: { color: '#f59e0b', size: 10, bold: true } },
+  community: { color: '#06b6d4', shape: 'square', size: 20, font: { color: '#06b6d4', size: 12, bold: true } },
 };
 
 async function init() {

@@ -108,63 +108,108 @@ class MnemoAPIHandler(BaseHTTPRequestHandler):
         return {"nodes": nodes, "edges": edges, "communities": communities, "files": files, "classes": classes, "functions": functions}
 
     def _graph(self, params) -> dict:
-        """Return full hierarchical graph: Services → Files → Classes → Methods."""
+        """Return the FULL graph — every node, every edge."""
         conn = self._get_conn()
 
         nodes = []
         edges = []
         node_ids = set()
 
-        # Services (top-level directories)
-        services = set()
+        # Services
         r = conn.execute("MATCH (f:File) RETURN f.path")
+        services = set()
         while r.has_next():
             path = r.get_next()[0]
             svc = path.split("/")[0] if "/" in path else "root"
             services.add(svc)
-
         for svc in services:
             nid = f"svc:{svc}"
             nodes.append({"id": nid, "name": svc, "type": "service"})
             node_ids.add(nid)
 
-        # Classes (all)
-        r = conn.execute("MATCH (c:Class) RETURN c.id, c.name, c.file LIMIT 250")
+        # ALL classes
+        r = conn.execute("MATCH (c:Class) RETURN c.id, c.name, c.file")
         while r.has_next():
             row = r.get_next()
-            cid, name, file = row[0], row[1], row[2]
-            nodes.append({"id": cid, "name": name, "type": "class"})
-            node_ids.add(cid)
-            # Edge: service → class
-            svc = file.split("/")[0] if "/" in file else "root"
-            edges.append({"source": f"svc:{svc}", "target": cid})
+            nodes.append({"id": row[0], "name": row[1], "type": "class"})
+            node_ids.add(row[0])
+            svc = row[2].split("/")[0] if "/" in row[2] else "root"
+            edges.append({"source": f"svc:{svc}", "target": row[0]})
 
-        # Methods (limited)
-        r = conn.execute("MATCH (c:Class)-[:HAS_METHOD]->(m:Method) RETURN c.id, m.id, m.name LIMIT 400")
+        # ALL methods
+        r = conn.execute("MATCH (c:Class)-[:HAS_METHOD]->(m:Method) RETURN c.id, m.id, m.name")
         while r.has_next():
             row = r.get_next()
-            cls_id, mid, mname = row[0], row[1], row[2]
-            if cls_id in node_ids:
-                nodes.append({"id": mid, "name": mname, "type": "method"})
-                node_ids.add(mid)
-                edges.append({"source": cls_id, "target": mid})
+            if row[0] in node_ids:
+                nodes.append({"id": row[1], "name": row[2], "type": "method"})
+                node_ids.add(row[1])
+                edges.append({"source": row[0], "target": row[1]})
 
-        # Functions
-        r = conn.execute("MATCH (f:Function) RETURN f.id, f.name, f.file LIMIT 60")
+        # ALL functions
+        r = conn.execute("MATCH (f:Function) RETURN f.id, f.name, f.file")
         while r.has_next():
             row = r.get_next()
-            fid, fname, file = row[0], row[1], row[2]
-            nodes.append({"id": fid, "name": fname, "type": "function"})
-            node_ids.add(fid)
-            svc = file.split("/")[0] if "/" in file else "root"
-            edges.append({"source": f"svc:{svc}", "target": fid})
+            nodes.append({"id": row[0], "name": row[1], "type": "function"})
+            node_ids.add(row[0])
+            svc = row[2].split("/")[0] if "/" in row[2] else "root"
+            edges.append({"source": f"svc:{svc}", "target": row[0]})
 
-        # CALLS edges
+        # ALL CALLS edges
         r = conn.execute("MATCH (a:Function)-[:CALLS]->(b:Function) RETURN a.id, b.id")
         while r.has_next():
             row = r.get_next()
             if row[0] in node_ids and row[1] in node_ids:
                 edges.append({"source": row[0], "target": row[1]})
+
+        # ALL memories
+        r = conn.execute("MATCH (m:Memory) RETURN m.id, m.content, m.category")
+        while r.has_next():
+            row = r.get_next()
+            label = row[1][:30] + "..." if len(row[1]) > 30 else row[1]
+            nodes.append({"id": row[0], "name": label, "type": "memory"})
+            node_ids.add(row[0])
+
+        # Memory → Class/Function edges
+        r = conn.execute("MATCH (m:Memory)-[:MEM_REF_CLASS]->(c:Class) RETURN m.id, c.id")
+        while r.has_next():
+            row = r.get_next()
+            if row[0] in node_ids and row[1] in node_ids:
+                edges.append({"source": row[0], "target": row[1]})
+
+        r = conn.execute("MATCH (m:Memory)-[:MEM_REF_FUNCTION]->(f:Function) RETURN m.id, f.id")
+        while r.has_next():
+            row = r.get_next()
+            if row[0] in node_ids and row[1] in node_ids:
+                edges.append({"source": row[0], "target": row[1]})
+
+        # ALL decisions
+        r = conn.execute("MATCH (d:Decision) RETURN d.id, d.decision")
+        while r.has_next():
+            row = r.get_next()
+            label = row[1][:30] + "..." if len(row[1]) > 30 else row[1]
+            nodes.append({"id": row[0], "name": label, "type": "decision"})
+            node_ids.add(row[0])
+
+        # Decision → Class edges
+        r = conn.execute("MATCH (d:Decision)-[:DEC_ABOUT_CLASS]->(c:Class) RETURN d.id, c.id")
+        while r.has_next():
+            row = r.get_next()
+            if row[0] in node_ids and row[1] in node_ids:
+                edges.append({"source": row[0], "target": row[1]})
+
+        # ALL communities
+        r = conn.execute("MATCH (comm:Community) RETURN comm.id, comm.name")
+        while r.has_next():
+            row = r.get_next()
+            nodes.append({"id": row[0], "name": row[1], "type": "community"})
+            node_ids.add(row[0])
+
+        # Community membership edges
+        r = conn.execute("MATCH (c:Class)-[:MEMBER_OF]->(comm:Community) RETURN c.id, comm.id")
+        while r.has_next():
+            row = r.get_next()
+            if row[0] in node_ids and row[1] in node_ids:
+                edges.append({"source": row[1], "target": row[0]})
 
         return {"nodes": nodes, "edges": edges}
 
