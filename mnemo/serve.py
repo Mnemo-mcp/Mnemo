@@ -108,44 +108,63 @@ class MnemoAPIHandler(BaseHTTPRequestHandler):
         return {"nodes": nodes, "edges": edges, "communities": communities, "files": files, "classes": classes, "functions": functions}
 
     def _graph(self, params) -> dict:
-        """Return graph data for visualization (nodes + edges, limited)."""
+        """Return full hierarchical graph: Services → Files → Classes → Methods."""
         conn = self._get_conn()
-        limit = int(params.get("limit", ["200"])[0])
 
         nodes = []
-        # Get classes
-        r = conn.execute(f"MATCH (c:Class) RETURN c.id, c.name, c.file LIMIT {limit}")
-        while r.has_next():
-            row = r.get_next()
-            nodes.append({"id": row[0], "name": row[1], "type": "class", "file": row[2]})
-
-        # Get functions
-        r = conn.execute(f"MATCH (f:Function) RETURN f.id, f.name, f.file LIMIT {limit // 2}")
-        while r.has_next():
-            row = r.get_next()
-            nodes.append({"id": row[0], "name": row[1], "type": "function", "file": row[2]})
-
-        # Get edges
         edges = []
-        node_ids = {n["id"] for n in nodes}
+        node_ids = set()
 
-        r = conn.execute("MATCH (a:Function)-[c:CALLS]->(b:Function) RETURN a.id, b.id, c.confidence")
+        # Services (top-level directories)
+        services = set()
+        r = conn.execute("MATCH (f:File) RETURN f.path")
+        while r.has_next():
+            path = r.get_next()[0]
+            svc = path.split("/")[0] if "/" in path else "root"
+            services.add(svc)
+
+        for svc in services:
+            nid = f"svc:{svc}"
+            nodes.append({"id": nid, "name": svc, "type": "service"})
+            node_ids.add(nid)
+
+        # Classes (all)
+        r = conn.execute("MATCH (c:Class) RETURN c.id, c.name, c.file LIMIT 250")
+        while r.has_next():
+            row = r.get_next()
+            cid, name, file = row[0], row[1], row[2]
+            nodes.append({"id": cid, "name": name, "type": "class"})
+            node_ids.add(cid)
+            # Edge: service → class
+            svc = file.split("/")[0] if "/" in file else "root"
+            edges.append({"source": f"svc:{svc}", "target": cid})
+
+        # Methods (limited)
+        r = conn.execute("MATCH (c:Class)-[:HAS_METHOD]->(m:Method) RETURN c.id, m.id, m.name LIMIT 400")
+        while r.has_next():
+            row = r.get_next()
+            cls_id, mid, mname = row[0], row[1], row[2]
+            if cls_id in node_ids:
+                nodes.append({"id": mid, "name": mname, "type": "method"})
+                node_ids.add(mid)
+                edges.append({"source": cls_id, "target": mid})
+
+        # Functions
+        r = conn.execute("MATCH (f:Function) RETURN f.id, f.name, f.file LIMIT 60")
+        while r.has_next():
+            row = r.get_next()
+            fid, fname, file = row[0], row[1], row[2]
+            nodes.append({"id": fid, "name": fname, "type": "function"})
+            node_ids.add(fid)
+            svc = file.split("/")[0] if "/" in file else "root"
+            edges.append({"source": f"svc:{svc}", "target": fid})
+
+        # CALLS edges
+        r = conn.execute("MATCH (a:Function)-[:CALLS]->(b:Function) RETURN a.id, b.id")
         while r.has_next():
             row = r.get_next()
             if row[0] in node_ids and row[1] in node_ids:
-                edges.append({"source": row[0], "target": row[1], "type": "CALLS", "confidence": row[2]})
-
-        r = conn.execute("MATCH (f:File)-[:FILE_DEFINES_CLASS]->(c:Class) RETURN f.path, c.id")
-        while r.has_next():
-            row = r.get_next()
-            if row[1] in node_ids:
-                edges.append({"source": row[0], "target": row[1], "type": "DEFINES"})
-
-        r = conn.execute("MATCH (c:Class)-[:HAS_METHOD]->(m:Method) RETURN c.id, m.id LIMIT 100")
-        while r.has_next():
-            row = r.get_next()
-            if row[0] in node_ids:
-                edges.append({"source": row[0], "target": row[1], "type": "HAS_METHOD"})
+                edges.append({"source": row[0], "target": row[1]})
 
         return {"nodes": nodes, "edges": edges}
 

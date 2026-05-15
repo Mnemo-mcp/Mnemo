@@ -98,6 +98,30 @@ def run_pipeline(repo_root: Path, force: bool = False) -> PipelineStats:
     stats.parse_ms = int((time.time() - t0) * 1000)
     print(f"  Phase 2 parse: {stats.files_parsed} parsed, {stats.files_cached} cached ({stats.parse_ms}ms)", flush=True)
 
+    # Phase 2b: Roslyn enrichment for C# (if .NET SDK available)
+    t0 = time.time()
+    from ..analyzers import roslyn_available, run_roslyn_analyzer, roslyn_to_mnemo_format
+    roslyn_count = 0
+    if roslyn_available(repo_root):
+        roslyn_results = run_roslyn_analyzer(repo_root)
+        if roslyn_results:
+            roslyn_data = roslyn_to_mnemo_format(roslyn_results, repo_root)
+            # Replace tree-sitter results with richer Roslyn data for C# files
+            for i, r in enumerate(results):
+                if r.language == "csharp" and r.path in roslyn_data:
+                    info = roslyn_data[r.path]
+                    results[i] = ParseResult(
+                        path=r.path,
+                        language=r.language,
+                        classes=info.get("classes", []),
+                        functions=info.get("functions", []),
+                        imports=info.get("imports", []),
+                    )
+                    roslyn_count += 1
+    roslyn_ms = int((time.time() - t0) * 1000)
+    if roslyn_count:
+        print(f"  Phase 2b roslyn: enriched {roslyn_count} C# files ({roslyn_ms}ms)", flush=True)
+
     # Phase 3: Load into LadybugDB
     t0 = time.time()
     node_count, edge_count = phase_load(repo_root, files, results)
