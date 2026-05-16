@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="website/public/mnemo-logo.svg" alt="Mnemo" width="80" />
-</p>
-
 <h1 align="center">Mnemo</h1>
 
 <p align="center">
