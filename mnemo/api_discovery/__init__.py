@@ -139,5 +139,5 @@ def search_api(repo_root: Path, query: str) -> str:
     if "No APIs" in full:
         return f"No APIs matching '{query}'."
     query_lower = query.lower()
-    lines = [l for l in full.split("\n") if query_lower in l.lower() or l.startswith("#")]
-    return "\n".join(lines) if any(not l.startswith("#") for l in lines) else f"No APIs matching '{query}'."
+    lines = [ln for ln in full.split("\n") if query_lower in ln.lower() or ln.startswith("#")]
+    return "\n".join(lines) if any(not ln.startswith("#") for ln in lines) else f"No APIs matching '{query}'."
