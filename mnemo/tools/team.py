@@ -140,8 +140,22 @@ def _search_errors(root: Path, args: dict) -> str:
 @tool("mnemo_dependencies",
       "Show the full service dependency graph — which service depends on which.")
 def _dependencies(root: Path, args: dict) -> str:
-    from ..dependency_graph import format_graph
-    return format_graph(root)
+    from ..engine.db import open_db, get_db_path
+    if not get_db_path(root).exists():
+        return "No graph. Run `mnemo init`."
+    _, conn = open_db(root)
+    lines = ["# Service Dependencies\n"]
+    r = conn.execute("MATCH (a:File)-[:IMPORTS]->(b:File) RETURN a.path, b.path")
+    deps: dict[str, set] = {}
+    while r.has_next():
+        row = r.get_next()
+        src = row[0].split("/")[0]
+        tgt = row[1].split("/")[0]
+        if src != tgt:
+            deps.setdefault(src, set()).add(tgt)
+    for svc, targets in sorted(deps.items()):
+        lines.append(f"- **{svc}** → {', '.join(sorted(targets))}")
+    return "\n".join(lines) if len(lines) > 1 else "No cross-service dependencies found."
 
 
 @tool("mnemo_impact",
@@ -149,8 +163,24 @@ def _dependencies(root: Path, args: dict) -> str:
       properties={"query": {"type": "string", "description": "Service or file name to analyze"}},
       required=["query"])
 def _impact(root: Path, args: dict) -> str:
-    from ..dependency_graph import impact_analysis
-    return impact_analysis(root, args.get("query", ""))
+    from ..engine.db import open_db, get_db_path
+    if not get_db_path(root).exists():
+        return "No graph. Run `mnemo init`."
+    _, conn = open_db(root)
+    query = args.get("query", "")
+    lines = [f"# Impact Analysis: {query}\n"]
+    # Files that import the queried file/service
+    r = conn.execute(f"MATCH (a:File)-[:IMPORTS]->(b:File) WHERE b.path CONTAINS '{query}' RETURN a.path")
+    dependents = []
+    while r.has_next():
+        dependents.append(r.get_next()[0])
+    if dependents:
+        lines.append(f"## {len(dependents)} files depend on `{query}`:")
+        for d in dependents[:20]:
+            lines.append(f"- `{d}`")
+    else:
+        lines.append("No dependents found.")
+    return "\n".join(lines)
 
 
 @tool("mnemo_onboarding",

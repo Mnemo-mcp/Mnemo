@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "mnemo": {
-      "command": "/Users/nikhil.tiwari/Library/Python/3.12/bin/mnemo-mcp",
+      "command": "mnemo-mcp",
       "args": [],
       "env": {}
     }

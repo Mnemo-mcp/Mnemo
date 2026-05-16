@@ -185,10 +185,14 @@ def _extract_python(source: bytes, parser) -> dict:
 
 def _extract_js(source: bytes, parser) -> dict:
     tree = parser.parse(source)
-    result: dict = {"functions": [], "classes": []}
+    result: dict = {"functions": [], "classes": [], "imports": []}
 
     def walk(node):
-        if node.type == "function_declaration":
+        if node.type == "import_statement":
+            source_node = node.child_by_field_name("source")
+            if source_node:
+                result["imports"].append(source_node.text.decode().strip("'\""))
+        elif node.type == "function_declaration":
             name = _get_node_text(node.child_by_field_name("name"))
             if name:
                 result["functions"].append(name)
@@ -537,6 +541,15 @@ def _extract_file(source: bytes, language: str) -> dict | None:
     parser = _get_parser(language)
     if not parser:
         return None
+
+    # Vue SFC: extract <script> block for JS parsing
+    if source[:500].find(b"<template") != -1 or source[:500].find(b"<script") != -1:
+        import re
+        text = source.decode(errors="replace")
+        match = re.search(r'<script[^>]*>(.*?)</script>', text, re.DOTALL)
+        if match:
+            source = match.group(1).encode()
+
     try:
         if language == "csharp":
             return _extract_csharp(source, parser)

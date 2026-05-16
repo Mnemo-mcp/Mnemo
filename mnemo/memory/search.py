@@ -129,40 +129,6 @@ def search_memory(repo_root: Path, query: str, deep: bool = False, tags: list[st
     except Exception:
         pass
 
-    # Graph-boosted search (old engine: NetworkX — fallback)
-    try:
-        from ..graph.local import LocalGraph
-        graph = LocalGraph(repo_root)
-        if graph.exists():
-            entity_names = set()
-            for r in list(semantic_results) + keyword_results:
-                content = r.get("content", "")
-                entity_names.update(w for w in re.findall(r'\b[A-Z][a-zA-Z]{3,}\b', content))
-            graph_results = []
-            for entity in list(entity_names)[:10]:
-                nodes = graph.find_nodes(name_pattern=entity)
-                for node in nodes[:3]:
-                    neighbors = graph.get_neighbors(node.id, direction="both")
-                    for edge, neighbor in neighbors:
-                        if neighbor.type in ("memory", "decision"):
-                            mem_id_str = neighbor.id
-                            if mem_id_str.startswith("memory:"):
-                                rid = f"memory-{mem_id_str.split(':',1)[1]}"
-                            else:
-                                rid = mem_id_str
-                            if rid not in graph_results:
-                                graph_results.append(rid)
-            for rank, rid in enumerate(graph_results):
-                graph_rank[rid] = rank
-                if rid not in all_ids:
-                    mid = rid.replace("memory-", "")
-                    for e in entries:
-                        if str(e.get("id")) == mid:
-                            all_ids[rid] = {"id": rid, "content": e["content"], "metadata": {"category": e.get("category", "general")}}
-                            break
-    except Exception as exc:
-        logger.debug(f"Vector search fallback: {exc}")
-
     max_rank = limit * 2
     scored = []
     for rid, r in all_ids.items():
@@ -323,14 +289,6 @@ _recall_counter = 0
 
 def _recall_memory(repo_root: Path, storage) -> str:
     """Recall memory section — token-budgeted, scored hot memories with eviction and branch awareness."""
-    global _recall_counter
-    _recall_counter += 1
-    if _recall_counter % 10 == 0:
-        try:
-            auto_forget_sweep(repo_root)
-        except Exception as exc:
-            logger.debug(f"Auto-forget sweep failed: {exc}")
-
     memory = _as_list(storage.read_collection(Collections.MEMORY))
 
     now = time.time()
@@ -369,6 +327,15 @@ def _recall_memory(repo_root: Path, storage) -> str:
     if not hot_memories and archived_count == 0:
         return ""
 
+    from .retention import summarize_for_injection
+
+    # Split: last session (<24h) vs earlier
+    cutoff = now - 86400
+    recent = [e for e in hot_memories if e.get("timestamp", 0) >= cutoff]
+    earlier = [e for e in hot_memories if e.get("timestamp", 0) < cutoff]
+
+    recent.sort(key=lambda e: e.get("timestamp", 0), reverse=True)
+
     CATEGORY_WEIGHTS = {'architecture': 0.9, 'preference': 0.85, 'decision': 0.9, 'pattern': 0.8, 'bug': 0.7, 'general': 0.5, 'todo': 0.6}
 
     def _score(entry):
@@ -378,19 +345,30 @@ def _recall_memory(repo_root: Path, storage) -> str:
         recency = 1.0 - min(days / 30, 1.0)
         ac = entry.get("access_count", 0)
         frequency = min(ac / 10, 1.0)
-        return importance * 0.5 + recency * 0.3 + frequency * 0.2
+        return recency * 0.5 + importance * 0.3 + frequency * 0.2
 
-    hot_memories.sort(key=_score, reverse=True)
+    earlier.sort(key=_score, reverse=True)
 
     char_budget = MEMORY_TOKEN_BUDGET * TOKEN_CHAR_RATIO
     lines = []
-    included = 0
     used_chars = 0
-    if hot_memories:
-        lines.append("# Memory")
-        for item in hot_memories:
+    included = 0
+
+    if recent:
+        lines.append("# Memory (Last Session)")
+        for item in recent:
             cat = f" [{item['category']}]" if item.get("category") != "general" else ""
             line = f"- {item['content']}{cat}"
+            if used_chars + len(line) > char_budget:
+                break
+            lines.append(line)
+            used_chars += len(line)
+            included += 1
+
+    if earlier:
+        lines.append("\n# Earlier (concise)")
+        for item in earlier:
+            line = f"- {summarize_for_injection(item)}"
             if used_chars + len(line) > char_budget:
                 break
             lines.append(line)
@@ -408,24 +386,28 @@ def _recall_memory(repo_root: Path, storage) -> str:
 
 
 def _recall_active_task(repo_root: Path, storage) -> str:
-    """Recall active task context section."""
-    tasks = _as_list(storage.read_collection(Collections.TASKS))
-    active_tasks = [task for task in tasks if task.get("status") == "active"]
-    if not active_tasks:
+    """Recall active plan/task context from plans.json."""
+    from ..plan import _load_plans
+
+    plans = _load_plans(repo_root)
+    active = [p for p in plans if p.get("status") in (None, "active", "in_progress")]
+    if not active:
         return ""
-    lines = ["# Active Task Context"]
-    active = active_tasks[-1]
-    lines.append(f"- **{active.get('task_id', '')}**: {active.get('description', '')}")
-    task_query = " ".join(filter(None, [
-        str(active.get("task_id", "")),
-        str(active.get("description", "")),
-        " ".join(active.get("files", [])),
-        str(active.get("notes", "")),
-    ]))
-    hits = semantic_query(repo_root, "code", task_query, limit=5)
-    for hit in hits:
-        meta = hit.get("metadata", {})
-        lines.append(f"- Relevant: `{meta.get('path', '')}` :: `{meta.get('symbol', '')}`")
+
+    plan = active[-1]
+    lines = ["# Active Plan"]
+    lines.append(f"- **{plan.get('id', '')}**: {plan.get('title', '')}")
+
+    tasks = plan.get("tasks", [])
+    done = [t for t in tasks if t.get("status") == "done"]
+    pending = [t for t in tasks if t.get("status") != "done"]
+
+    if done:
+        lines.append(f"- Completed: {len(done)}/{len(tasks)}")
+    if pending:
+        next_task = pending[0]
+        lines.append(f"- Next: {next_task.get('id', '')} — {next_task.get('title', next_task.get('description', ''))}")
+
     lines.append("")
     return "\n".join(lines)
 
@@ -458,109 +440,37 @@ def _recall_recent_changes(base: Path) -> str:
 
 
 def _recall_repo_map(base: Path, header_size: int) -> str:
-    """Recall repo map section using compact tree + graph summary."""
-    graph_summary = ""
-    graph_path = base / "graph.json"
-    if graph_path.exists():
-        try:
-            from ..graph.local import LocalGraph
-            graph = LocalGraph(base.parent)
-            s = graph.stats()
-            node_types = s.get("node_types", {})
-            top_types = sorted(node_types.items(), key=lambda x: x[1], reverse=True)[:5]
-            graph_summary = f"Knowledge Graph: {s['nodes']} nodes, {s['edges']} edges ({', '.join(f'{c} {t}' for t, c in top_types)})\n"
-            g = graph.graph
-            degrees = [(nid, g.in_degree(nid) + g.out_degree(nid)) for nid in g.nodes]
-            degrees.sort(key=lambda x: x[1], reverse=True)
-            hubs = []
-            for nid, deg in degrees[:5]:
-                node = graph.get_node(nid)
-                if node:
-                    hubs.append(f"{node.name} ({node.type}, {deg} connections)")
-            if hubs:
-                graph_summary += f"Key hubs: {', '.join(hubs)}\n"
-        except Exception as exc:
-            logger.debug(f"Graph summary generation failed: {exc}")
-
+    """Recall repo map section using compact tree."""
     tree_path = base / "tree.md"
     if not tree_path.exists():
-        summary_path = base / "summary.md"
-        if not summary_path.exists():
-            return ""
-        content = summary_path.read_text(encoding="utf-8")
-    else:
+        return ""
+    try:
         content = tree_path.read_text(encoding="utf-8")
-
-    lines = ["# Repo Map", "(use mnemo_lookup for method-level details, mnemo_graph for relationships)\n"]
-    if graph_summary:
-        lines.append(graph_summary)
-    lines.append(content)
-    return "\n".join(lines)
-
-
-def _index_changed_files(repo_root: Path, old_hashes: dict[str, Any]) -> None:
-    """Incrementally index only files that changed since last hash snapshot."""
-    from ..repo_map import _extract_file, _should_ignore, MAX_FILE_SIZE
-    from ..config import SUPPORTED_EXTENSIONS
-    from ..chunking import make_code_chunks
-    import hashlib
-
-    chunks = []
-    for ext, language in SUPPORTED_EXTENSIONS.items():
-        for filepath in repo_root.rglob(f"*{ext}"):
-            if _should_ignore(filepath) or filepath.stat().st_size > MAX_FILE_SIZE:
-                continue
-            rel = str(filepath.relative_to(repo_root))
-            try:
-                content = filepath.read_bytes()
-                current_hash = hashlib.md5(content, usedforsecurity=False).hexdigest()
-            except (OSError, PermissionError):
-                continue
-            if old_hashes.get(rel) == current_hash:
-                continue
-            info = _extract_file(content, language)
-            if info:
-                chunks.extend(make_code_chunks(rel, language, info))
-
-    if chunks:
-        try:
-            index_chunks(repo_root, "code", chunks)
-        except Exception as exc:
-            logger.warning(f"Failed to index changed files: {exc}")
+        budget = max(500, 2000 - header_size)
+        if len(content) > budget:
+            content = content[:budget - 3] + "..."
+        return f"# Repo Map\n```\n{content}\n```\n"
+    except OSError:
+        return ""
 
 
 def recall(repo_root: Path, tier: str = "standard") -> str:
-    """Recall project memory with tiered retrieval.
-
-    Tiers:
-      - compact (~500 tokens): active task + 3 hot memories + next plan step + 1 warning
-      - standard (~2000 tokens): budgeted recall with truncated repo map, max 10 memories
-      - deep (unlimited): everything, no truncation
-    """
-    from ..repo_map import has_changes, save_repo_map
-    from ..repo_map.identity import format_identity
-    from ..corrections import decay_corrections
+    """Recall project memory with tiered retrieval."""
+    global _recall_counter
+    _recall_counter += 1
 
     base = mnemo_path(repo_root)
     if not base.exists():
         return ""
 
-    decay_corrections(repo_root)
-
-    # MNO-029: Rebuild stale index (>24h old with changes)
-    chroma_dir = base / "index" / "chroma"
-    if chroma_dir.exists():
+    # Periodic maintenance (every 10th recall)
+    if _recall_counter % 10 == 0:
+        from ..corrections import decay_corrections
+        decay_corrections(repo_root)
         try:
-            mtime = chroma_dir.stat().st_mtime
-            if (time.time() - mtime) > 86400 and has_changes(repo_root):
-                save_repo_map(repo_root)
-        except OSError:
+            auto_forget_sweep(repo_root)
+        except Exception:
             pass
-
-    if has_changes(repo_root):
-        old_hashes = _as_dict(get_storage(repo_root).read_collection(Collections.HASHES))
-        save_repo_map(repo_root, index=False)
-        _index_changed_files(repo_root, old_hashes)
 
     if tier == "compact":
         return _recall_compact(repo_root)
@@ -651,14 +561,42 @@ def _recall_standard(repo_root: Path, base: Path, storage) -> str:
             if branch in (current_branch, "main", "master") or _compute_retention(entry, now) >= 0.5:
                 hot_memories.append(entry)
 
-    hot_memories.sort(key=lambda e: _compute_retention(e, now), reverse=True)
-    hot_memories = hot_memories[:10]
+    CATEGORY_WEIGHTS = {'architecture': 0.9, 'preference': 0.85, 'decision': 0.9, 'pattern': 0.8, 'bug': 0.7, 'general': 0.5, 'todo': 0.6}
 
-    if hot_memories:
-        lines = ["# Memory"]
-        for item in hot_memories:
-            cat = f" [{item['category']}]" if item.get("category") != "general" else ""
-            lines.append(f"- {item['content']}{cat}")
+    def _score_std(entry):
+        cat = entry.get("category", "general")
+        importance = CATEGORY_WEIGHTS.get(cat, 0.5)
+        days = (now - entry.get("timestamp", now)) / 86400
+        recency = 1.0 - min(days / 30, 1.0)
+        ac = entry.get("access_count", 0)
+        frequency = min(ac / 10, 1.0)
+        return recency * 0.5 + importance * 0.3 + frequency * 0.2
+
+    from .retention import summarize_for_injection
+
+    cutoff = now - 86400
+    recent = [e for e in hot_memories if e.get("timestamp", 0) >= cutoff]
+    earlier = [e for e in hot_memories if e.get("timestamp", 0) < cutoff]
+
+    recent.sort(key=lambda e: e.get("timestamp", 0), reverse=True)
+    earlier.sort(key=_score_std, reverse=True)
+
+    # Cap total at 10
+    recent = recent[:10]
+    remaining = max(10 - len(recent), 0)
+    earlier = earlier[:remaining]
+
+    if recent or earlier:
+        lines = []
+        if recent:
+            lines.append("# Memory (Last Session)")
+            for item in recent:
+                cat = f" [{item['category']}]" if item.get("category") != "general" else ""
+                lines.append(f"- {item['content']}{cat}")
+        if earlier:
+            lines.append("\n# Earlier (concise)")
+            for item in earlier:
+                lines.append(f"- {summarize_for_injection(item)}")
         lines.append("")
         sections.append("\n".join(lines))
 

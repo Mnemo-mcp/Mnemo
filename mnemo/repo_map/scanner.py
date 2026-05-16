@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from ..config import SUPPORTED_EXTENSIONS, mnemo_path, should_ignore
+from ..config import SUPPORTED_EXTENSIONS, should_ignore
 from ..storage import Collections, get_storage
 
 CHANGELOG_FILE = "changelog.json"

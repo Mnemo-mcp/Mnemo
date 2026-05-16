@@ -3,7 +3,7 @@ const phases = [
     phase: '01',
     title: 'Foundation',
     color: 'border-t-accent',
-    items: ['Knowledge Graph (NetworkX)', 'Persistent Memory', 'Repo Map Generation', 'Semantic Search (ChromaDB)', 'Multi-language Parsing (14 langs)'],
+    items: ['Knowledge Graph (LadybugDB)', 'Persistent Memory', 'Repo Map Generation', 'Semantic Search (ONNX Embeddings)', 'Multi-language Parsing (14 langs)'],
   },
   {
     phase: '02',

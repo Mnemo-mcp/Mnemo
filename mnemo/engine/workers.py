@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any
 
 from .pipeline import FileInfo, ParseResult
 

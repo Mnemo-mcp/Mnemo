@@ -1,6 +1,6 @@
 const FEATURES = [
   { num: '880+', unit: 'nodes', title: 'Structural Knowledge Graph', desc: 'Services, classes, interfaces, methods, files, and people. Relationships: implements, inherits, calls, depends_on. 14 languages via tree-sitter.' },
-  { num: '56', unit: 'tools', title: 'Complete MCP Toolset', desc: 'Every tool enriches its response with proactive context — warnings, next tasks, related decisions without extra calls.' },
+  { num: '16', unit: 'tools', title: 'Focused MCP Toolset', desc: '16 agent-facing tools covering memory, search, code intelligence, planning, and audit. Each does one thing well.' },
   { num: '3×', unit: 'streams', title: 'Hybrid Retrieval', desc: 'BM25 with stemming, vector similarity via MiniLM-L6-v2, graph traversal boost. Fused with Reciprocal Rank Fusion.' },
   { num: 'Auto', unit: 'decay', title: 'Self-Maintaining Memory', desc: 'Retention scoring with access reinforcement. Hot memories stay, stale ones fade. Contradiction detection supersedes conflicts.' },
   { num: '16', unit: 'rules', title: 'Secret Filtering', desc: 'AWS keys, GitHub PATs, JWTs, Bearer tokens, private keys — all stripped before storage. .mnemo/ never contains credentials.' },

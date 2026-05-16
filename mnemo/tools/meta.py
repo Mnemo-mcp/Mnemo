@@ -43,7 +43,7 @@ def ask(repo_root: Path, query: str) -> str:
     results = []
 
     if intent == "architecture":
-        handler = get_handler("mnemo_intelligence")
+        handler = get_handler("mnemo_ask")
         if handler:
             results.append(handler(repo_root, {}))
 

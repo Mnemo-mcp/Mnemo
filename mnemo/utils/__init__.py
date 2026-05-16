@@ -1,4 +1,17 @@
-"""Shared utilities — logging, privacy, dedup, metrics, circuit breaker, audit."""
+"""Shared utilities — small, independent modules used across mnemo packages.
+
+Grouping rationale: Each module is <100 LOC and has no dependencies on other utils.
+They're grouped here rather than split into sub-packages because:
+- Each is a single-file utility (no internal structure to warrant a package)
+- They have zero inter-dependencies
+- Flat structure keeps imports simple: `from ..utils import get_logger`
+
+Categories:
+- Text processing: stemmer, synonyms
+- Safety/compliance: privacy (secret stripping), audit (audit trail)
+- Resilience: circuit_breaker, metrics
+- Infrastructure: logger, dedup
+"""
 
 from __future__ import annotations
 

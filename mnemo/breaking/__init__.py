@@ -1,4 +1,4 @@
-"""Breaking change detector - compare current API signatures against baseline."""
+"""Breaking change detector — compares current graph symbols against baseline."""
 
 from __future__ import annotations
 
@@ -6,8 +6,7 @@ import json
 import time
 from pathlib import Path
 
-from ..config import SUPPORTED_EXTENSIONS, mnemo_path
-from ..repo_map import _extract_file, _should_ignore, MAX_FILE_SIZE
+from ..config import mnemo_path
 
 BASELINE_FILE = "api_baseline.json"
 
@@ -24,66 +23,41 @@ def _load_baseline(repo_root: Path) -> dict:
 
 def _save_baseline(repo_root: Path, baseline: dict) -> None:
     path = mnemo_path(repo_root) / BASELINE_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(baseline, indent=2) + "\n", encoding="utf-8")
 
 
-def _current_git_tag(repo_root: Path) -> str | None:
-    """Get the latest git tag if HEAD is tagged."""
-    import subprocess  # nosec B404
-    try:
-        result = subprocess.run(  # nosec B603 B607
-            ["git", "describe", "--tags", "--exact-match", "HEAD"],
-            cwd=repo_root, capture_output=True, text=True, timeout=5,
-        )
-        return result.stdout.strip() if result.returncode == 0 else None
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return None
-
-
-def _baseline_tag(repo_root: Path) -> str | None:
-    """Get the tag the baseline was saved at."""
-    baseline = _load_baseline(repo_root)
-    return baseline.get("tag")
-
-
 def _extract_public_api(repo_root: Path) -> dict[str, list[str]]:
-    """Extract all public class/method signatures from the codebase."""
+    """Extract public API signatures from engine graph."""
+    from ..engine.db import open_db, get_db_path
+
+    if not get_db_path(repo_root).exists():
+        return {}
+
+    _, conn = open_db(repo_root)
     api: dict[str, list[str]] = {}
 
-    for ext, language in SUPPORTED_EXTENSIONS.items():
-        for filepath in repo_root.rglob(f"*{ext}"):
-            if _should_ignore(filepath) or filepath.stat().st_size > MAX_FILE_SIZE:
-                continue
-            rel = str(filepath.relative_to(repo_root))
-            if "test" in rel.lower():
-                continue
-            try:
-                source = filepath.read_bytes()
-            except (OSError, PermissionError):
-                continue
-            info = _extract_file(source, language)
-            if not info:
-                continue
+    # Classes with their implements
+    result = conn.execute("""
+        MATCH (c:Class)
+        WHERE NOT c.file CONTAINS 'test' AND NOT c.name STARTS WITH '_'
+        RETURN c.name, c.file, c.implements
+    """)
+    while result.has_next():
+        row = result.get_next()
+        impl = f" : {row[2]}" if row[2] else ""
+        api.setdefault(row[1], []).append(f"class {row[0]}{impl}")
 
-            sigs = []
-            for cls in info.get("classes", []):
-                name = cls["name"]
-                if name.startswith("_"):
-                    continue
-                impl = f" : {cls['implements']}" if cls.get("implements") else ""
-                sigs.append(f"class {name}{impl}")
-                for method in cls.get("methods", []):
-                    mname = method.split("(")[0].split()[-1] if method else ""
-                    if mname and not mname.startswith("_"):
-                        sigs.append(f"  {method}")
-
-            for func in info.get("functions", []):
-                fname = func.split("(")[0].replace("def ", "").strip()
-                if not fname.startswith("_"):
-                    sigs.append(func)
-
-            if sigs:
-                api[rel] = sigs
+    # Functions with signatures
+    result = conn.execute("""
+        MATCH (f:Function)
+        WHERE NOT f.file CONTAINS 'test' AND NOT f.name STARTS WITH '_'
+        RETURN f.name, f.file, f.signature
+    """)
+    while result.has_next():
+        row = result.get_next()
+        sig = row[2] or row[0]
+        api.setdefault(row[1], []).append(sig)
 
     return api
 
@@ -91,26 +65,17 @@ def _extract_public_api(repo_root: Path) -> dict[str, list[str]]:
 def save_baseline(repo_root: Path) -> str:
     """Snapshot current public API as the baseline."""
     api = _extract_public_api(repo_root)
-    tag = _current_git_tag(repo_root)
-    baseline = {"timestamp": time.time(), "api": api, "tag": tag or ""}
+    baseline = {"timestamp": time.time(), "api": api}
     _save_baseline(repo_root, baseline)
     total = sum(len(v) for v in api.values())
-    tag_info = f" at tag {tag}" if tag else ""
-    return f"Baseline saved{tag_info}: {len(api)} files, {total} public symbols."
+    return f"Baseline saved: {len(api)} files, {total} public symbols."
 
 
 def detect_breaking_changes(repo_root: Path) -> str:
-    """Compare current API against saved baseline. Auto-saves baseline on new tags."""
-    # Auto-baseline: if HEAD is at a new tag, save baseline first
-    current_tag = _current_git_tag(repo_root)
-    saved_tag = _baseline_tag(repo_root)
-    if current_tag and current_tag != saved_tag:
-        save_baseline(repo_root)
-        return f"New tag detected ({current_tag}). Baseline auto-saved. No breaking changes to compare yet."
-
+    """Compare current API against saved baseline."""
     baseline = _load_baseline(repo_root)
     if not baseline or not baseline.get("api"):
-        return "No API baseline found. Run `mnemo_breaking_changes` with action='baseline' first to snapshot current API."
+        return "No API baseline found. Save a baseline first with action='baseline'."
 
     old_api = baseline["api"]
     new_api = _extract_public_api(repo_root)
@@ -130,34 +95,26 @@ def detect_breaking_changes(repo_root: Path) -> str:
             if old_name not in new_names:
                 removed_symbols.append({"file": file, "symbol": sig})
             elif sig not in new_sigs:
-                # Signature changed
-                changed_symbols.append({"file": file, "old": sig, "new": next(
-                    (s for s in new_sigs if s.split("(")[0].strip() == old_name), "?"
-                )})
+                new_sig = next((s for s in new_sigs if s.split("(")[0].strip() == old_name), "?")
+                changed_symbols.append({"file": file, "old": sig, "new": new_sig})
 
     if not removed_files and not removed_symbols and not changed_symbols:
         return "No breaking changes detected against baseline."
 
     lines = ["# Breaking Changes Detected\n"]
-
     if removed_files:
         lines.append(f"## Removed Files ({len(removed_files)})\n")
-        for f in removed_files:
+        for f in removed_files[:20]:
             lines.append(f"- ❌ `{f}`")
         lines.append("")
-
     if removed_symbols:
         lines.append(f"## Removed Symbols ({len(removed_symbols)})\n")
         for s in removed_symbols[:30]:
             lines.append(f"- ❌ `{s['file']}`: `{s['symbol']}`")
         lines.append("")
-
     if changed_symbols:
         lines.append(f"## Changed Signatures ({len(changed_symbols)})\n")
         for s in changed_symbols[:30]:
-            lines.append(f"- ⚠️  `{s['file']}`:")
-            lines.append(f"  - Was: `{s['old']}`")
-            lines.append(f"  - Now: `{s['new']}`")
+            lines.append(f"- ⚠️ `{s['file']}`: `{s['old']}` → `{s['new']}`")
         lines.append("")
-
     return "\n".join(lines)

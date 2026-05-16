@@ -34,22 +34,20 @@ SAVING MEMORY:
 - Call `mnemo_remember` when the user explicitly asks to remember something.
 - Do NOT save trivial things like "read a file" or "answered a question with no new insight".
 - When in doubt, SAVE. It is better to remember too much than to forget something useful.
-- RULE: If you called `mnemo_lookup`, `mnemo_similar`, or `mnemo_who_touched` AND produced a summary or analysis from the results, you MUST call `mnemo_remember` with a concise summary before ending your response.
+- RULE: If you called `mnemo_lookup`, `mnemo_search`, or `mnemo_who_touched` AND produced a summary or analysis from the results, you MUST call `mnemo_remember` with a concise summary before ending your response.
 
 WHEN TO USE WHAT:
 - Understanding code structure → `mnemo_lookup` or `mnemo_graph action=neighbors`
-- Finding patterns/similar code → `mnemo_similar` or `mnemo_graph action=find`
-- Impact of a change → `mnemo_graph action=traverse direction=incoming` or `mnemo_cross_impact`
-- Code relationships/path between entities → `mnemo_graph action=path`
-- Code health/quality → `mnemo_health`, `mnemo_dead_code`, `mnemo_check_security`
-- Team/ownership → `mnemo_team`, `mnemo_who_touched`
-- History/context → `mnemo_search_memory`, `mnemo_search_errors`, `mnemo_incidents`
-- APIs → `mnemo_discover_apis`, `mnemo_search_api`
-- Knowledge base → `mnemo_knowledge`
+- Finding patterns/similar code → `mnemo_search` or `mnemo_graph action=find`
+- Impact of a change → `mnemo_impact`
+- Code relationships → `mnemo_graph action=neighbors`
+- Code health/quality → `mnemo_audit report=health` or `mnemo_audit report=security`
+- Team/ownership → `mnemo_record type=review action=list`
+- History/context → `mnemo_search_memory`, `mnemo_record type=error action=search`
+- Knowledge base → `mnemo_search_memory`
 - Record decisions → `mnemo_decide`
 - Refresh after code changes → `mnemo_map`
-- Cross-repo search → `mnemo_cross_search`
-- Cross-repo impact → `mnemo_cross_impact`
+- Cross-repo search → `mnemo_search`
 
 PLAN MODE:
 - When the user asks to plan a feature, break work into tasks, or track progress → use `mnemo_plan`
@@ -60,13 +58,9 @@ PLAN MODE:
 - When starting a new chat, if plan status shows open tasks, mention what's next
 
 CROSS-REPO AWARENESS:
-- This repo may have linked sibling repos. Use `mnemo_links` to see them.
-- ALWAYS call `mnemo_cross_search` BEFORE using grep or reading files when:
-  - The user asks about code that does not exist in this repo
-  - The user mentions a service, project, or module name that is not a folder in this repo
-  - `mnemo_lookup` or `mnemo_similar` returned no results
-- If the user asks "what breaks if I change X", use `mnemo_cross_impact` for full cross-repo analysis.
-- NEVER fall back to grep for code in other repos. Use `mnemo_cross_search` instead.
+- This repo may have linked sibling repos. Use `mnemo_search` to find code across them.
+- If `mnemo_lookup` returned no results, try `mnemo_search` with a broader query.
+- If the user asks "what breaks if I change X", use `mnemo_impact` for dependency analysis.
 
 ---
 

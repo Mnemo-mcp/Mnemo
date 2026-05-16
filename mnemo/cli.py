@@ -46,15 +46,15 @@ def init(path: str, client: str):
 @cli.command()
 @click.argument("path", default=".", type=click.Path(exists=True))
 def map(path: str):
-    """Regenerate the repo map."""
+    """Regenerate the repo map from the graph DB."""
     from .config import mnemo_path
-    from .repo_map import save_repo_map
+    from .init import _generate_legacy_files
 
     repo_root = Path(path).resolve()
     if not mnemo_path(repo_root).exists():
         click.echo("Not initialized. Run `mnemo init` first.")
         return
-    save_repo_map(repo_root)
+    _generate_legacy_files(repo_root)
     click.echo("Repo map updated.")
 
 
@@ -139,38 +139,67 @@ def reset(path: str):
             ctx.unlink()
             click.echo(f"  ✓ Removed {ctx.relative_to(repo_root)}")
 
-    # Remove generated Kiro files
-    click.echo("⏳ Removing generated Kiro/agent files...")
-    kiro_dirs = [
+    # Remove only Mnemo-owned Kiro files (not entire directories)
+    click.echo("⏳ Removing Mnemo-generated files...")
+    mnemo_kiro_files = [
+        repo_root / ".kiro" / "hooks" / "agent-spawn.sh",
+        repo_root / ".kiro" / "hooks" / "user-prompt-submit.sh",
+        repo_root / ".kiro" / "hooks" / "pre-tool-use.sh",
+        repo_root / ".kiro" / "hooks" / "post-tool-use.sh",
+        repo_root / ".kiro" / "hooks" / "stop.sh",
+        repo_root / ".kiro" / "agents" / "mnemo-enhanced.json",
+        repo_root / ".kiro" / "skills" / "mnemo" / "SKILL.md",
+        repo_root / ".kiro" / "settings" / "mcp.json",
+    ]
+    for f in mnemo_kiro_files:
+        if f.exists():
+            f.unlink()
+            click.echo(f"  ✓ Removed {f.relative_to(repo_root)}")
+
+    # Clean up empty directories left behind
+    for d in [
+        repo_root / ".kiro" / "skills" / "mnemo",
         repo_root / ".kiro" / "hooks",
         repo_root / ".kiro" / "agents",
         repo_root / ".kiro" / "skills",
-    ]
-    for d in kiro_dirs:
-        if d.exists():
-            shutil.rmtree(d)
-            click.echo(f"  ✓ Removed {d.relative_to(repo_root)}/")
+        repo_root / ".kiro" / "settings",
+    ]:
+        if d.exists() and not any(d.iterdir()):
+            d.rmdir()
 
-    kiro_mcp = repo_root / ".kiro" / "settings" / "mcp.json"
-    if kiro_mcp.exists():
-        kiro_mcp.unlink()
-        click.echo(f"  ✓ Removed {kiro_mcp.relative_to(repo_root)}")
+    # Remove Mnemo entries from .claude/settings.json (don't delete the file)
+    claude_settings = repo_root / ".claude" / "settings.json"
+    if claude_settings.exists():
+        import json
+        try:
+            data = json.loads(claude_settings.read_text(encoding="utf-8"))
+            changed = False
+            if "hooks" in data:
+                del data["hooks"]
+                changed = True
+            if "mcpServers" in data and "mnemo" in data["mcpServers"]:
+                del data["mcpServers"]["mnemo"]
+                if not data["mcpServers"]:
+                    del data["mcpServers"]
+                changed = True
+            if changed:
+                claude_settings.write_text(json.dumps(data, indent=2), encoding="utf-8")
+                click.echo("  ✓ Removed Mnemo hooks/MCP from .claude/settings.json")
+        except (json.JSONDecodeError, OSError):
+            pass
 
-    # Remove .kiro/ dir itself if empty
-    kiro_dir = repo_root / ".kiro"
-    if kiro_dir.exists() and not any(kiro_dir.rglob("*")):
-        shutil.rmtree(kiro_dir)
-        click.echo("  ✓ Removed empty .kiro/")
-
-    # Remove Claude Code hooks
-    claude_hooks = repo_root / ".claude" / "hooks"
-    if claude_hooks.exists():
-        shutil.rmtree(claude_hooks)
-        click.echo(f"  ✓ Removed {claude_hooks.relative_to(repo_root)}/")
-    claude_guide = repo_root / ".claude" / "mnemo-guide.md"
-    if claude_guide.exists():
-        claude_guide.unlink()
-        click.echo(f"  ✓ Removed {claude_guide.relative_to(repo_root)}")
+    # Remove CLAUDE.md Mnemo section (or whole file if it's only Mnemo content)
+    claude_md = repo_root / "CLAUDE.md"
+    if claude_md.exists():
+        content = claude_md.read_text(encoding="utf-8")
+        marker = "## Mnemo — Persistent Memory"
+        if marker in content:
+            before = content.split(marker)[0].rstrip()
+            if before:
+                claude_md.write_text(before + "\n", encoding="utf-8")
+            else:
+                claude_md.unlink()
+            click.echo("  ✓ Removed Mnemo section from CLAUDE.md")
 
     click.echo("\n✅ Reset complete. Run `mnemo init` to start fresh.")
 
@@ -459,19 +488,15 @@ def tools_list():
 
 
 @cli.command()
-@click.option("--port", "-p", default=7890, help="Port to serve on.")
+@click.option("--port", "-p", default=3333, help="Port to serve on.")
 @click.option("--no-open", is_flag=True, help="Don't auto-open browser.")
 @click.argument("path", default=".", type=click.Path(exists=True))
 def ui(path: str, port: int, no_open: bool):
-    """Open the Mnemo dashboard in your browser."""
-    from .config import mnemo_path
-    from .ui import start_server
+    """Open the Mnemo dashboard in your browser. (Alias for `mnemo serve`)"""
+    from .serve import serve as start_server
 
     repo_root = Path(path).resolve()
-    if not mnemo_path(repo_root).exists():
-        click.echo("Not initialized. Run `mnemo init` first.")
-        return
-    start_server(repo_root, port=port, open_browser=not no_open)
+    start_server(repo_root, port=port)
 
 
 if __name__ == "__main__":

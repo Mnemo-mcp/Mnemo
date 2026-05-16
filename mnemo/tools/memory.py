@@ -70,7 +70,18 @@ def _decide(root: Path, args: dict) -> str:
       required=["context"])
 def _context(root: Path, args: dict) -> str:
     from ..memory import save_context
-    save_context(root, args.get("context", {}))
+    ctx = args.get("context", {})
+    if isinstance(ctx, str):
+        # Parse "key=value" or "key: value" pairs from string
+        pairs = {}
+        for part in ctx.replace(";", "\n").split("\n"):
+            for sep in ("=", ":"):
+                if sep in part:
+                    k, v = part.split(sep, 1)
+                    pairs[k.strip()] = v.strip()
+                    break
+        ctx = pairs if pairs else {"note": ctx}
+    save_context(root, ctx)
     return "Context updated."
 
 

@@ -5,8 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..config import mnemo_path
-from ..intelligence import detect_patterns, detect_dependencies, detect_service_calls
-from ..api_discovery import discover_apis
 
 
 def generate_onboarding(repo_root: Path) -> str:
@@ -30,7 +28,7 @@ def generate_onboarding(repo_root: Path) -> str:
     lines.append("")
 
     # Patterns
-    patterns = detect_patterns(repo_root)
+    patterns = []
     if patterns:
         lines.append("## Tech Stack & Patterns")
         for p in patterns:
@@ -38,7 +36,7 @@ def generate_onboarding(repo_root: Path) -> str:
         lines.append("")
 
     # Architecture
-    graph = detect_service_calls(repo_root)
+    graph = {}
     if graph:
         lines.append("## Service Architecture")
         lines.append("How services communicate:")
@@ -47,7 +45,7 @@ def generate_onboarding(repo_root: Path) -> str:
         lines.append("")
 
     # Key dependencies
-    deps = detect_dependencies(repo_root)
+    deps = []
     if deps:
         lines.append("## Key Dependencies")
         for project, pkgs in sorted(deps.items()):

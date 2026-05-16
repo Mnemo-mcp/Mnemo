@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import csv
 import os
-import re
 import tempfile
 from collections import defaultdict
 from pathlib import Path

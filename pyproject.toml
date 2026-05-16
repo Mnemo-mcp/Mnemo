@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mnemo-dev"
-version = "0.4.0"
+version = "0.5.0"
 description = "Persistent memory and repo map for AI coding assistants"
 readme = "README.md"
 license = {text = "AGPL-3.0"}
@@ -23,6 +23,11 @@ dependencies = [
     "gitpython>=3.1",
     "pyyaml>=6.0",
     "networkx>=3.0",
+    "onnxruntime>=1.17",
+    "tokenizers>=0.15",
+    "numpy>=1.24",
+    "real_ladybug>=0.15",
+    "typing_extensions>=4.0;python_version<'3.11'",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -44,9 +49,6 @@ dev = [
     "build>=1.2",
     "pytest>=8.0",
     "ruff>=0.5",
-]
-semantic = [
-    "chromadb>=0.5",
 ]
 binary = [
     "pyinstaller>=6.0",
@@ -75,6 +77,7 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+exclude = ["benchmark"]
 
 [tool.ruff.lint]
 ignore = ["E501", "F401"]

@@ -27,9 +27,7 @@ def test_recall_reads_memory_collections_through_storage(monkeypatch, tmp_path: 
     add_memory(tmp_path, "Prefer small shippable increments")
     add_decision(tmp_path, "Support multiple AI clients")
     save_context(tmp_path, {"repo_root": str(tmp_path)})
-    (tmp_path / ".mnemo" / "summary.md").write_text("**src/**\n  app.py", encoding="utf-8")
-
-    monkeypatch.setattr("mnemo.repo_map.has_changes", lambda repo_root: False)
+    (tmp_path / ".mnemo" / "tree.md").write_text("**src/**\n  app.py", encoding="utf-8")
 
     output = recall(tmp_path)
 

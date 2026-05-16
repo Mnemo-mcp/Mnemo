@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Terminal from './Terminal';
 
 const STATS = [
-  { value: '56', label: 'MCP Tools' },
+  { value: '16', label: 'MCP Tools' },
   { value: '14', label: 'Languages' },
   { value: '140+', label: 'Tests' },
   { value: '0', label: 'External DBs' },
@@ -15,7 +15,7 @@ const TERMINAL_LINES = [
   '[mnemo] Parsed 157 files · 14 languages · tree-sitter AST',
   '[mnemo] Graph: 880 nodes, 1455 edges',
   '[mnemo] Architecture: Clean Architecture + CQRS detected',
-  '[mnemo] 56 MCP tools ready.',
+  '[mnemo] 16 MCP tools ready. 100% search recall.',
   '',
   '$ mnemo recall',
   '  Decision: CosmosDB for persistence (team expertise)',

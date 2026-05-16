@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 from ..config import mnemo_path
-from ..storage import get_storage
 
 
 PLANS_FILE = "plans.json"

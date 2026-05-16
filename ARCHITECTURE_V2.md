@@ -29,7 +29,7 @@ Three layers, each building on the one below.
 
 ### Storage: LadybugDB
 
-Single embedded database replacing JSON files + NetworkX + ChromaDB.
+LadybugDB (Kuzu) for graph. ONNX + numpy for vector search. JSON for memory persistence.
 
 ```
 pip install real_ladybug
@@ -38,7 +38,7 @@ pip install real_ladybug
 Provides:
 - **Cypher queries** for graph traversal
 - **FTS index** for keyword search (replaces custom BM25)
-- **Vector index** for semantic search (replaces ChromaDB)
+- **Vector index**: ONNX all-MiniLM-L6-v2 + numpy cosine search (replaces ChromaDB)
 - **Columnar CSR adjacency** for O(1) neighbor lookups
 - **ACID transactions** with WAL
 - **Persistent on disk** at `.mnemo/graph.lbug`
@@ -365,4 +365,4 @@ ui = [
 ]
 ```
 
-Removed: `networkx`, `chromadb`, `onnxruntime` (LadybugDB handles all three use cases)
+Removed: `networkx`, `chromadb`. Added: `onnxruntime`, `tokenizers`, `numpy` for dense embeddings.
