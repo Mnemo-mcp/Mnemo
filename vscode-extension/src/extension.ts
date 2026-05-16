@@ -98,6 +98,17 @@ async function ensureBinary(context: vscode.ExtensionContext): Promise<string> {
           require("fs").writeFileSync(versionFile, latestVersion);
         }
       );
+      if (currentVersion) {
+        const action = await vscode.window.showInformationMessage(
+          `Mnemo updated to ${latestVersion}. Re-initialize your project to get the latest features.`,
+          "Run mnemo init"
+        );
+        if (action === "Run mnemo init") {
+          const terminal = vscode.window.createTerminal("Mnemo");
+          terminal.show();
+          terminal.sendText("mnemo init");
+        }
+      }
     }
     return bin;
   } catch { /* binary download failed, try PATH fallbacks */ }
