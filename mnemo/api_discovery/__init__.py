@@ -131,3 +131,13 @@ def discover_apis(repo_root: Path) -> str:
     if len(lines) <= 2:
         return "No APIs discovered."
     return "\n".join(lines)
+
+
+def search_api(repo_root: Path, query: str) -> str:
+    """Search discovered APIs by query."""
+    full = discover_apis(repo_root)
+    if "No APIs" in full:
+        return f"No APIs matching '{query}'."
+    query_lower = query.lower()
+    lines = [l for l in full.split("\n") if query_lower in l.lower() or l.startswith("#")]
+    return "\n".join(lines) if any(not l.startswith("#") for l in lines) else f"No APIs matching '{query}'."
