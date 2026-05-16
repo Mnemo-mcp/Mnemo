@@ -36,8 +36,8 @@ Your AI agent starts every session blind — no memory of past decisions, no und
 │  • Cross-service relationships across repos         │
 │                                                     │
 │ Session ends → Learnings auto-captured              │
-│                Memory decays naturally over time     │
-│                Old contradicted facts get evicted    │
+│                Memory decays naturally over time    │
+│                Old contradicted facts get evicted   │
 └─────────────────────────────────────────────────────┘
 ```
 
