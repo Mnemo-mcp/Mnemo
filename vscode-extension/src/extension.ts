@@ -9,7 +9,7 @@ import * as os from "node:os";
 
 const execFileAsync = promisify(execFile);
 
-const REPO = "nikhil1057/Mnemo";
+const REPO = "Mnemo-mcp/Mnemo";
 const BINARY_NAME = os.platform() === "win32" ? "mnemo.exe" : "mnemo";
 
 function getPlatformArtifact(): string {
