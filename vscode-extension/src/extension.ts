@@ -155,10 +155,12 @@ export function activate(context: vscode.ExtensionContext): void {
               const amazonqExt = vscode.extensions.getExtension("amazonwebservices.amazon-q-vscode");
               const cursorConfig = path.join(os.homedir(), ".cursor");
               const claudeConfig = path.join(os.homedir(), ".claude");
+              const kiroConfig = path.join(root, ".kiro");
               
               if (amazonqExt) { clients.push("amazonq"); }
               if (existsSync(cursorConfig)) { clients.push("cursor"); }
               if (existsSync(claudeConfig)) { clients.push("claude-code"); }
+              if (existsSync(kiroConfig)) { clients.push("kiro"); }
               
               let clientArg: string;
               if (clients.length > 1) {
@@ -196,10 +198,12 @@ export function activate(context: vscode.ExtensionContext): void {
         const amazonqExt = vscode.extensions.getExtension("amazonwebservices.amazon-q-vscode");
         const cursorConfig = path.join(os.homedir(), ".cursor");
         const claudeConfig = path.join(os.homedir(), ".claude");
+        const kiroConfig = path.join(cwd, ".kiro");
         
         if (amazonqExt) { clients.push("amazonq"); }
         if (existsSync(cursorConfig)) { clients.push("cursor"); }
         if (existsSync(claudeConfig)) { clients.push("claude-code"); }
+        if (existsSync(kiroConfig)) { clients.push("kiro"); }
         
         let clientArg: string;
         if (clients.length > 1) {

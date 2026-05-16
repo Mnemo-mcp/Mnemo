@@ -10,7 +10,7 @@ export default function Stack() {
             <div className="text-accent font-mono text-xs mb-3">01</div>
             <h3 className="font-semibold text-white mb-2">Knowledge Graph</h3>
             <p className="text-sm text-gray-400 leading-relaxed">
-              NetworkX graph with 880+ nodes. Services, classes, interfaces, methods, and people connected by structural relationships. Tree-sitter parses 14 languages.
+              LadybugDB graph with 1800+ nodes. Classes, methods, functions, communities, and memories connected by structural relationships. Tree-sitter + Roslyn parses 14 languages.
             </p>
           </div>
           <div className="card p-6">
@@ -24,7 +24,7 @@ export default function Stack() {
             <div className="text-accent font-mono text-xs mb-3">03</div>
             <h3 className="font-semibold text-white mb-2">Hybrid Search</h3>
             <p className="text-sm text-gray-400 leading-relaxed">
-              BM25 + ChromaDB vector + graph traversal, fused via Reciprocal Rank Fusion. Finds code by meaning. Falls back gracefully without ChromaDB.
+              BM25 + ONNX dense embeddings + graph traversal, fused via Reciprocal Rank Fusion. 100% Recall@5. 2ms latency. No external database.
             </p>
           </div>
         </div>

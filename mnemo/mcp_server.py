@@ -21,6 +21,12 @@ def _find_repo_root(start: Path | None = None) -> Path | None:
     return None
 
 
+_GRAPH_TOOLS = frozenset({
+    "mnemo_lookup", "mnemo_graph", "mnemo_impact", "mnemo_symbol",
+    "mnemo_search", "mnemo_communities", "mnemo_map",
+})
+
+
 def _validate_required(arguments: dict, required: list[str]) -> str | None:
     """Return error message if required fields are missing, else None."""
     missing = [f for f in required if f not in arguments]
@@ -119,8 +125,11 @@ def handle_tool_call(tool_name: str, arguments: dict) -> dict:
     handler = _registry_handler(tool_name)
     if handler:
         try:
-            from .middleware import apply_middleware
-            result = apply_middleware(tool_name, arguments, repo_root, handler)
+            # Ensure graph is fresh for graph-reading tools
+            if tool_name in _GRAPH_TOOLS:
+                from .engine.freshness import ensure_graph_fresh
+                ensure_graph_fresh(repo_root)
+            result = handler(repo_root, arguments)
             return {"content": [{"type": "text", "text": result}]}
         except Exception as exc:
             return {"content": [{"type": "text", "text": f"Error: {exc}"}], "isError": True}

@@ -35,6 +35,14 @@ class ParseResult:
 
 
 @dataclass
+class ProjectInfo:
+    path: str  # relative dir containing the manifest
+    name: str
+    language: str  # primary language
+    manifest: str  # e.g. "package.json", "*.csproj"
+
+
+@dataclass
 class PipelineStats:
     files_scanned: int = 0
     files_parsed: int = 0
@@ -124,11 +132,12 @@ def run_pipeline(repo_root: Path, force: bool = False) -> PipelineStats:
 
     # Phase 3: Load into LadybugDB
     t0 = time.time()
-    node_count, edge_count = phase_load(repo_root, files, results)
+    projects = detect_projects(repo_root)
+    node_count, edge_count = phase_load(repo_root, files, results, projects)
     stats.nodes_created = node_count
     stats.edges_created = edge_count
     stats.load_ms = int((time.time() - t0) * 1000)
-    print(f"  Phase 3 load: {node_count} nodes, {edge_count} edges ({stats.load_ms}ms)", flush=True)
+    print(f"  Phase 3 load: {node_count} nodes, {edge_count} edges, {len(projects)} projects ({stats.load_ms}ms)", flush=True)
 
     # Phase 4: Scope resolution — CALLS edges
     t0 = time.time()
@@ -147,6 +156,16 @@ def run_pipeline(repo_root: Path, force: bool = False) -> PipelineStats:
     cluster_ms = int((time.time() - t0) * 1000)
     stats.nodes_created += community_count
     print(f"  Phase 5 communities: {community_count} clusters ({cluster_ms}ms)", flush=True)
+
+    # Phase 6: ONNX vector index for semantic search
+    t0 = time.time()
+    chunks = _build_chunks(files, results)
+    if chunks:
+        from ..retrieval import delete_chunks, index_chunks
+        delete_chunks(repo_root, "code")
+        index_chunks(repo_root, "code", chunks)
+    vector_ms = int((time.time() - t0) * 1000)
+    print(f"  Phase 6 vectors: {len(chunks)} chunks indexed ({vector_ms}ms)", flush=True)
 
     # Save metadata for incremental
     _save_meta(repo_root, files)
@@ -224,7 +243,57 @@ def phase_scan(repo_root: Path) -> list[FileInfo]:
     return files
 
 
-def phase_load(repo_root: Path, files: list[FileInfo], results: list[ParseResult]) -> tuple[int, int]:
+# Manifest files → (language, name_extractor)
+_PROJECT_MANIFESTS = {
+    "package.json": "javascript",
+    "Cargo.toml": "rust",
+    "go.mod": "go",
+    "pyproject.toml": "python",
+    "setup.py": "python",
+    "pom.xml": "java",
+    "build.gradle": "java",
+}
+_CSPROJ_EXT = ".csproj"
+
+
+def detect_projects(repo_root: Path) -> list[ProjectInfo]:
+    """Detect sub-projects by manifest files (package.json, .csproj, etc.)."""
+    projects: list[ProjectInfo] = []
+
+    for dirpath, dirnames, filenames in os.walk(repo_root):
+        dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
+        rel_dir = str(Path(dirpath).relative_to(repo_root))
+        if rel_dir == ".":
+            rel_dir = ""
+
+        for filename in filenames:
+            lang = _PROJECT_MANIFESTS.get(filename)
+            if lang:
+                name = _extract_project_name(Path(dirpath) / filename, filename)
+                projects.append(ProjectInfo(path=rel_dir, name=name, language=lang, manifest=filename))
+            elif filename.endswith(_CSPROJ_EXT):
+                name = filename[:-len(_CSPROJ_EXT)]
+                projects.append(ProjectInfo(path=rel_dir, name=name, language="csharp", manifest=filename))
+
+    return projects
+
+
+def _extract_project_name(filepath: Path, manifest: str) -> str:
+    """Extract project name from manifest file."""
+    import json
+    try:
+        if manifest == "package.json":
+            data = json.loads(filepath.read_text(encoding="utf-8"))
+            return data.get("name", filepath.parent.name)
+        elif manifest == "go.mod":
+            first_line = filepath.read_text(encoding="utf-8").split("\n")[0]
+            return first_line.replace("module ", "").strip().split("/")[-1]
+    except (OSError, json.JSONDecodeError, IndexError):
+        pass
+    return filepath.parent.name or "root"
+
+
+def phase_load(repo_root: Path, files: list[FileInfo], results: list[ParseResult], projects: list[ProjectInfo] | None = None) -> tuple[int, int]:
     """Bulk-load nodes and edges into LadybugDB via CSV."""
     reset_db(repo_root)
     db, conn = open_db(repo_root)
@@ -274,24 +343,32 @@ def phase_load(repo_root: Path, files: list[FileInfo], results: list[ParseResult
         # --- Symbol nodes from parse results ---
         # Classes
         class_rows = []
+        seen_cids: set[str] = set()
         for r in results:
             for cls in r.classes:
                 cid = f"{r.path}:{cls['name']}"
+                if cid in seen_cids:
+                    continue
+                seen_cids.add(cid)
                 impl = cls.get("implements", "")
                 class_rows.append([cid, cls["name"], r.path, impl, ""])
         if class_rows:
             cls_csv = tmp_path / "classes.csv"
             with open(cls_csv, "w", newline="") as f:
-                csv.writer(f).writerows(class_rows)
+                csv.writer(f, quoting=csv.QUOTE_ALL).writerows(class_rows)
             conn.execute(f'COPY Class FROM "{cls_csv}"')
             nodes += len(class_rows)
 
         # Functions
         func_rows = []
+        seen_fids: set[str] = set()
         for r in results:
             for fn in r.functions:
                 fname = fn.split("(")[0].replace("def ", "").replace("func ", "").strip()
                 fid = f"{r.path}:{fname}"
+                if fid in seen_fids:
+                    continue
+                seen_fids.add(fid)
                 sig = fn.replace("\n", " ").replace("\r", "")[:200]
                 func_rows.append([fid, fname, r.path, sig])
         if func_rows:
@@ -372,7 +449,49 @@ def phase_load(repo_root: Path, files: list[FileInfo], results: list[ParseResult
             except RuntimeError:
                 pass  # Duplicate or missing node — skip
 
+        # --- Project nodes and PROJECT_CONTAINS edges ---
+        if projects:
+            proj_csv = tmp_path / "projects.csv"
+            with open(proj_csv, "w", newline="") as f:
+                w = csv.writer(f)
+                for p in projects:
+                    pid = f"project:{p.path or 'root'}"
+                    w.writerow([pid, p.name, p.language, p.manifest, p.path])
+            conn.execute(f'COPY Project FROM "{proj_csv}"')
+            nodes += len(projects)
+
+            # Assign files to their nearest project
+            proj_contains_rows = []
+            for fi in files:
+                owner = _find_owning_project(fi.path, projects)
+                if owner:
+                    pid = f"project:{owner.path or 'root'}"
+                    proj_contains_rows.append([pid, fi.path])
+            if proj_contains_rows:
+                pc_csv = tmp_path / "proj_contains.csv"
+                with open(pc_csv, "w", newline="") as f:
+                    csv.writer(f).writerows(proj_contains_rows)
+                try:
+                    conn.execute(f'COPY PROJECT_CONTAINS FROM "{pc_csv}"')
+                    edges += len(proj_contains_rows)
+                except RuntimeError:
+                    pass
+
     return nodes, edges
+
+
+def _find_owning_project(file_path: str, projects: list[ProjectInfo]) -> ProjectInfo | None:
+    """Find the deepest project that contains this file."""
+    best: ProjectInfo | None = None
+    best_depth = -1
+    for p in projects:
+        prefix = p.path + "/" if p.path else ""
+        if file_path.startswith(prefix) or not p.path:
+            depth = p.path.count("/") + 1 if p.path else 0
+            if depth > best_depth:
+                best = p
+                best_depth = depth
+    return best
 
 
 def _resolve_import(import_stmt: str, source_file: str, file_set: set[str]) -> str | None:
@@ -409,3 +528,27 @@ def _resolve_import(import_stmt: str, source_file: str, file_set: set[str]) -> s
         if c in file_set:
             return c
     return None
+
+
+def _build_chunks(files: list[FileInfo], results: list[ParseResult]) -> list[dict]:
+    """Convert parse results into chunks for ONNX vector indexing."""
+    chunks = []
+    for fi, pr in zip(files, results):
+        # One chunk per class (name + methods)
+        for cls in pr.classes:
+            methods = " ".join(cls.get("methods", [])[:10])
+            text = f"{cls['name']} {cls.get('implements', '')} {methods}".strip()
+            chunks.append({
+                "id": f"{fi.path}:{cls['name']}",
+                "content": text[:500],
+                "metadata": {"path": fi.path, "symbol": cls["name"], "type": "class"},
+            })
+        # One chunk per function
+        for fn in pr.functions:
+            fname = fn.split("(")[0].replace("def ", "").replace("func ", "").strip()
+            chunks.append({
+                "id": f"{fi.path}:{fname}",
+                "content": fn[:500],
+                "metadata": {"path": fi.path, "symbol": fname, "type": "function"},
+            })
+    return chunks

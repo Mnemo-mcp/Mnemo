@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ..types import MemoryEntry, DecisionEntry
 from ..storage import Collections, get_storage
 from ..utils.privacy import strip_secrets
 from ..utils.audit import record_audit
@@ -88,7 +89,7 @@ def _resolve_entities(repo_root: Path, content: str) -> str:
     return content
 
 
-def add_memory(repo_root: Path, content: str, category: str = "general", source: str = "user", tags: list[str] | None = None) -> dict[str, Any]:
+def add_memory(repo_root: Path, content: str, category: str = "general", source: str = "user", tags: list[str] | None = None) -> MemoryEntry:
     """Add a memory entry with deduplication, auto-categorization, tiering, tagging, and vector indexing."""
     from .hierarchy import assign_tier, expire_working_memory
 
@@ -189,7 +190,7 @@ def forget_memory(repo_root: Path, memory_id: int) -> str:
     return f"Memory #{memory_id} deleted."
 
 
-def add_decision(repo_root: Path, decision: str, reasoning: str = "") -> dict[str, Any]:
+def add_decision(repo_root: Path, decision: str, reasoning: str = "") -> DecisionEntry:
     """Record a decision with deduplication, contradiction detection, and refresh installed context files."""
     decision, _ = strip_secrets(decision)
     if reasoning:
@@ -231,19 +232,8 @@ def add_decision(repo_root: Path, decision: str, reasoning: str = "") -> dict[st
     entries.append(entry)
     storage.write_collection(Collections.DECISIONS, entries)
 
-    # Cascade staleness
-    if superseded:
-        try:
-            from ..graph.local import LocalGraph
-            graph = LocalGraph(repo_root)
-            if graph.exists():
-                for old in superseded:
-                    old_node_id = f"decision:{old['id']}"
-                    for _, target, key, data in graph.graph.out_edges(old_node_id, keys=True, data=True):
-                        graph.graph.edges[old_node_id, target, key]["stale"] = True
-                graph.save()
-        except Exception as exc:
-            logger.debug(f"Graph stale-marking failed: {exc}")
+    # Cascade staleness — handled by engine/memory_graph.py
+    _graph_link_entry(repo_root, f"decision:{entry['id']}", "decision", decision)
     _refresh_rule(repo_root)
     record_audit(repo_root, 'add_decision', str(entry['id']), 'decision', decision[:100])
 

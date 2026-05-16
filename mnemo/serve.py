@@ -25,6 +25,21 @@ class MnemoAPIHandler(BaseHTTPRequestHandler):
             "/api/search": self._search,
             "/api/communities": self._communities,
             "/api/symbol": self._symbol,
+            "/api/memory": self._memory,
+            "/api/tasks": self._tasks,
+            "/api/overview": self._overview,
+            "/api/health": self._health,
+            "/api/status": self._status,
+            "/api/links": self._links,
+            "/api/apis": self._apis,
+            "/api/team": self._team,
+            "/api/incidents": self._incidents,
+            "/api/knowledge": self._knowledge,
+            "/api/lessons": self._lessons,
+            "/api/observations": self._observations,
+            "/api/metrics": self._metrics,
+            "/api/token_savings": self._token_savings,
+            "/api/errors": self._errors,
         }
 
         handler = routes.get(path)
@@ -91,7 +106,7 @@ class MnemoAPIHandler(BaseHTTPRequestHandler):
         _, conn = open_db(self.repo_root)
         return conn
 
-    def _stats(self, params) -> dict:
+    def _stats(self, params: dict) -> dict:
         conn = self._get_conn()
         r = conn.execute("MATCH (n) RETURN count(n)")
         nodes = r.get_next()[0]
@@ -107,7 +122,7 @@ class MnemoAPIHandler(BaseHTTPRequestHandler):
         functions = r.get_next()[0]
         return {"nodes": nodes, "edges": edges, "communities": communities, "files": files, "classes": classes, "functions": functions}
 
-    def _graph(self, params) -> dict:
+    def _graph(self, params: dict) -> dict:
         """Return the FULL graph — every node, every edge."""
         conn = self._get_conn()
 
@@ -115,17 +130,25 @@ class MnemoAPIHandler(BaseHTTPRequestHandler):
         edges = []
         node_ids = set()
 
-        # Services
-        r = conn.execute("MATCH (f:File) RETURN f.path")
-        services = set()
+        # Projects
+        r = conn.execute("MATCH (p:Project) RETURN p.id, p.name")
         while r.has_next():
-            path = r.get_next()[0]
-            svc = path.split("/")[0] if "/" in path else "root"
-            services.add(svc)
-        for svc in services:
-            nid = f"svc:{svc}"
-            nodes.append({"id": nid, "name": svc, "type": "service"})
-            node_ids.add(nid)
+            row = r.get_next()
+            nodes.append({"id": row[0], "name": row[1], "type": "project"})
+            node_ids.add(row[0])
+
+        # Files
+        r = conn.execute("MATCH (f:File) RETURN f.path, f.language")
+        while r.has_next():
+            row = r.get_next()
+            nodes.append({"id": row[0], "name": row[0].split("/")[-1], "type": "file"})
+            node_ids.add(row[0])
+
+        # Project → File edges
+        r = conn.execute("MATCH (p:Project)-[:PROJECT_CONTAINS]->(f:File) RETURN p.id, f.path")
+        while r.has_next():
+            row = r.get_next()
+            edges.append({"source": row[0], "target": row[1]})
 
         # ALL classes
         r = conn.execute("MATCH (c:Class) RETURN c.id, c.name, c.file")
@@ -133,17 +156,9 @@ class MnemoAPIHandler(BaseHTTPRequestHandler):
             row = r.get_next()
             nodes.append({"id": row[0], "name": row[1], "type": "class"})
             node_ids.add(row[0])
-            svc = row[2].split("/")[0] if "/" in row[2] else "root"
-            edges.append({"source": f"svc:{svc}", "target": row[0]})
-
-        # ALL methods
-        r = conn.execute("MATCH (c:Class)-[:HAS_METHOD]->(m:Method) RETURN c.id, m.id, m.name")
-        while r.has_next():
-            row = r.get_next()
-            if row[0] in node_ids:
-                nodes.append({"id": row[1], "name": row[2], "type": "method"})
-                node_ids.add(row[1])
-                edges.append({"source": row[0], "target": row[1]})
+            # Connect class to its file
+            if row[2] in node_ids:
+                edges.append({"source": row[2], "target": row[0]})
 
         # ALL functions
         r = conn.execute("MATCH (f:Function) RETURN f.id, f.name, f.file")
@@ -151,8 +166,8 @@ class MnemoAPIHandler(BaseHTTPRequestHandler):
             row = r.get_next()
             nodes.append({"id": row[0], "name": row[1], "type": "function"})
             node_ids.add(row[0])
-            svc = row[2].split("/")[0] if "/" in row[2] else "root"
-            edges.append({"source": f"svc:{svc}", "target": row[0]})
+            if row[2] in node_ids:
+                edges.append({"source": row[2], "target": row[0]})
 
         # ALL CALLS edges
         r = conn.execute("MATCH (a:Function)-[:CALLS]->(b:Function) RETURN a.id, b.id")
@@ -161,37 +176,24 @@ class MnemoAPIHandler(BaseHTTPRequestHandler):
             if row[0] in node_ids and row[1] in node_ids:
                 edges.append({"source": row[0], "target": row[1]})
 
-        # ALL memories
-        r = conn.execute("MATCH (m:Memory) RETURN m.id, m.content, m.category")
-        while r.has_next():
-            row = r.get_next()
-            label = row[1][:30] + "..." if len(row[1]) > 30 else row[1]
-            nodes.append({"id": row[0], "name": label, "type": "memory"})
-            node_ids.add(row[0])
-
-        # Memory → Class/Function edges
-        r = conn.execute("MATCH (m:Memory)-[:MEM_REF_CLASS]->(c:Class) RETURN m.id, c.id")
+        # Project → Class edges (through files)
+        r = conn.execute("MATCH (p:Project)-[:PROJECT_CONTAINS]->(f:File)<-[]-(c:Class) RETURN p.id, c.id")
         while r.has_next():
             row = r.get_next()
             if row[0] in node_ids and row[1] in node_ids:
                 edges.append({"source": row[0], "target": row[1]})
 
-        r = conn.execute("MATCH (m:Memory)-[:MEM_REF_FUNCTION]->(f:Function) RETURN m.id, f.id")
+        # HAS_METHOD edges (class → method)
+        r = conn.execute("MATCH (c:Class)-[:HAS_METHOD]->(m:Method) RETURN c.id, m.id, m.name")
         while r.has_next():
             row = r.get_next()
-            if row[0] in node_ids and row[1] in node_ids:
+            if row[0] in node_ids:
+                nodes.append({"id": row[1], "name": row[2], "type": "method"})
+                node_ids.add(row[1])
                 edges.append({"source": row[0], "target": row[1]})
 
-        # ALL decisions
-        r = conn.execute("MATCH (d:Decision) RETURN d.id, d.decision")
-        while r.has_next():
-            row = r.get_next()
-            label = row[1][:30] + "..." if len(row[1]) > 30 else row[1]
-            nodes.append({"id": row[0], "name": label, "type": "decision"})
-            node_ids.add(row[0])
-
-        # Decision → Class edges
-        r = conn.execute("MATCH (d:Decision)-[:DEC_ABOUT_CLASS]->(c:Class) RETURN d.id, c.id")
+        # IMPORTS edges
+        r = conn.execute("MATCH (a:File)-[:IMPORTS]->(b:File) RETURN a.path, b.path")
         while r.has_next():
             row = r.get_next()
             if row[0] in node_ids and row[1] in node_ids:
@@ -204,16 +206,38 @@ class MnemoAPIHandler(BaseHTTPRequestHandler):
             nodes.append({"id": row[0], "name": row[1], "type": "community"})
             node_ids.add(row[0])
 
-        # Community membership edges
+        # Community membership
         r = conn.execute("MATCH (c:Class)-[:MEMBER_OF]->(comm:Community) RETURN c.id, comm.id")
         while r.has_next():
             row = r.get_next()
             if row[0] in node_ids and row[1] in node_ids:
                 edges.append({"source": row[1], "target": row[0]})
 
+        r = conn.execute("MATCH (f:Function)-[:FN_MEMBER_OF]->(comm:Community) RETURN f.id, comm.id")
+        while r.has_next():
+            row = r.get_next()
+            if row[0] in node_ids and row[1] in node_ids:
+                edges.append({"source": row[1], "target": row[0]})
+
+        # Memories
+        r = conn.execute("MATCH (m:Memory) RETURN m.id, m.content, m.category")
+        while r.has_next():
+            row = r.get_next()
+            label = row[1][:30] + "..." if len(row[1]) > 30 else row[1]
+            nodes.append({"id": row[0], "name": label, "type": "memory"})
+            node_ids.add(row[0])
+
+        # Decisions
+        r = conn.execute("MATCH (d:Decision) RETURN d.id, d.decision")
+        while r.has_next():
+            row = r.get_next()
+            label = row[1][:30] + "..." if len(row[1]) > 30 else row[1]
+            nodes.append({"id": row[0], "name": label, "type": "decision"})
+            node_ids.add(row[0])
+
         return {"nodes": nodes, "edges": edges}
 
-    def _search(self, params) -> dict:
+    def _search(self, params: dict) -> dict:
         conn = self._get_conn()
         query = params.get("q", [""])[0]
         if not query:
@@ -229,7 +253,7 @@ class MnemoAPIHandler(BaseHTTPRequestHandler):
             results.append({"id": row[0], "name": row[1], "file": row[2], "type": row[3]})
         return {"results": results}
 
-    def _communities(self, params) -> dict:
+    def _communities(self, params: dict) -> dict:
         conn = self._get_conn()
         r = conn.execute("MATCH (c:Class)-[:MEMBER_OF]->(comm:Community) RETURN comm.id, comm.name, count(c) AS cnt ORDER BY cnt DESC LIMIT 30")
         communities = []
@@ -238,7 +262,7 @@ class MnemoAPIHandler(BaseHTTPRequestHandler):
             communities.append({"id": row[0], "name": row[1], "count": row[2]})
         return {"communities": communities}
 
-    def _symbol(self, params) -> dict:
+    def _symbol(self, params: dict) -> dict:
         conn = self._get_conn()
         name = params.get("name", [""])[0]
         if not name:
@@ -260,6 +284,137 @@ class MnemoAPIHandler(BaseHTTPRequestHandler):
             result["methods"] = methods
 
         return result
+
+    def _memory(self, params: dict) -> dict:
+        from .storage import get_storage, Collections
+        storage = get_storage(self.repo_root)
+        memories = storage.read_collection(Collections.MEMORY) or []
+        decisions = storage.read_collection(Collections.DECISIONS) or []
+        return {"memories": memories, "decisions": decisions}
+
+    def _tasks(self, params: dict) -> dict:
+        from .storage import get_storage, Collections
+        storage = get_storage(self.repo_root)
+        tasks = storage.read_collection(Collections.TASKS) or []
+        return {"tasks": tasks}
+
+    def _overview(self, params: dict) -> dict:
+        stats = self._stats(params)
+        mem = self._memory(params)
+        return {
+            **stats,
+            "memory_count": len(mem["memories"]),
+            "decision_count": len(mem["decisions"]),
+        }
+
+    def _health(self, params: dict) -> dict:
+        from .config import mnemo_path
+        base = mnemo_path(self.repo_root)
+        checks = {"initialized": base.exists(), "graph_db": False, "memory": False}
+        try:
+            self._get_conn()
+            checks["graph_db"] = True
+        except Exception:
+            pass
+        mem_file = base / "memory.json"
+        checks["memory"] = mem_file.exists()
+        return {"status": "healthy" if all(checks.values()) else "degraded", "checks": checks}
+
+    def _status(self, params: dict) -> dict:
+        stats = self._stats(params)
+        health = self._health(params)
+        mem = self._memory(params)
+        return {**stats, **health, "memory_count": len(mem.get("memories", [])), "decision_count": len(mem.get("decisions", []))}
+
+    def _links(self, params: dict) -> dict:
+        from .config import mnemo_path
+        links_file = mnemo_path(self.repo_root) / "links.json"
+        if links_file.exists():
+            return json.loads(links_file.read_text())
+        return {"repos": []}
+
+    def _apis(self, params: dict) -> dict:
+        from .config import mnemo_path
+        api_file = mnemo_path(self.repo_root) / "apis.json"
+        if api_file.exists():
+            return json.loads(api_file.read_text())
+        return {"markdown": "No APIs discovered yet. Run `mnemo_audit` with report=full to scan."}
+
+    def _team(self, params: dict) -> dict:
+        from .config import mnemo_path
+        team_file = mnemo_path(self.repo_root) / "team.json"
+        if team_file.exists():
+            return json.loads(team_file.read_text())
+        return {"members": [], "markdown": "No team data. Use `mnemo_record type=review` to build team history."}
+
+    def _incidents(self, params: dict) -> dict:
+        from .storage import get_storage, Collections
+        storage = get_storage(self.repo_root)
+        data = storage.read_collection(Collections.INCIDENTS) or []
+        return {"incidents": data}
+
+    def _knowledge(self, params: dict) -> dict:
+        from .config import mnemo_path
+        kb_dir = mnemo_path(self.repo_root) / "knowledge"
+        entries = []
+        if kb_dir.exists():
+            for f in kb_dir.glob("*.json"):
+                try:
+                    entries.append(json.loads(f.read_text()))
+                except Exception:
+                    pass
+        return {"entries": entries}
+
+    def _lessons(self, params: dict) -> dict:
+        from .config import mnemo_path
+        obs_file = mnemo_path(self.repo_root) / "observations.json"
+        if obs_file.exists():
+            try:
+                data = json.loads(obs_file.read_text())
+                lessons = [o for o in data if o.get("type") == "lesson"]
+                return {"lessons": lessons}
+            except Exception:
+                pass
+        return {"lessons": []}
+
+    def _observations(self, params: dict) -> dict:
+        from .config import mnemo_path
+        obs_file = mnemo_path(self.repo_root) / "observations.json"
+        if obs_file.exists():
+            try:
+                data = json.loads(obs_file.read_text())
+                return {"observations": data[-50:]}  # last 50
+            except Exception:
+                pass
+        return {"observations": []}
+
+    def _metrics(self, params: dict) -> dict:
+        mem = self._memory(params)
+        mems = mem.get("memories", [])
+        decs = mem.get("decisions", [])
+        return {
+            "total_memories": len(mems),
+            "active_memories": len([m for m in mems if not m.get("evicted") and not m.get("superseded_by")]),
+            "evicted": len([m for m in mems if m.get("evicted")]),
+            "superseded": len([m for m in mems if m.get("superseded_by")]),
+            "decisions": len(decs),
+            "active_decisions": len([d for d in decs if d.get("active", True)]),
+        }
+
+    def _token_savings(self, params: dict) -> dict:
+        mem = self._memory(params)
+        total_mems = len(mem.get("memories", []))
+        # Estimate: without mnemo, user would paste ~500 tokens per memory every session
+        # With mnemo: ~2000 tokens total recall regardless of memory count
+        naive_cost = total_mems * 500
+        mnemo_cost = min(2000, total_mems * 100)
+        return {"naive_tokens": naive_cost, "mnemo_tokens": mnemo_cost, "savings_pct": int((1 - mnemo_cost / max(naive_cost, 1)) * 100)}
+
+    def _errors(self, params: dict) -> dict:
+        from .storage import get_storage, Collections
+        storage = get_storage(self.repo_root)
+        data = storage.read_collection(Collections.ERRORS) or []
+        return {"errors": data}
 
     def log_message(self, format, *args):
         pass  # Suppress request logging

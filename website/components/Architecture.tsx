@@ -1,9 +1,9 @@
 const layers = [
-  { name: 'MCP Tools', detail: '56 tools · JSON-RPC stdin/stdout', color: 'bg-accent', width: 'w-full' },
+  { name: 'MCP Tools', detail: '16 tools · JSON-RPC stdin/stdout', color: 'bg-accent', width: 'w-full' },
   { name: 'Response Enrichment', detail: 'plan hints · warnings · decisions', color: 'bg-accent-dim', width: 'w-[92%]' },
-  { name: 'Knowledge Graph', detail: 'NetworkX · 880+ nodes · 1455+ edges', color: 'bg-accent', width: 'w-[84%]' },
+  { name: 'Knowledge Graph', detail: 'LadybugDB (Kuzu) · 1800+ nodes · 2600+ edges', color: 'bg-accent', width: 'w-[84%]' },
   { name: 'Plan Mode', detail: 'DAG tasks · auto-complete · TASKS.md', color: 'bg-purple-500', width: 'w-[76%]' },
-  { name: 'Hybrid Search', detail: 'BM25 + ChromaDB + Graph · RRF fusion', color: 'bg-accent-dim', width: 'w-[68%]' },
+  { name: 'Hybrid Search', detail: 'BM25 + ONNX Vector + Graph · RRF fusion', color: 'bg-accent-dim', width: 'w-[68%]' },
   { name: 'Code Parsing', detail: 'tree-sitter · 14 langs · Roslyn', color: 'bg-accent', width: 'w-[60%]' },
   { name: 'Storage', detail: '.mnemo/*.json · fully local · git snapshots', color: 'bg-accent', width: 'w-[52%]' },
 ];

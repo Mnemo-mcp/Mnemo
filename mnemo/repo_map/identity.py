@@ -3,55 +3,42 @@
 from __future__ import annotations
 
 import json
-import time
 from pathlib import Path
 from typing import Any
 
 from ..config import mnemo_path
-from ..intelligence import classify_architecture, detect_dependencies, detect_patterns
 
 
 IDENTITY_FILE = "repo_identity.json"
 
 
 def generate_identity(repo_root: Path) -> dict[str, Any]:
-    """Generate a repo identity profile from code analysis."""
-    patterns = detect_patterns(repo_root)
-    architectures = classify_architecture(repo_root)
-    deps = detect_dependencies(repo_root)
-
-    # Extract top dependencies (most common across projects)
-    all_deps: list[str] = []
-    for pkgs in deps.values():
-        all_deps.extend(pkg.split()[0] for pkg in pkgs)
-
-    # Detect language distribution using os.walk (single pass, not 20 rglobs)
-    import os
-    from ..config import SUPPORTED_EXTENSIONS, IGNORE_DIRS
-    lang_counts: dict[str, int] = {}
-    ext_to_lang = {ext: lang for ext, lang in SUPPORTED_EXTENSIONS.items()}
-    for dirpath, dirnames, filenames in os.walk(repo_root):
-        dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
-        for filename in filenames:
-            for ext, lang in ext_to_lang.items():
-                if filename.endswith(ext):
-                    lang_counts[lang] = lang_counts.get(lang, 0) + 1
-                    break
-
-    # Sort by count
-    primary_languages = sorted(lang_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-
-    identity: dict[str, Any] = {
-        "generated_at": time.time(),
-        "languages": [lang for lang, _ in primary_languages],
-        "patterns": patterns[:10],
-        "architecture_styles": [
-            {"name": a["name"], "confidence": a["confidence"]}
-            for a in architectures[:3]
-        ],
-        "key_dependencies": list(set(all_deps))[:20],
-        "conventions": _infer_conventions(repo_root, patterns),
-    }
+    """Generate a repo identity profile from engine graph."""
+    identity: dict[str, Any] = {}
+    try:
+        from ..engine.db import open_db, get_db_path
+        if not get_db_path(repo_root).exists():
+            return identity
+        _, conn = open_db(repo_root)
+        # Languages
+        r = conn.execute("MATCH (f:File) RETURN f.language, count(f) ORDER BY count(f) DESC")
+        langs = []
+        while r.has_next():
+            row = r.get_next()
+            langs.append(f"{row[0]} ({row[1]})")
+        identity["languages"] = langs
+        # Projects
+        r = conn.execute("MATCH (p:Project) RETURN p.name, p.language")
+        projects = []
+        while r.has_next():
+            row = r.get_next()
+            projects.append({"name": row[0], "language": row[1]})
+        identity["projects"] = projects
+        # Stats
+        r = conn.execute("MATCH (n) RETURN count(n)")
+        identity["total_nodes"] = r.get_next()[0]
+    except Exception:
+        pass
     return identity
 
 

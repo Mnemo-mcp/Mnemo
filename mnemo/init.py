@@ -73,10 +73,6 @@ def _generate_legacy_files(repo_root: Path) -> None:
             svc = row[1].split("/")[0] if "/" in row[1] else "."
             classes_by_svc.setdefault(svc, []).append(row[0])
 
-        # Function count
-        r = conn.execute("MATCH (f:Function) RETURN count(f)")
-        fn_count = r.get_next()[0]
-
         # Communities
         r = conn.execute("MATCH (c:Community) RETURN c.name LIMIT 5")
         hubs = []
@@ -97,11 +93,7 @@ def _generate_legacy_files(repo_root: Path) -> None:
             classes = classes_by_svc.get(svc, [])
             lines.append(f"{svc}/ ({fc} files)")
             if classes:
-                shown = sorted(set(classes))[:8]
-                lines.append(f"  Key classes: {', '.join(shown)}")
-                if len(classes) > 8:
-                    lines.append(f"  ... +{len(classes) - 8} more classes")
-            lines.append(f"  Functions: {fn_count}" if svc == "." else "")
+                lines.append(f"  Classes: {', '.join(sorted(set(classes)))}")
 
     except RuntimeError:
         lines = ["(graph not available — run mnemo init)"]
@@ -158,6 +150,38 @@ def init(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
             "edges": stats.edges_created,
             "total_ms": stats.total_ms,
         }
+
+    # Auto-detect project info from graph
+    try:
+        from .engine.db import open_db, get_db_path
+        if get_db_path(repo_root).exists():
+            _, conn = open_db(repo_root)
+            # Languages
+            r = conn.execute("MATCH (f:File) RETURN f.language, count(f) ORDER BY count(f) DESC LIMIT 5")
+            langs = []
+            while r.has_next():
+                row = r.get_next()
+                langs.append(f"{row[0]} ({row[1]})")
+            if langs:
+                context_data["languages"] = ", ".join(langs)
+            # Projects/services
+            r = conn.execute("MATCH (p:Project) RETURN p.name, p.language LIMIT 10")
+            projects = []
+            while r.has_next():
+                row = r.get_next()
+                projects.append(f"{row[0]} ({row[1]})")
+            if projects:
+                context_data["services"] = ", ".join(projects)
+            # Key classes
+            r = conn.execute("MATCH (c:Class) RETURN c.name LIMIT 20")
+            classes = []
+            while r.has_next():
+                classes.append(r.get_next()[0])
+            if classes:
+                context_data["key_classes"] = ", ".join(classes[:15])
+    except Exception:
+        pass
+
     save_context(repo_root, context_data)
 
     _ensure_gitignore(repo_root)

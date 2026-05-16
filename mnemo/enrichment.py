@@ -53,9 +53,9 @@ def _plan_hints(repo_root: Path, tool_name: str, result: str, arguments: dict) -
                 hints.append(auto_result)
 
     # Show next task hint (but not on every call — only on "work" tools)
-    WORK_TOOLS = {"mnemo_remember", "mnemo_lookup", "mnemo_similar", "mnemo_map",
+    WORK_TOOLS = {"mnemo_remember", "mnemo_lookup", "mnemo_search", "mnemo_map",
                   "mnemo_commit_message", "mnemo_task_done", "mnemo_dead_code",
-                  "mnemo_health", "mnemo_intelligence"}
+                  "mnemo_health"}
     if tool_name in WORK_TOOLS:
         hint = get_active_plan_hint(repo_root)
         if hint:
@@ -91,7 +91,7 @@ def _regression_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[
 
 def _incident_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[str]:
     """Surface related incidents when looking at code (MNO-835 recommendation engine)."""
-    if tool_name not in ("mnemo_lookup", "mnemo_similar"):
+    if tool_name not in ("mnemo_lookup", "mnemo_search"):
         return []
 
     query = arguments.get("query", "")
@@ -117,7 +117,7 @@ def _incident_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[st
 
 def _decision_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[str]:
     """Surface related decisions when looking at code."""
-    if tool_name not in ("mnemo_lookup", "mnemo_similar", "mnemo_graph", "mnemo_intelligence"):
+    if tool_name not in ("mnemo_lookup", "mnemo_search", "mnemo_graph"):
         return []
 
     query = arguments.get("query", "") or arguments.get("node", "")
@@ -145,9 +145,9 @@ def _decision_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[st
 def _correction_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[str]:
     """Surface relevant past corrections when the agent is generating suggestions or looking at code."""
     CORRECTION_TOOLS = {
-        "mnemo_lookup", "mnemo_similar", "mnemo_remember", "mnemo_intelligence",
+        "mnemo_lookup", "mnemo_search", "mnemo_remember",
         "mnemo_commit_message", "mnemo_pr_description", "mnemo_decide",
-        "mnemo_search_memory", "mnemo_context_for_task",
+        "mnemo_search_memory",
     }
     if tool_name not in CORRECTION_TOOLS:
         return []

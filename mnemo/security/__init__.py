@@ -1,4 +1,4 @@
-"""Security pattern memory - store and check unsafe code patterns."""
+"""Security pattern memory — uses engine/ graph for file discovery, regex for detection."""
 
 from __future__ import annotations
 
@@ -6,12 +6,10 @@ import re
 import time
 from pathlib import Path
 
-from ..config import SUPPORTED_EXTENSIONS, mnemo_path, should_ignore
-from ..repo_map import MAX_FILE_SIZE
+from ..config import mnemo_path
 
 STORAGE_FILE = "security_patterns.json"
 
-# Built-in patterns
 BUILTIN_PATTERNS = [
     {"name": "hardcoded_secret", "regex": r"(password|secret|api_key|token)\s*=\s*[\"'][^\"']{8,}", "severity": "high", "description": "Hardcoded secret or credential"},
     {"name": "sql_injection", "regex": r"(execute|query)\s*\(\s*f[\"']|\.format\(.*\)|%\s*\(", "severity": "high", "description": "Potential SQL injection via string formatting"},
@@ -35,112 +33,55 @@ def _load_patterns(repo_root: Path) -> list[dict]:
 def _save_patterns(repo_root: Path, patterns: list[dict]) -> None:
     import json
     path = mnemo_path(repo_root) / STORAGE_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(patterns, indent=2) + "\n", encoding="utf-8")
 
 
-def add_security_pattern(
-    repo_root: Path,
-    name: str,
-    regex: str,
-    severity: str = "medium",
-    description: str = "",
-) -> dict:
-    """Add a custom security pattern to watch for."""
+def add_security_pattern(repo_root: Path, name: str, regex: str, severity: str = "medium", description: str = "") -> dict:
+    """Add a custom security pattern."""
     patterns = _load_patterns(repo_root)
     next_id = max((p.get("id", 0) for p in patterns), default=0) + 1
-    entry = {
-        "id": next_id,
-        "timestamp": time.time(),
-        "name": name,
-        "regex": regex,
-        "severity": severity,
-        "description": description or name,
-    }
+    entry = {"id": next_id, "timestamp": time.time(), "name": name, "regex": regex, "severity": severity, "description": description or name}
     patterns.append(entry)
     _save_patterns(repo_root, patterns)
     return entry
 
 
-def _strip_comments_and_strings(content: str, file_path: str) -> str:
-    """Remove comments and string literals to reduce false positives."""
-    ext = file_path.rsplit(".", 1)[-1] if "." in file_path else ""
-    lines = content.splitlines()
-    cleaned = []
-    in_block_comment = False
-    in_docstring: str | None = None  # tracks the delimiter (''' or """)
-
-    for line in lines:
-        stripped = line.strip()
-
-        # Python docstrings (triple quotes)
-        if ext == "py":
-            if in_docstring:
-                if in_docstring in stripped:
-                    in_docstring = None
-                cleaned.append("")
-                continue
-            if stripped.startswith('"""') or stripped.startswith("'''"):
-                delimiter = stripped[:3]
-                # Single-line docstring: """text""" — check if it closes on same line
-                if stripped.count(delimiter) >= 2:
-                    cleaned.append("")
-                    continue
-                in_docstring = delimiter
-                cleaned.append("")
-                continue
-
-        # C-style block comments
-        if ext in ("cs", "js", "ts", "tsx", "jsx", "go"):
-            if in_block_comment:
-                if "*/" in stripped:
-                    in_block_comment = False
-                cleaned.append("")
-                continue
-            if "/*" in stripped:
-                in_block_comment = True
-                cleaned.append("")
-                continue
-
-        # Single-line comments
-        if ext == "py" and stripped.startswith("#"):
-            cleaned.append("")
-            continue
-        if ext in ("cs", "js", "ts", "tsx", "jsx", "go") and stripped.startswith("//"):
-            cleaned.append("")
-            continue
-
-        # Strip inline string literals to avoid false positives on patterns inside strings
-        sanitized = re.sub(r'(["\'])(?:(?!\1).)*?\1', '""', line)
-        cleaned.append(sanitized)
-
-    return "\n".join(cleaned)
-
-
 def check_security(repo_root: Path, file_path: str = "") -> str:
-    """Scan for security issues using built-in + custom patterns."""
+    """Scan for security issues. Uses engine graph for file list, regex for detection."""
     patterns = BUILTIN_PATTERNS + _load_patterns(repo_root)
     findings: list[dict] = []
 
-    # Determine files to scan
+    # Get file list from engine graph
+    files: list[str] = []
     if file_path:
-        files = [repo_root / file_path]
+        files = [file_path]
     else:
-        files = []
-        for ext in SUPPORTED_EXTENSIONS:
-            for fp in repo_root.rglob(f"*{ext}"):
-                if not should_ignore(fp) and fp.stat().st_size <= MAX_FILE_SIZE:
-                    files.append(fp)
+        try:
+            from ..engine.db import open_db, get_db_path
+            if get_db_path(repo_root).exists():
+                _, conn = open_db(repo_root)
+                result = conn.execute("MATCH (f:File) WHERE NOT f.path CONTAINS 'test' RETURN f.path")
+                while result.has_next():
+                    files.append(result.get_next()[0])
+        except Exception:
+            pass
+        if not files:
+            # Fallback: walk filesystem
+            from ..config import SUPPORTED_EXTENSIONS, should_ignore
+            for ext in SUPPORTED_EXTENSIONS:
+                for fp in repo_root.rglob(f"*{ext}"):
+                    if not should_ignore(fp) and fp.stat().st_size <= 200_000:
+                        files.append(str(fp.relative_to(repo_root)))
 
-    for fp in files:
+    for rel in files:
+        fp = repo_root / rel
         if not fp.exists():
             continue
         try:
-            raw_content = fp.read_text(encoding="utf-8", errors="replace")
+            content = fp.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        rel = str(fp.relative_to(repo_root))
-        # Strip comments and strings to reduce false positives
-        content = _strip_comments_and_strings(raw_content, rel)
 
         for pattern in patterns:
             try:
@@ -150,8 +91,7 @@ def check_security(repo_root: Path, file_path: str = "") -> str:
             for match in matches:
                 line_num = content[:match.start()].count("\n") + 1
                 findings.append({
-                    "file": rel,
-                    "line": line_num,
+                    "file": rel, "line": line_num,
                     "pattern": pattern["name"],
                     "severity": pattern.get("severity", "medium"),
                     "description": pattern.get("description", ""),
@@ -159,8 +99,7 @@ def check_security(repo_root: Path, file_path: str = "") -> str:
                 })
 
     if not findings:
-        scope = f"`{file_path}`" if file_path else "codebase"
-        return f"No security issues found in {scope}."
+        return f"No security issues found in {'`' + file_path + '`' if file_path else 'codebase'}."
 
     lines = [f"# Security Scan ({len(findings)} findings)\n"]
     by_severity = {"high": [], "medium": [], "low": []}

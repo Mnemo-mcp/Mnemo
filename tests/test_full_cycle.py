@@ -35,7 +35,7 @@ class TestRememberSearchRecallCycle:
             for c in contents:
                 add_memory(repo, c, "architecture")
 
-        result = search_memory(repo, "caching sessions")
+        result = search_memory(repo, "caching layer")
         assert "Redis" in result
 
 
@@ -43,8 +43,8 @@ class TestContradictionSupersedes:
     def test_supersedes_old_memory(self, tmp_path):
         repo = make_repo(tmp_path)
         with patch("mnemo.memory._get_current_branch", return_value="main"):
-            add_memory(repo, "Use Redis for caching in the auth service", "architecture")
-            add_memory(repo, "Use Memcached instead of Redis for caching in the authentication layer", "architecture")
+            add_memory(repo, "Use Redis for caching user sessions in the auth service layer", "architecture")
+            add_memory(repo, "Use Memcached for caching user sessions in the auth service layer instead of Redis", "architecture")
 
         storage = get_storage(repo)
         entries = storage.read_collection(Collections.MEMORY)
@@ -68,8 +68,8 @@ class TestDedupPreventsDuplicates:
 class TestDecisionContradiction:
     def test_conflicting_decisions(self, tmp_path):
         repo = make_repo(tmp_path)
-        add_decision(repo, "Use MongoDB as the primary database for user profiles")
-        add_decision(repo, "Use PostgreSQL instead of MongoDB as the primary data store for user management")
+        add_decision(repo, "Use MongoDB as the primary database for storing user profile data")
+        add_decision(repo, "Use PostgreSQL as the primary database for storing user profile data instead of MongoDB")
 
         storage = get_storage(repo)
         decisions = storage.read_collection(Collections.DECISIONS)

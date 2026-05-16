@@ -16,6 +16,7 @@ SCHEMA_STATEMENTS = [
 
     # --- Semantic nodes ---
     "CREATE NODE TABLE Community(id STRING, name STRING, description STRING, PRIMARY KEY(id))",
+    "CREATE NODE TABLE Project(id STRING, name STRING, language STRING, manifest STRING, path STRING, PRIMARY KEY(id))",
     "CREATE NODE TABLE Process(id STRING, name STRING, entry_point STRING, PRIMARY KEY(id))",
     "CREATE NODE TABLE Route(id STRING, path STRING, method STRING, handler STRING, file STRING, PRIMARY KEY(id))",
 
@@ -25,6 +26,7 @@ SCHEMA_STATEMENTS = [
 
     # --- Relationship tables ---
     "CREATE REL TABLE CONTAINS(FROM Folder TO File)",
+    "CREATE REL TABLE PROJECT_CONTAINS(FROM Project TO File)",
     "CREATE REL TABLE FILE_DEFINES_CLASS(FROM File TO Class)",
     "CREATE REL TABLE FILE_DEFINES_INTERFACE(FROM File TO Interface)",
     "CREATE REL TABLE FILE_DEFINES_FUNCTION(FROM File TO Function)",

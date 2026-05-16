@@ -16,6 +16,7 @@ SUPPORTED_EXTENSIONS = {
     ".ts": "typescript",
     ".tsx": "typescript",
     ".jsx": "javascript",
+    ".vue": "javascript",
     ".go": "go",
     ".cs": "csharp",
     ".java": "java",
@@ -40,7 +41,8 @@ IGNORE_DIRS = {
     "dist", "build", ".mnemo", ".tox", ".mypy_cache", "egg-info",
     "bin", "obj", "packages", ".vs",
     "wwwroot", "publish", "artifacts", "TestResults",
-    "target", "vendor", ".gradle", ".idea",
+    "target", "vendor", ".gradle", ".idea", ".next", "_next", "out",
+    ".competitor_analysis",
 }
 
 

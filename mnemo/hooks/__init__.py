@@ -402,20 +402,44 @@ fi
 exit 0
 """)
 
-    _write_hook(hooks_dir / "post-tool-use.sh", """#!/bin/sh
-# Mnemo postToolUse — track file modifications
-input_json=$(cat 2>/dev/null || echo "{}")
+    _write_hook(hooks_dir / "post-tool-use.sh", f"""#!/bin/sh
+# Mnemo postToolUse — captures file modifications and tool observations
+# Fail-safe: always exits 0
+
+MNEMO="{mnemo_bin}"
+input_json=$(cat 2>/dev/null || echo "{{}}")
+
+# Extract tool info
+TOOL_NAME=""
+TOOL_OUTPUT=""
+if command -v jq >/dev/null 2>&1; then
+  TOOL_NAME=$(echo "$input_json" | jq -r '.tool_name // empty' 2>/dev/null) || true
+  TOOL_OUTPUT=$(echo "$input_json" | jq -r '.tool_output // empty' 2>/dev/null | head -c 500) || true
+fi
+
+# Track file modifications
+case "$TOOL_NAME" in
+  *[Ww]rite*|*[Ee]dit*|*[Cc]reate*)
+    FILE_PATH=""
+    if command -v jq >/dev/null 2>&1; then
+      FILE_PATH=$(echo "$input_json" | jq -r '.tool_input.path // .tool_input.file_path // empty' 2>/dev/null) || true
+    fi
+    if [ -n "$FILE_PATH" ]; then
+      "$MNEMO" tool mnemo_remember --content "Modified file: $FILE_PATH" --category "general" 2>/dev/null || true
+    fi
+    ;;
+esac
+
 exit 0
 """)
 
     _write_hook(hooks_dir / "stop.sh", f"""#!/bin/sh
-# Mnemo stop hook — auto-captures learnings from session responses
-# Reads STDIN (the agent's final response), detects learning patterns, saves them
+# Mnemo stop hook — session summarization + learning capture
 # Fail-safe: always exits 0
 
 MNEMO="{mnemo_bin}"
 
-# Read STDIN (Kiro sends JSON with .response or .content)
+# Read STDIN
 input_json=$(cat 2>/dev/null || echo "{{}}")
 
 # Extract response text
@@ -424,48 +448,44 @@ if command -v jq >/dev/null 2>&1; then
   RESPONSE=$(echo "$input_json" | jq -r '.response // .content // .message // .text // empty' 2>/dev/null) || true
 fi
 
-# If no response, just exit
-if [ -z "$RESPONSE" ] || [ ${{#RESPONSE}} -lt 100 ]; then
+if [ -z "$RESPONSE" ] || [ ${{#RESPONSE}} -lt 50 ]; then
   exit 0
 fi
 
-# Detect learning patterns in the response
 LOWER_RESPONSE=$(echo "$RESPONSE" | tr '[:upper:]' '[:lower:]')
 
-# Count learning indicators
+# --- Learning detection (bug fixes, discoveries) ---
 LEARNING_SCORE=0
 echo "$LOWER_RESPONSE" | grep -q "fixed\\|solved\\|resolved" && LEARNING_SCORE=$((LEARNING_SCORE + 1))
 echo "$LOWER_RESPONSE" | grep -q "the issue was\\|the problem was\\|root cause\\|the bug was" && LEARNING_SCORE=$((LEARNING_SCORE + 1))
 echo "$LOWER_RESPONSE" | grep -q "discovered\\|realized\\|figured out\\|learned\\|turned out" && LEARNING_SCORE=$((LEARNING_SCORE + 1))
 echo "$LOWER_RESPONSE" | grep -q "solution\\|the fix\\|working now\\|now works" && LEARNING_SCORE=$((LEARNING_SCORE + 1))
 
-# If 2+ indicators, this response contains a learning
 if [ "$LEARNING_SCORE" -ge 2 ]; then
-  SUMMARY=""
-  SUMMARY=$(echo "$RESPONSE" | grep -ioE "(the issue was|the problem was|root cause was)[^.]*\\." | head -1 | head -c 150)
-  if [ -z "$SUMMARY" ]; then
-    SUMMARY=$(echo "$RESPONSE" | grep -ioE "(fixed by|solved by|resolved by|the fix was)[^.]*\\." | head -1 | head -c 150)
-  fi
-  if [ -z "$SUMMARY" ]; then
-    SUMMARY=$(echo "$RESPONSE" | grep -ioE "(discovered|realized|figured out|learned) (that )?[^.]*\\." | head -1 | head -c 150)
-  fi
-  if [ -z "$SUMMARY" ]; then
-    SUMMARY=$(echo "$RESPONSE" | grep -iE "fixed|solved|resolved|discovered|learned" | head -1 | head -c 150)
-  fi
-
+  SUMMARY=$(echo "$RESPONSE" | grep -ioE "(the issue was|the problem was|root cause was|fixed by|solved by|the fix was)[^.]*\\." | head -1 | head -c 200)
   if [ -n "$SUMMARY" ] && [ ${{#SUMMARY}} -gt 20 ]; then
-    "$MNEMO" tool mnemo_remember --content "Auto-learned: $SUMMARY" --category "pattern" 2>/dev/null || true
-    echo "📚 [Mnemo] Learning auto-captured." >&2
+    "$MNEMO" tool mnemo_remember --content "Auto-learned: $SUMMARY" --category "bug" 2>/dev/null || true
   fi
 fi
 
-# Detect decisions in the response
-echo "$LOWER_RESPONSE" | grep -q "decided to\\|decision:\\|chose to\\|going with\\|we'll use\\|architecture:" && {{
+# --- Decision detection ---
+echo "$LOWER_RESPONSE" | grep -q "decided to\\|decision:\\|chose to\\|going with\\|we'll use" && {{
   DECISION=$(echo "$RESPONSE" | grep -iE "decided to|decision:|chose to|going with" | head -1 | head -c 200)
   if [ -n "$DECISION" ] && [ ${{#DECISION}} -gt 20 ]; then
-    "$MNEMO" tool mnemo_remember --content "Session decision: $DECISION" --category "general" 2>/dev/null || true
+    "$MNEMO" tool mnemo_remember --content "Session decision: $DECISION" --category "architecture" 2>/dev/null || true
   fi
 }}
+
+# --- Session summary (captures what was accomplished) ---
+# Detect substantial work sessions (long responses with action verbs)
+WORD_COUNT=$(echo "$RESPONSE" | wc -w | tr -d ' ')
+if [ "$WORD_COUNT" -gt 200 ]; then
+  # Extract key accomplishments
+  ACCOMPLISHMENTS=$(echo "$RESPONSE" | grep -iE "^[*-] |implemented|created|added|built|fixed|completed|refactored|deployed" | head -5 | head -c 400)
+  if [ -n "$ACCOMPLISHMENTS" ] && [ ${{#ACCOMPLISHMENTS}} -gt 30 ]; then
+    "$MNEMO" tool mnemo_remember --content "Session work: $ACCOMPLISHMENTS" --category "general" 2>/dev/null || true
+  fi
+fi
 
 exit 0
 """)
@@ -506,25 +526,115 @@ def _write_hook(path: Path, content: str) -> None:
 
 
 def _install_claude_hooks(repo_root: Path) -> str:
-    """Generate shell scripts in .claude/hooks/ and memory guide."""
-    hooks_dir = repo_root / ".claude" / "hooks"
-    hooks_dir.mkdir(parents=True, exist_ok=True)
+    """Install Claude Code hooks via .claude/settings.json + CLAUDE.md + MCP config."""
+    import shutil
 
-    spawn = hooks_dir / "on-spawn.sh"
-    spawn.write_text(_CLAUDE_SPAWN_SCRIPT, encoding="utf-8")
-    spawn.chmod(spawn.stat().st_mode | stat.S_IEXEC)
+    mnemo_bin = shutil.which("mnemo") or "mnemo"
+    mnemo_mcp = shutil.which("mnemo-mcp") or "mnemo-mcp"
 
-    stop = hooks_dir / "on-stop.sh"
-    stop.write_text(_CLAUDE_STOP_SCRIPT, encoding="utf-8")
-    stop.chmod(stop.stat().st_mode | stat.S_IEXEC)
+    claude_dir = repo_root / ".claude"
+    claude_dir.mkdir(parents=True, exist_ok=True)
 
-    # Memory guide (Claude Code reads CLAUDE.md or .claude/ files)
-    guide_path = repo_root / ".claude" / "mnemo-guide.md"
-    guide_path.write_text(_CLAUDE_SKILL.lstrip(), encoding="utf-8")
+    # 1. Write .claude/settings.json with hooks
+    settings_path = claude_dir / "settings.json"
+    existing = {}
+    if settings_path.exists():
+        try:
+            existing = json.loads(settings_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    existing["hooks"] = {
+        "SessionStart": [{
+            "hooks": [{
+                "type": "command",
+                "command": f"{mnemo_bin} tool mnemo_recall"
+            }]
+        }],
+        "UserPromptSubmit": [{
+            "hooks": [{
+                "type": "command",
+                "command": f"{mnemo_bin} tool mnemo_search_memory --query \"$ARGUMENTS\"",
+                "timeout": 10
+            }]
+        }],
+        "PreToolUse": [{
+            "matcher": "Bash",
+            "hooks": [{
+                "type": "command",
+                "command": f"{mnemo_bin} check",
+                "timeout": 5
+            }]
+        }],
+        "PostToolUse": [{
+            "matcher": "Write|Edit",
+            "hooks": [{
+                "type": "command",
+                "command": f"{mnemo_bin} tool mnemo_remember --content \"Modified file: ${{tool_input.file_path}}\" --category general",
+                "timeout": 5
+            }]
+        }],
+        "Stop": [{
+            "hooks": [{
+                "type": "command",
+                "command": f"{mnemo_bin} tool mnemo_remember --content \"Session ended\" --category general",
+                "timeout": 10
+            }]
+        }],
+        "PreCompact": [{
+            "hooks": [{
+                "type": "command",
+                "command": f"{mnemo_bin} tool mnemo_recall"
+            }]
+        }],
+    }
+
+    # Ensure MCP server is configured
+    if "mcpServers" not in existing:
+        existing["mcpServers"] = {}
+    existing["mcpServers"]["mnemo"] = {
+        "command": mnemo_mcp,
+        "args": [],
+    }
+
+    settings_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+
+    # 2. Write/append CLAUDE.md with Mnemo instructions
+    claude_md = repo_root / "CLAUDE.md"
+    mnemo_section = """
+## Mnemo — Persistent Memory
+
+This project uses Mnemo for persistent engineering memory across sessions.
+
+### Available via MCP tools (call directly):
+- `mnemo_recall` — load full project context
+- `mnemo_remember` — store important decisions, patterns, fixes
+- `mnemo_decide` — record permanent architectural decisions
+- `mnemo_search_memory` — search past memories semantically
+- `mnemo_lookup` — get detailed class/method info
+- `mnemo_graph` — explore code relationships
+- `mnemo_impact` — analyze upstream/downstream dependencies
+- `mnemo_plan` — create and track task plans
+
+### Rules:
+- Search memory before asking the user something they may have told you before
+- Record decisions with mnemo_decide (they persist forever)
+- Use mnemo_remember for important context worth keeping
+- Learnings are auto-captured at session end via hooks
+"""
+    if claude_md.exists():
+        content = claude_md.read_text(encoding="utf-8")
+        if "Mnemo" not in content:
+            claude_md.write_text(content + mnemo_section, encoding="utf-8")
+    else:
+        claude_md.write_text(mnemo_section.lstrip(), encoding="utf-8")
 
     return (
-        f"Installed Claude Code hooks: {hooks_dir.relative_to(repo_root)}/ (on-spawn.sh, on-stop.sh)\n"
-        f"Installed memory guide: {guide_path.relative_to(repo_root)}"
+        f"Claude Code configured:\n"
+        f"- Hooks: .claude/settings.json (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, PreCompact)\n"
+        f"- MCP: mnemo server registered\n"
+        f"- Instructions: CLAUDE.md updated\n"
+        f"MCP server: {mnemo_mcp}"
     )
 
 

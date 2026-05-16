@@ -55,7 +55,7 @@ COMPRESS_THRESHOLD = 50
 # Similarity above 0.85 = duplicate content (skip storage)
 DEDUP_SIMILARITY_THRESHOLD = 0.85
 # Similarity 0.5-0.85 between decisions = potential contradiction
-CONTRADICTION_SIMILARITY_THRESHOLD = 0.5
+CONTRADICTION_SIMILARITY_THRESHOLD = 0.6
 
 # --- Mutation hook state ---
 _REFRESH_COOLDOWN = 5.0

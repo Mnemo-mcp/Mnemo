@@ -82,7 +82,7 @@ def add_correction(
             if changed:
                 storage.write_collection(Collections.MEMORY, memories)
     except Exception:
-        pass
+        pass  # correction failed — non-fatal
 
     return entry
 
