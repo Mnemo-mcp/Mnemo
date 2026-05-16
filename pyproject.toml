@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mnemo-dev"
-version = "0.5.1"
+version = "0.5.2"
 description = "Persistent memory and repo map for AI coding assistants"
 readme = "README.md"
 license = {text = "AGPL-3.0"}
@@ -70,6 +70,9 @@ mnemo-mcp = "mnemo.mcp_server:run_stdio"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["mnemo*"]
+
+[tool.setuptools.package-data]
+mnemo = ["ui_static/**"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
