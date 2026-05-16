@@ -9,7 +9,7 @@ import * as os from "node:os";
 
 const execFileAsync = promisify(execFile);
 
-const REPO = "nikhil1057/Mnemo";
+const REPO = "Mnemo-mcp/Mnemo";
 const BINARY_NAME = os.platform() === "win32" ? "mnemo.exe" : "mnemo";
 
 function getPlatformArtifact(): string {
@@ -74,28 +74,44 @@ async function getLatestVersion(): Promise<string> {
 
 async function ensureBinary(context: vscode.ExtensionContext): Promise<string> {
   const bin = binaryPath(context);
-  if (existsSync(bin)) {
-    return bin;
-  }
+  const dir = binDir(context);
 
-  // Try downloading binary from GitHub Releases (no Python needed)
+  // Always check for newer version (even if binary exists)
   try {
-    await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, title: "Mnemo: Downloading..." },
-      async () => {
-        const dir = binDir(context);
-        await mkdir(dir, { recursive: true });
-        const version = await getLatestVersion();
-        const artifact = getPlatformArtifact();
-        const url = `https://github.com/${REPO}/releases/download/${version}/${artifact}`;
-        await downloadFile(url, bin);
-        if (os.platform() !== "win32") {
-          chmodSync(bin, 0o755);
+    const latestVersion = await getLatestVersion();
+    const versionFile = path.join(dir, ".version");
+    const currentVersion = existsSync(versionFile)
+      ? require("fs").readFileSync(versionFile, "utf-8").trim()
+      : "";
+
+    if (!existsSync(bin) || currentVersion !== latestVersion) {
+      await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: `Mnemo: Updating to ${latestVersion}...` },
+        async () => {
+          await mkdir(dir, { recursive: true });
+          const artifact = getPlatformArtifact();
+          const url = `https://github.com/${REPO}/releases/download/${latestVersion}/${artifact}`;
+          await downloadFile(url, bin);
+          if (os.platform() !== "win32") {
+            chmodSync(bin, 0o755);
+          }
+          require("fs").writeFileSync(versionFile, latestVersion);
+        }
+      );
+      if (currentVersion) {
+        const action = await vscode.window.showInformationMessage(
+          `Mnemo updated to ${latestVersion}. Re-initialize your project to get the latest features.`,
+          "Run mnemo init"
+        );
+        if (action === "Run mnemo init") {
+          const terminal = vscode.window.createTerminal("Mnemo");
+          terminal.show();
+          terminal.sendText("mnemo init");
         }
       }
-    );
+    }
     return bin;
-  } catch { /* binary not available yet, try PATH fallbacks */ }
+  } catch { /* binary download failed, try PATH fallbacks */ }
 
   // Check if mnemo is on PATH (pip install or manual)
   try {

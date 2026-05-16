@@ -202,7 +202,7 @@ def _traverse_callees(conn, name: str, max_depth: int) -> list[tuple[str, int, s
     return results
 
 
-@tool("mnemo_search",
+@tool("mnemo_find",
       "Search the code graph for symbols by name pattern. Returns matching classes, functions, and methods.",
       properties={
           "query": {"type": "string", "description": "Search query (name or pattern to find)"},
