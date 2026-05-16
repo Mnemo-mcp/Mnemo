@@ -1,34 +1,36 @@
-import type { Config } from 'tailwindcss';
+import type { Config } from "tailwindcss";
 
 const config: Config = {
-  content: [
-    './app/**/*.{ts,tsx}',
-    './components/**/*.{ts,tsx}',
-  ],
+  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
   theme: {
     extend: {
-      fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
-        mono: ['JetBrains Mono', 'SF Mono', 'Consolas', 'monospace'],
-      },
       colors: {
-        surface: '#0a0a0b',
-        'surface-raised': '#141415',
-        'surface-overlay': '#1c1c1e',
-        accent: '#e5a54b',
-        'accent-dim': '#b8832e',
-        'accent-subtle': 'rgba(229, 165, 75, 0.08)',
-        border: '#2a2a2c',
-        'border-subtle': '#1e1e20',
+        bg: "#0A0A0A",
+        surface: "#111111",
+        accent: "#F59E0B",
+        "accent-light": "#FBBF24",
+        forget: "#EF4444",
+        dim: "#141414",
+        cyan: "#22D3EE",
       },
-      animation: {
-        'fade-in': 'fadeIn 0.5s ease-out forwards',
+      fontFamily: {
+        display: ["'Fraunces'", "Georgia", "serif"],
+        body: ["'Instrument Sans'", "system-ui", "sans-serif"],
+        mono: ["'IBM Plex Mono'", "Menlo", "monospace"],
       },
       keyframes: {
-        fadeIn: {
-          '0%': { opacity: '0', transform: 'translateY(6px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
+        blink: {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0" },
         },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-6px)" },
+        },
+      },
+      animation: {
+        blink: "blink 1s step-end infinite",
+        float: "float 6s ease-in-out infinite",
       },
     },
   },

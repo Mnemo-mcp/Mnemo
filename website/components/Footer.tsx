@@ -1,19 +1,36 @@
+"use client";
+
 export default function Footer() {
   return (
-    <footer className="border-t border-border-subtle py-10 px-6">
-      <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5">
-          <img src="/Mnemo/icon.png" alt="Mnemo" className="w-5 h-5 rounded" />
-          <span className="text-sm font-semibold text-white">Mnemo</span>
-          <span className="text-xs text-gray-600 font-mono">v0.4.0</span>
+    <footer className="border-t border-zinc-800/80 py-12" aria-label="Site footer">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-6">
+            <span className="font-display font-bold text-xl text-accent italic">mnemo</span>
+            <span className="font-mono text-[10px] text-zinc-400 border border-zinc-700 px-2 py-0.5">AGPL-3.0</span>
+          </div>
+
+          <nav className="flex items-center gap-6" aria-label="Footer navigation">
+            <a href="https://github.com/Mnemo-mcp/Mnemo" target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-zinc-400 hover:text-accent transition-colors">
+              GitHub
+            </a>
+            <a href="https://github.com/Mnemo-mcp/Mnemo#readme" target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-zinc-400 hover:text-accent transition-colors">
+              Documentation
+            </a>
+            <a href="https://github.com/Mnemo-mcp/Mnemo/issues" target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-zinc-400 hover:text-accent transition-colors">
+              Community
+            </a>
+          </nav>
         </div>
-        <div className="flex items-center gap-6">
-          <a href="https://pypi.org/project/mnemo-dev/" className="text-xs text-gray-500 hover:text-accent transition-colors">PyPI</a>
-          <a href="https://www.npmjs.com/package/@mnemo-dev/mcp" className="text-xs text-gray-500 hover:text-accent transition-colors">npm</a>
-          <a href="https://github.com/Mnemo-mcp/Mnemo" className="text-xs text-gray-500 hover:text-accent transition-colors">GitHub</a>
-          <a href="https://marketplace.visualstudio.com/items?itemName=Nikhil1057.mnemo-vscode" className="text-xs text-gray-500 hover:text-accent transition-colors">VS Code</a>
+
+        <div className="mt-8 pt-6 border-t border-zinc-800/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="font-mono text-[10px] text-zinc-500">
+            © {new Date().getFullYear()} Mnemo. Persistent engineering cognition for AI coding agents.
+          </p>
+          <p className="font-mono text-[10px] text-zinc-500">
+            Built for developers who are tired of repeating themselves.
+          </p>
         </div>
-        <p className="text-xs text-gray-600">AGPL-3.0</p>
       </div>
     </footer>
   );
