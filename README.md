@@ -215,7 +215,7 @@ Works with **any** agent that speaks MCP. One server, one memory, shared across 
 ## How It Works
 
 ```
-┌─── INIT (one-time, ~7s for 300 files) ──────────────────────────┐
+┌─── INIT (one-time, ~7s for 300 files) ───────────────────────────┐
 │                                                                  │
 │  1. Scan: single os.walk pass across repo                        │
 │  2. Parse: tree-sitter AST (14 langs) + Roslyn (C#)              │
@@ -229,10 +229,10 @@ Works with **any** agent that speaks MCP. One server, one memory, shared across 
 └──────────────────────────────────────────────────────────────────┘
                               │
                               ▼
-┌─── SESSION START (automatic via hooks) ─────────────────────────┐
+┌─── SESSION START (automatic via hooks) ──────────────────────────┐
 │                                                                  │
 │  mnemo_recall injects into agent context:                        │
-│    • Architectural decisions (permanent, never evicted)           │
+│    • Architectural decisions (permanent, never evicted)          │
 │    • Hot memories (scored by access × recency × importance)      │
 │    • Active plan + next task                                     │
 │    • Compact repo index (classes per service)                    │
@@ -258,7 +258,7 @@ Works with **any** agent that speaks MCP. One server, one memory, shared across 
 └──────────────────────────────────────────────────────────────────┘
                               │
                               ▼
-┌─── SESSION END (auto-capture via stop hook) ────────────────────┐
+┌─── SESSION END (auto-capture via stop hook) ─────────────────────┐
 │                                                                  │
 │  • Detects learnings (bug fixes, discoveries)                    │
 │  • Records session decisions                                     │
@@ -267,11 +267,11 @@ Works with **any** agent that speaks MCP. One server, one memory, shared across 
 └──────────────────────────────────────────────────────────────────┘
                               │
                               ▼
-┌─── BETWEEN SESSIONS (decay + maintenance) ──────────────────────┐
+┌─── BETWEEN SESSIONS (decay + maintenance) ───────────────────────┐
 │                                                                  │
 │  Every 10th recall:                                              │
 │    • Retention scored: salience × exp(-0.01 × days) + access     │
-│    • Hot (≥0.5) → Warm (≥0.25) → Cold → Evicted                 │
+│    • Hot (≥0.5) → Warm (≥0.25) → Cold → Evicted                  │
 │    • Contradictions auto-superseded (sim > 0.9)                  │
 │    • Low-value pruning (cap: 200 active memories)                │
 │    • Graph synced (stale memory nodes removed)                   │
@@ -279,7 +279,6 @@ Works with **any** agent that speaks MCP. One server, one memory, shared across 
 │  Pinned forever: architecture, decision, preference              │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
- └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
