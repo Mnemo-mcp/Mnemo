@@ -1,1 +1,3 @@
-.mnemo/
+node_modules
+.next
+out

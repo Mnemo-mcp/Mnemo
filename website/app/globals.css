@@ -2,20 +2,129 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
-@layer base {
-  body {
-    @apply bg-surface text-gray-200 antialiased font-sans;
-  }
-
-  ::selection {
-    background: rgba(229, 165, 75, 0.25);
-  }
+:root {
+  --bg: #0A0A0A;
+  --surface: #111111;
+  --accent: #F59E0B;
+  --accent-light: #FBBF24;
+  --cyan: #22D3EE;
+  --text-primary: #E5E5E5;
+  --text-secondary: #A1A1AA;
 }
 
-@layer utilities {
-  .card {
-    @apply bg-surface-raised border border-border-subtle rounded-lg;
+* {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+/* Noise grain overlay */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+::selection {
+  background: rgba(245, 158, 11, 0.3);
+  color: #FBBF24;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Architecture diagram flow dots */
+@keyframes arch-flow-right {
+  0% { transform: translateX(0); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateX(35px); opacity: 0; }
+}
+
+@keyframes arch-flow-left {
+  0% { transform: translateX(0); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateX(-35px); opacity: 0; }
+}
+
+.arch-dot-right {
+  animation: arch-flow-right 2s ease-in-out infinite;
+}
+
+.arch-dot-right-delayed {
+  animation: arch-flow-right 2s ease-in-out 0.7s infinite;
+}
+
+.arch-dot-left {
+  animation: arch-flow-left 2s ease-in-out 0.3s infinite;
+}
+
+.arch-dot-left-delayed {
+  animation: arch-flow-left 2s ease-in-out 1s infinite;
+}
+
+/* Ping animation for SVG */
+@keyframes svg-ping {
+  0% { opacity: 0.6; r: 12; }
+  100% { opacity: 0; r: 24; }
+}
+
+.animate-ping-svg {
+  animation: svg-ping 3s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Graph node pulse */
+@keyframes node-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+.node-pulse {
+  animation: node-pulse 3s ease-in-out infinite;
+}
+
+/* Dissolve effect for problem section */
+@keyframes dissolve {
+  0% { opacity: 1; filter: blur(0px); transform: translateX(0) scale(1); }
+  60% { opacity: 0.6; filter: blur(1px); transform: translateX(-4px) scale(1.01); }
+  100% { opacity: 0; filter: blur(8px); transform: translateX(30px) scale(0.95); }
+}
+
+/* Typing cursor for terminal */
+@keyframes typing-cursor {
+  0%, 100% { border-color: var(--accent); }
+  50% { border-color: transparent; }
+}
+
+.typing-cursor {
+  border-right: 2px solid var(--accent);
+  animation: typing-cursor 1s step-end infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .arch-dot-right, .arch-dot-right-delayed, .arch-dot-left, .arch-dot-left-delayed {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+  body::after {
+    display: none;
   }
 }
