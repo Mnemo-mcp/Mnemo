@@ -1,4 +1,4 @@
-"""Mnemo – Persistent memory and repo map for Amazon Q chats."""
+"""Mnemo – Persistent memory and Code Intelligence For AI Agents."""
 
 from __future__ import annotations
 
