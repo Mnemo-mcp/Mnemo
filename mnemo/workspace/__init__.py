@@ -18,6 +18,21 @@ def _links_path(repo_root: Path) -> Path:
     return mnemo_path(repo_root) / LINKS_FILE
 
 
+def _normalize_links(data: Any) -> list[dict[str, str]]:
+    """Normalize links.json data to list of dicts regardless of format."""
+    if isinstance(data, dict):
+        data = data.get("links", [])
+    if not isinstance(data, list):
+        return []
+    entries: list[dict[str, str]] = []
+    for item in data:
+        if isinstance(item, dict) and "path" in item:
+            entries.append(item)
+        elif isinstance(item, str):
+            entries.append({"name": Path(item).name, "path": item})
+    return entries
+
+
 def get_linked_repos(repo_root: Path) -> list[Path]:
     """Return resolved paths of all linked repos that exist and are initialized."""
     path = _links_path(repo_root)
@@ -28,7 +43,7 @@ def get_linked_repos(repo_root: Path) -> list[Path]:
     except (json.JSONDecodeError, OSError):
         return []
     linked: list[Path] = []
-    for entry in data:
+    for entry in _normalize_links(data):
         repo_path = Path(entry["path"]).expanduser().resolve()
         if repo_path != repo_root.resolve() and (repo_path / ".mnemo").exists():
             linked.append(repo_path)
@@ -136,11 +151,12 @@ def format_links(repo_root: Path) -> str:
     except (json.JSONDecodeError, OSError):
         return "No linked repos."
 
-    if not data:
+    entries = _normalize_links(data)
+    if not entries:
         return "No linked repos."
 
-    lines = [f"# Linked Repos ({len(data)})\n"]
-    for entry in data:
+    lines = [f"# Linked Repos ({len(entries)})\n"]
+    for entry in entries:
         name = entry.get("name", "unknown")
         repo_path = Path(entry.get("path", ""))
         exists = repo_path.exists()
