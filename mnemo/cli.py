@@ -142,6 +142,7 @@ def reset(path: str):
     # Remove only Mnemo-owned Kiro files (not entire directories)
     click.echo("⏳ Removing Mnemo-generated files...")
     mnemo_kiro_files = [
+        # Kiro CLI files
         repo_root / ".kiro" / "hooks" / "agent-spawn.sh",
         repo_root / ".kiro" / "hooks" / "user-prompt-submit.sh",
         repo_root / ".kiro" / "hooks" / "pre-tool-use.sh",
@@ -150,6 +151,13 @@ def reset(path: str):
         repo_root / ".kiro" / "agents" / "mnemo-enhanced.json",
         repo_root / ".kiro" / "skills" / "mnemo" / "SKILL.md",
         repo_root / ".kiro" / "settings" / "mcp.json",
+        # Kiro Desktop IDE files
+        repo_root / ".kiro" / "steering" / "mnemo.md",
+        repo_root / ".kiro" / "skills" / "mnemo-tools.md",
+        repo_root / ".kiro" / "hooks" / "mnemo-prompt-submit.md",
+        repo_root / ".kiro" / "hooks" / "mnemo-agent-stop.md",
+        repo_root / ".kiro" / "hooks" / "mnemo-file-save.md",
+        repo_root / ".kiro" / "hooks" / "mnemo-pre-tool-use.md",
     ]
     for f in mnemo_kiro_files:
         if f.exists():
@@ -162,6 +170,7 @@ def reset(path: str):
         repo_root / ".kiro" / "hooks",
         repo_root / ".kiro" / "agents",
         repo_root / ".kiro" / "skills",
+        repo_root / ".kiro" / "steering",
         repo_root / ".kiro" / "settings",
     ]:
         if d.exists() and not any(d.iterdir()):

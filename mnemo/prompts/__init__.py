@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from ..clients import ClientTarget
 
 # MCP-native clients call tools directly (mnemo_recall, mnemo_lookup, etc.)
-_MCP_CLIENTS = {"amazonq", "cursor", "claude-code", "copilot", "kiro", "windsurf", "cline", "roo-code", "gemini-cli", "opencode", "goose"}
+_MCP_CLIENTS = {"amazonq", "cursor", "claude-code", "copilot", "kiro", "kiro-desktop", "windsurf", "cline", "roo-code", "gemini-cli", "opencode", "goose"}
 
 MNEMO_RULE_HEADER_MCP = """\
 You have access to Mnemo - a persistent memory system for this project.

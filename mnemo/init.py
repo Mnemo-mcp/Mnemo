@@ -220,6 +220,9 @@ def init(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
         if target.key == "kiro":
             result = install_hooks(repo_root, "kiro")
             lines.append(f"- {result}")
+        elif target.key == "kiro-desktop":
+            result = install_hooks(repo_root, "kiro-desktop")
+            lines.append(f"- {result}")
         elif target.key == "claude-code":
             result = install_hooks(repo_root, "claude-code")
             lines.append(f"- {result}")

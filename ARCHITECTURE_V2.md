@@ -239,7 +239,8 @@ def auto_link_memory(memory_id: str, content: str, graph: LadybugDB):
 
 | Agent | Interface | Config Location |
 |-------|-----------|----------------|
-| Kiro | Hooks + MCP | `.kiro/agents/`, `.kiro/hooks/` |
+| Kiro CLI | Hooks + MCP | `.kiro/agents/`, `.kiro/hooks/` |
+| Kiro Desktop IDE | Steering + Hooks + Skills + MCP | `.kiro/steering/`, `.kiro/hooks/`, `.kiro/skills/` |
 | Cursor | MCP | `~/.cursor/mcp.json` |
 | Claude Code | MCP + Hooks | `~/.claude/mcp.json`, `.claude/hooks/` |
 | Amazon Q | MCP | `~/.aws/amazonq/mcp.json` |

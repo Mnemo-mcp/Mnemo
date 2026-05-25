@@ -176,6 +176,8 @@ def install_hooks(repo_root: Path, client: str = "git") -> str:
     """Install hooks for the specified client."""
     if client == "kiro":
         return _install_kiro_hooks(repo_root)
+    elif client == "kiro-desktop":
+        return _install_kiro_desktop_hooks(repo_root)
     elif client == "claude-code":
         return _install_claude_hooks(repo_root)
     return _install_git_hooks(repo_root)
@@ -523,6 +525,353 @@ def _write_hook(path: Path, content: str) -> None:
     """Write a hook script and make it executable."""
     path.write_text(content, encoding="utf-8")
     path.chmod(path.stat().st_mode | stat.S_IEXEC)
+
+
+# --- Kiro Desktop IDE (GUI) hook templates ---
+
+_KIRO_DESKTOP_STEERING = """\
+---
+inclusion: auto
+---
+
+# Mnemo — Persistent Engineering Memory
+
+This project uses **Mnemo** for persistent engineering memory across sessions.
+All project context, decisions, and history are available via MCP tools.
+
+## How Memory Works
+
+- Context is loaded automatically at session start via the Prompt Submit hook
+- Memories, decisions, and plans persist across sessions
+- Old context decays naturally (hot → warm → cold → evicted)
+- Architecture decisions and preferences are pinned forever
+
+## Key Rules
+
+1. **Search before asking** — call `mnemo_search_memory` before asking the user something they may have answered before
+2. **Remember important things** — call `mnemo_remember` after decisions, bug fixes, pattern discoveries, and user preferences
+3. **Decisions are permanent** — call `mnemo_decide` for architectural choices (never evicted)
+4. **Use the graph** — call `mnemo_lookup` or `mnemo_graph` to understand code relationships before making changes
+5. **Track plans** — call `mnemo_plan` to manage multi-step tasks
+
+## MCP Tool Reference
+
+All operations are MCP tool calls to the `mnemo` server:
+
+| Tool | Purpose |
+|------|---------|
+| `mnemo_recall` | Load full project context (memories, decisions, plans, repo map) |
+| `mnemo_remember` | Store important context (auto-categorized, deduplicated) |
+| `mnemo_decide` | Record permanent architectural decisions |
+| `mnemo_search_memory` | Semantic search across memories (BM25 + vector + graph) |
+| `mnemo_lookup` | 360° view: class methods, function signatures, service architecture |
+| `mnemo_search` | Unified search: code + memory + APIs + errors |
+| `mnemo_graph` | Query knowledge graph (stats, neighbors, find by type) |
+| `mnemo_impact` | Blast radius — what breaks if X changes (N-hop BFS) |
+| `mnemo_plan` | Task plans: create, done, add, remove, status |
+| `mnemo_map` | Regenerate repo map from graph |
+| `mnemo_audit` | Security scan, health check, dead code, conventions |
+| `mnemo_record` | Store errors, incidents, reviews, corrections |
+
+## Memory Slots
+
+Use `mnemo_slot_set`/`mnemo_slot_get` for structured context:
+- `project_context` — what this project is about
+- `user_preferences` — coding style, conventions
+- `conventions` — project-specific rules
+- `pending_items` — things to follow up on
+- `known_gotchas` — traps and pitfalls
+
+## What NOT to Remember
+
+- Temporary debugging output
+- Secrets or credentials (auto-stripped anyway)
+- Obvious things the code already shows
+- Duplicate information already in memory
+"""
+
+_KIRO_DESKTOP_SKILL = """\
+---
+name: mnemo-tools
+description: Mnemo persistent memory MCP tool reference. Activate when you need to look up exact tool names, parameters, or usage patterns for the mnemo MCP server.
+---
+
+# Mnemo MCP Tool Reference
+
+## Tool Names and Parameters
+
+### mnemo_recall
+Load full project context at session start.
+- No required parameters
+- Returns: memories, decisions, plans, repo map (budgeted ~2000 tokens)
+
+### mnemo_remember
+Store important context with auto-categorization and deduplication.
+- `content` (string, required): The information to remember
+- `category` (string, optional): architecture, pattern, bug, preference, decision, todo, general
+
+### mnemo_decide
+Record permanent architectural decisions (never evicted).
+- `decision` (string, required): What was decided
+- `reasoning` (string, required): Why this decision was made
+
+### mnemo_forget
+Delete a specific memory by ID.
+- `memory_id` (string, required): The memory ID to delete
+
+### mnemo_search_memory
+Semantic search across memories (3-way RRF fusion).
+- `query` (string, required): Search query
+- `deep` (boolean, optional): Enable deep search with more results
+
+### mnemo_lookup
+360° detail: class methods, function signatures, or full service architecture.
+- `query` (string, required): File path, class name, or service name
+
+### mnemo_search
+Unified search: code + memory + APIs + errors + cross-repo.
+- `query` (string, required): Search query
+- `scope` (string, optional): code, memory, api, errors, all
+
+### mnemo_graph
+Query knowledge graph.
+- `action` (string, required): stats, neighbors, find, traverse, hubs, path, why
+- `node` (string, optional): Node name for neighbors/traverse/path
+- `type` (string, optional): Node type filter
+- `direction` (string, optional): incoming, outgoing, both
+
+### mnemo_impact
+Blast radius analysis — what breaks if X changes.
+- `query` (string, required): Symbol or service name
+- `depth` (integer, optional): Number of hops (default: 2)
+
+### mnemo_plan
+Task plans: create, track, and complete.
+- `action` (string, required): create, done, add, remove, depends, status
+- `title` (string): Plan title (for create)
+- `tasks` (array): Task list (for create/add)
+- `task_id` (string): Task ID (for done/remove)
+- `summary` (string): Completion summary (for done)
+
+### mnemo_audit
+Security scan, health check, dead code, convention violations.
+- `report` (string, required): health, security, dead_code, conventions, full
+
+### mnemo_record
+Store errors, incidents, reviews, corrections.
+- `type` (string, required): error, incident, review, correction
+- `action` (string, required): add, search, list
+- Additional fields vary by type
+
+### mnemo_slot_get
+Read a named memory slot.
+- `name` (string, required): Slot name
+
+### mnemo_slot_set
+Write a named memory slot.
+- `name` (string, required): Slot name
+- `content` (string, required): Slot content
+
+### mnemo_map
+Regenerate repo map from graph.
+- No required parameters
+"""
+
+_KIRO_DESKTOP_HOOK_PROMPT_SUBMIT = """\
+---
+title: Mnemo Memory Search
+description: Searches Mnemo persistent memory for context relevant to the current prompt
+event: prompt-submit
+---
+
+Search Mnemo memory for information relevant to the user's prompt. Run this shell command to find relevant memories:
+
+```shell
+mnemo tool mnemo_search_memory --query "$USER_PROMPT"
+```
+
+If relevant memories are found, include them as context for your response. If the search returns "No results", proceed without additional context.
+
+Also check if there's an active plan:
+
+```shell
+mnemo tool mnemo_plan --action status
+```
+
+If a plan exists with open tasks, mention the next task when relevant.
+"""
+
+_KIRO_DESKTOP_HOOK_AGENT_STOP = """\
+---
+title: Mnemo Session Learning Capture
+description: Captures decisions, learnings, and bug fixes from the session into Mnemo persistent memory
+event: agent-stop
+---
+
+Review what happened in this session and store important learnings:
+
+1. **Bug fixes**: If a bug was found and fixed, remember the root cause:
+   ```shell
+   mnemo tool mnemo_remember --content "Bug fix: [description of root cause and fix]" --category bug
+   ```
+
+2. **Decisions**: If an architectural or design decision was made, record it:
+   ```shell
+   mnemo tool mnemo_decide --decision "[what was decided]" --reasoning "[why]"
+   ```
+
+3. **Patterns**: If a new pattern or convention was established:
+   ```shell
+   mnemo tool mnemo_remember --content "Pattern: [description]" --category pattern
+   ```
+
+4. **Preferences**: If the user expressed a preference:
+   ```shell
+   mnemo tool mnemo_remember --content "User prefers: [preference]" --category preference
+   ```
+
+Only store genuinely useful information. Do NOT store:
+- Trivial file reads or obvious operations
+- Temporary debugging output
+- Information already in memory (check first with mnemo_search_memory)
+"""
+
+_KIRO_DESKTOP_HOOK_FILE_SAVE = """\
+---
+title: Mnemo File Modification Tracker
+description: Records file modifications in Mnemo memory for session tracking
+event: file-save
+target: "**/*"
+---
+
+A file was saved. Run this command to record the modification:
+
+```shell
+mnemo tool mnemo_remember --content "Modified file: ${FILE_PATH}" --category general
+```
+
+Only record this if the file was modified as part of meaningful work (not just formatting or whitespace changes).
+"""
+
+_KIRO_DESKTOP_HOOK_PRE_TOOL_USE = """\
+---
+title: Mnemo Security Guard
+description: Validates shell commands before execution to block dangerous operations
+event: pre-tool-use
+tools:
+  - shell
+---
+
+Before executing this shell command, check for dangerous patterns:
+
+**BLOCK the command if it matches any of these:**
+- `rm -rf /` or `rm -rf ~` or `rm -rf $HOME` (catastrophic deletion)
+- `> /dev/sd*` or `dd if=/dev/zero` or `mkfs.*` (disk destruction)
+- `curl ... | sh` or `wget ... | bash` (remote code execution)
+- Modifications to `/etc/`, `/usr/bin/`, `/sbin/` (system directory changes)
+- Reading `.env`, `.aws/credentials`, `id_rsa`, `.ssh/` and sending via curl (credential exfiltration)
+
+If the command is dangerous, respond with:
+"🚨 [Mnemo Security] BLOCKED: [reason]. This command could [describe risk]."
+
+If the command is safe, allow it to proceed without comment.
+"""
+
+
+def _install_kiro_desktop_hooks(repo_root: Path) -> str:
+    """Generate .kiro/steering/, .kiro/skills/, and .kiro/hooks/ for Kiro Desktop IDE (GUI)."""
+    import shutil
+
+    # Find mnemo-mcp binary
+    mnemo_mcp = shutil.which("mnemo-mcp")
+    if not mnemo_mcp:
+        candidates = [
+            Path.home() / ".local" / "bin" / "mnemo-mcp",
+            Path.home() / "Library" / "Python" / "3.12" / "bin" / "mnemo-mcp",
+            Path.home() / "Library" / "Python" / "3.11" / "bin" / "mnemo-mcp",
+            Path.home() / "Library" / "Python" / "3.13" / "bin" / "mnemo-mcp",
+            Path("/opt/homebrew/bin/mnemo-mcp"),
+            Path("/usr/local/bin/mnemo-mcp"),
+            Path.home() / "bin" / "mnemo-mcp",
+            Path.home() / ".mnemo" / "bin" / "mnemo-mcp",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                mnemo_mcp = str(candidate)
+                break
+
+    if not mnemo_mcp:
+        mnemo_mcp = "mnemo-mcp"
+
+    installed_files: list[str] = []
+
+    # --- 1. Steering file (auto-included in every conversation) ---
+    steering_dir = repo_root / ".kiro" / "steering"
+    steering_dir.mkdir(parents=True, exist_ok=True)
+    steering_path = steering_dir / "mnemo.md"
+    steering_path.write_text(_KIRO_DESKTOP_STEERING.lstrip(), encoding="utf-8")
+    installed_files.append(f"  steering: {steering_path.relative_to(repo_root)}")
+
+    # --- 2. Skill file (on-demand tool reference) ---
+    skills_dir = repo_root / ".kiro" / "skills"
+    skills_dir.mkdir(parents=True, exist_ok=True)
+    skill_path = skills_dir / "mnemo-tools.md"
+    skill_path.write_text(_KIRO_DESKTOP_SKILL.lstrip(), encoding="utf-8")
+    installed_files.append(f"  skill: {skill_path.relative_to(repo_root)}")
+
+    # --- 3. Hooks (Kiro Desktop GUI format) ---
+    hooks_dir = repo_root / ".kiro" / "hooks"
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+
+    # Prompt Submit hook — searches memory on each user message
+    hook_prompt = hooks_dir / "mnemo-prompt-submit.md"
+    hook_prompt.write_text(_KIRO_DESKTOP_HOOK_PROMPT_SUBMIT.lstrip(), encoding="utf-8")
+    installed_files.append(f"  hook: {hook_prompt.relative_to(repo_root)}")
+
+    # Agent Stop hook — captures learnings at session end
+    hook_stop = hooks_dir / "mnemo-agent-stop.md"
+    hook_stop.write_text(_KIRO_DESKTOP_HOOK_AGENT_STOP.lstrip(), encoding="utf-8")
+    installed_files.append(f"  hook: {hook_stop.relative_to(repo_root)}")
+
+    # File Save hook — tracks modifications
+    hook_save = hooks_dir / "mnemo-file-save.md"
+    hook_save.write_text(_KIRO_DESKTOP_HOOK_FILE_SAVE.lstrip(), encoding="utf-8")
+    installed_files.append(f"  hook: {hook_save.relative_to(repo_root)}")
+
+    # Pre Tool Use hook — security validation
+    hook_pretool = hooks_dir / "mnemo-pre-tool-use.md"
+    hook_pretool.write_text(_KIRO_DESKTOP_HOOK_PRE_TOOL_USE.lstrip(), encoding="utf-8")
+    installed_files.append(f"  hook: {hook_pretool.relative_to(repo_root)}")
+
+    # --- 4. MCP config (same location as kiro-cli) ---
+    mcp_dir = repo_root / ".kiro" / "settings"
+    mcp_dir.mkdir(parents=True, exist_ok=True)
+    mcp_path = mcp_dir / "mcp.json"
+
+    mcp_config = {}
+    if mcp_path.exists():
+        try:
+            mcp_config = json.loads(mcp_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    mcp_config.setdefault("mcpServers", {})
+    mcp_config["mcpServers"]["mnemo"] = {
+        "command": mnemo_mcp,
+        "args": [],
+        "env": {},
+    }
+    mcp_path.write_text(json.dumps(mcp_config, indent=2) + "\n", encoding="utf-8")
+    installed_files.append(f"  mcp: {mcp_path.relative_to(repo_root)}")
+
+    return (
+        f"Kiro Desktop IDE configured:\n"
+        + "\n".join(installed_files) + "\n"
+        f"MCP server: {mnemo_mcp}\n"
+        f"Hooks: prompt-submit, agent-stop, file-save, pre-tool-use\n"
+        f"Steering auto-loads Mnemo context in every conversation."
+    )
+
 
 
 def _install_claude_hooks(repo_root: Path) -> str:

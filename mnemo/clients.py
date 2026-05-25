@@ -45,10 +45,18 @@ CLIENTS: dict[str, ClientTarget] = {
     ),
     "kiro": ClientTarget(
         key="kiro",
-        display_name="Kiro",
+        display_name="Kiro CLI",
         mcp_config_path=None,
         context_file=".kiro/rules/mnemo.md",
         context_label="rule",
+        local_mcp_config=".kiro/settings/mcp.json",
+    ),
+    "kiro-desktop": ClientTarget(
+        key="kiro-desktop",
+        display_name="Kiro Desktop IDE",
+        mcp_config_path=None,
+        context_file=None,  # Uses steering files instead
+        context_label="steering",
         local_mcp_config=".kiro/settings/mcp.json",
     ),
     "copilot": ClientTarget(
@@ -118,9 +126,11 @@ def resolve_clients(selection: str) -> list[ClientTarget]:
     normalized = selection.lower().strip()
     if normalized == "all":
         return [v for v in CLIENTS.values() if v.key != "generic"]
-    # Alias: gemini → gemini-cli
+    # Aliases
     if normalized == "gemini":
         normalized = "gemini-cli"
+    elif normalized == "kiro-gui":
+        normalized = "kiro-desktop"
     try:
         return [CLIENTS[normalized]]
     except KeyError as exc:

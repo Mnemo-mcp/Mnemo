@@ -91,6 +91,7 @@ Then initialize:
 cd your-project
 mnemo init                      # defaults to Amazon Q
 mnemo init --client kiro        # or: cursor, claude-code, copilot, generic
+mnemo init --client kiro-desktop # Kiro Desktop IDE (GUI) with steering + hooks
 ```
 
 **That's it.** Your agent now has persistent memory, semantic search, and architectural understanding.
@@ -157,7 +158,8 @@ The agent never asks you to re-explain. Old stale context fades naturally. Criti
 
 | Client | MCP | Hooks | Config |
 |--------|:---:|:-----:|--------|
-| **Kiro** | ✅ | 5 lifecycle hooks | Agent + skill + rules |
+| **Kiro CLI** | ✅ | 5 lifecycle hooks | Agent + skill + rules |
+| **Kiro Desktop IDE** | ✅ | 4 agent hooks (md) | Steering + skill + hooks |
 | **Amazon Q** | ✅ | — | .amazonq/rules |
 | **Claude Code** | ✅ | 6 hooks (settings.json) | CLAUDE.md |
 | **Cursor** | ✅ | — | .cursorrules |
@@ -447,9 +449,9 @@ Mnemo exposes **16 consolidated agent-facing tools** via MCP — designed to cov
 
 ## Lifecycle Hooks (per client)
 
-Hooks are shell scripts (Kiro) or JSON config (Claude Code) that fire at key points in the agent lifecycle. They're what makes Mnemo **automatic** — you don't need to manually tell the agent to remember or recall.
+Hooks are shell scripts (Kiro CLI), markdown hook files (Kiro Desktop), or JSON config (Claude Code) that fire at key points in the agent lifecycle. They're what makes Mnemo **automatic** — you don't need to manually tell the agent to remember or recall.
 
-### Kiro (5 hooks)
+### Kiro CLI (5 hooks — shell scripts)
 
 | Hook | Trigger | What it does |
 |------|---------|-------------|
@@ -458,6 +460,19 @@ Hooks are shell scripts (Kiro) or JSON config (Claude Code) that fire at key poi
 | **pre-tool-use** | Before Bash commands | Security check: blocks catastrophic commands (rm -rf /, credential exfil, system dir mods) |
 | **post-tool-use** | After Write/Edit | Records modified files in memory (`Modified file: path/to/file`) |
 | **stop** | Session ends | Detects learnings (bug fixes, decisions, accomplishments) → auto-stores in memory |
+
+### Kiro Desktop IDE (4 hooks — markdown agent hooks)
+
+| Hook | Trigger | What it does |
+|------|---------|-------------|
+| **prompt-submit** | Every user message | Searches relevant memories via `mnemo_search_memory`, checks active plan |
+| **agent-stop** | Session ends | Captures bug fixes, decisions, patterns, and preferences into memory |
+| **file-save** | After file save | Records modified files in memory |
+| **pre-tool-use** | Before shell commands | Blocks catastrophic/dangerous commands |
+
+Also installs:
+- `.kiro/steering/mnemo.md` — auto-included in every conversation (project context + tool reference)
+- `.kiro/skills/mnemo-tools.md` — on-demand skill with full MCP tool parameter reference
 
 ### Claude Code (6 hooks via .claude/settings.json)
 
@@ -564,7 +579,7 @@ Pinned categories (never evicted): architecture, decision, preference
 ## CLI Reference
 
 ```bash
-mnemo init [--client CLIENT]     # Initialize in a repo (kiro, cursor, claude-code, amazonq, copilot)
+mnemo init [--client CLIENT]     # Initialize in a repo (kiro, kiro-desktop, cursor, claude-code, amazonq, copilot)
 mnemo recall [--tier TIER]       # Show agent context (compact, standard, deep)
 mnemo map                        # Regenerate repo map from graph
 mnemo serve [-p PORT]            # Dashboard UI (default: 3333)
