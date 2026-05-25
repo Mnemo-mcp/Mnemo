@@ -531,6 +531,8 @@ def _write_hook(path: Path, content: str) -> None:
 
 _KIRO_DESKTOP_STEERING = """\
 ---
+name: Mnemo Memory System
+description: Persistent engineering memory for AI agents. Provides MCP tools for recall, search, decisions, and code intelligence across sessions.
 inclusion: auto
 ---
 
@@ -594,6 +596,7 @@ _KIRO_DESKTOP_SKILL = """\
 ---
 name: mnemo-tools
 description: Mnemo persistent memory MCP tool reference. Activate when you need to look up exact tool names, parameters, or usage patterns for the mnemo MCP server.
+inclusion: manual
 ---
 
 # Mnemo MCP Tool Reference
