@@ -154,10 +154,10 @@ def reset(path: str):
         # Kiro Desktop IDE files
         repo_root / ".kiro" / "steering" / "mnemo.md",
         repo_root / ".kiro" / "skills" / "mnemo-tools.md",
-        repo_root / ".kiro" / "hooks" / "mnemo-prompt-submit.md",
-        repo_root / ".kiro" / "hooks" / "mnemo-agent-stop.md",
-        repo_root / ".kiro" / "hooks" / "mnemo-file-save.md",
-        repo_root / ".kiro" / "hooks" / "mnemo-pre-tool-use.md",
+        repo_root / ".kiro" / "hooks" / "mnemo-prompt-submit.kiro.hook",
+        repo_root / ".kiro" / "hooks" / "mnemo-post-tool.kiro.hook",
+        repo_root / ".kiro" / "hooks" / "mnemo-pre-tool.kiro.hook",
+        repo_root / ".kiro" / "hooks" / "mnemo-stop.kiro.hook",
     ]
     for f in mnemo_kiro_files:
         if f.exists():

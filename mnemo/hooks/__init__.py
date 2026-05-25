@@ -677,105 +677,7 @@ Regenerate repo map from graph.
 - No required parameters
 """
 
-_KIRO_DESKTOP_HOOK_PROMPT_SUBMIT = """\
----
-title: Mnemo Memory Search
-description: Searches Mnemo persistent memory for context relevant to the current prompt
-event: prompt-submit
----
 
-Search Mnemo memory for information relevant to the user's prompt. Run this shell command to find relevant memories:
-
-```shell
-mnemo tool mnemo_search_memory --query "$USER_PROMPT"
-```
-
-If relevant memories are found, include them as context for your response. If the search returns "No results", proceed without additional context.
-
-Also check if there's an active plan:
-
-```shell
-mnemo tool mnemo_plan --action status
-```
-
-If a plan exists with open tasks, mention the next task when relevant.
-"""
-
-_KIRO_DESKTOP_HOOK_AGENT_STOP = """\
----
-title: Mnemo Session Learning Capture
-description: Captures decisions, learnings, and bug fixes from the session into Mnemo persistent memory
-event: agent-stop
----
-
-Review what happened in this session and store important learnings:
-
-1. **Bug fixes**: If a bug was found and fixed, remember the root cause:
-   ```shell
-   mnemo tool mnemo_remember --content "Bug fix: [description of root cause and fix]" --category bug
-   ```
-
-2. **Decisions**: If an architectural or design decision was made, record it:
-   ```shell
-   mnemo tool mnemo_decide --decision "[what was decided]" --reasoning "[why]"
-   ```
-
-3. **Patterns**: If a new pattern or convention was established:
-   ```shell
-   mnemo tool mnemo_remember --content "Pattern: [description]" --category pattern
-   ```
-
-4. **Preferences**: If the user expressed a preference:
-   ```shell
-   mnemo tool mnemo_remember --content "User prefers: [preference]" --category preference
-   ```
-
-Only store genuinely useful information. Do NOT store:
-- Trivial file reads or obvious operations
-- Temporary debugging output
-- Information already in memory (check first with mnemo_search_memory)
-"""
-
-_KIRO_DESKTOP_HOOK_FILE_SAVE = """\
----
-title: Mnemo File Modification Tracker
-description: Records file modifications in Mnemo memory for session tracking
-event: file-save
-target: "**/*"
----
-
-A file was saved. Run this command to record the modification:
-
-```shell
-mnemo tool mnemo_remember --content "Modified file: ${FILE_PATH}" --category general
-```
-
-Only record this if the file was modified as part of meaningful work (not just formatting or whitespace changes).
-"""
-
-_KIRO_DESKTOP_HOOK_PRE_TOOL_USE = """\
----
-title: Mnemo Security Guard
-description: Validates shell commands before execution to block dangerous operations
-event: pre-tool-use
-tools:
-  - shell
----
-
-Before executing this shell command, check for dangerous patterns:
-
-**BLOCK the command if it matches any of these:**
-- `rm -rf /` or `rm -rf ~` or `rm -rf $HOME` (catastrophic deletion)
-- `> /dev/sd*` or `dd if=/dev/zero` or `mkfs.*` (disk destruction)
-- `curl ... | sh` or `wget ... | bash` (remote code execution)
-- Modifications to `/etc/`, `/usr/bin/`, `/sbin/` (system directory changes)
-- Reading `.env`, `.aws/credentials`, `id_rsa`, `.ssh/` and sending via curl (credential exfiltration)
-
-If the command is dangerous, respond with:
-"🚨 [Mnemo Security] BLOCKED: [reason]. This command could [describe risk]."
-
-If the command is safe, allow it to proceed without comment.
-"""
 
 
 def _install_kiro_desktop_hooks(repo_root: Path) -> str:
@@ -803,6 +705,9 @@ def _install_kiro_desktop_hooks(repo_root: Path) -> str:
     if not mnemo_mcp:
         mnemo_mcp = "mnemo-mcp"
 
+    # Find mnemo CLI binary
+    mnemo_bin = shutil.which("mnemo") or "mnemo"
+
     installed_files: list[str] = []
 
     # --- 1. Steering file (auto-included in every conversation) ---
@@ -819,29 +724,229 @@ def _install_kiro_desktop_hooks(repo_root: Path) -> str:
     skill_path.write_text(_KIRO_DESKTOP_SKILL.lstrip(), encoding="utf-8")
     installed_files.append(f"  skill: {skill_path.relative_to(repo_root)}")
 
-    # --- 3. Hooks (Kiro Desktop GUI format) ---
+    # --- 3. Hooks (Kiro Desktop IDE .kiro.hook JSON format) ---
     hooks_dir = repo_root / ".kiro" / "hooks"
     hooks_dir.mkdir(parents=True, exist_ok=True)
 
+    # Helper to build shell script strings for hooks
+    def _hook_shell(script_lines: list[str]) -> str:
+        """Join lines into a shell script string with \\n separators for JSON."""
+        return "\n".join(script_lines) + "\n"
+
     # Prompt Submit hook — searches memory on each user message
-    hook_prompt = hooks_dir / "mnemo-prompt-submit.md"
-    hook_prompt.write_text(_KIRO_DESKTOP_HOOK_PROMPT_SUBMIT.lstrip(), encoding="utf-8")
+    prompt_submit_script = _hook_shell([
+        "#!/bin/sh",
+        "# Mnemo promptSubmit — searches relevant memories for current prompt",
+        "# Fail-safe: always exits 0",
+        "",
+        f'MNEMO="{mnemo_bin}"',
+        "",
+        "# USER_PROMPT is provided by Kiro via environment variable",
+        'if [ -z "$USER_PROMPT" ] || [ ${#USER_PROMPT} -lt 10 ]; then',
+        "  exit 0",
+        "fi",
+        "",
+        "# Skip simple greetings",
+        'LOWER_PROMPT=$(echo "$USER_PROMPT" | tr "[:upper:]" "[:lower:]")',
+        'case "$LOWER_PROMPT" in',
+        '  "hi"|"hello"|"hey"|"thanks"|"thank you"|"ok"|"okay"|"yes"|"no"|"sure"|"got it"|"cool")',
+        "    exit 0 ;;",
+        "esac",
+        "",
+        '# Search for relevant memories (truncate query to 100 chars)',
+        'QUERY=$(echo "$USER_PROMPT" | head -c 100)',
+        '"$MNEMO" tool mnemo_search_memory --query "$QUERY" 2>/dev/null || true',
+        "",
+        "exit 0",
+    ])
+    hook_prompt = hooks_dir / "mnemo-prompt-submit.kiro.hook"
+    hook_prompt.write_text(json.dumps({
+        "version": "1.0.0",
+        "enabled": True,
+        "name": "Mnemo Memory Search",
+        "when": {
+            "type": "promptSubmit",
+            "toolTypes": ["promptSubmit"],
+        },
+        "then": {
+            "type": "runCommand",
+            "command": prompt_submit_script,
+        },
+    }, indent=2) + "\n", encoding="utf-8")
     installed_files.append(f"  hook: {hook_prompt.relative_to(repo_root)}")
 
-    # Agent Stop hook — captures learnings at session end
-    hook_stop = hooks_dir / "mnemo-agent-stop.md"
-    hook_stop.write_text(_KIRO_DESKTOP_HOOK_AGENT_STOP.lstrip(), encoding="utf-8")
-    installed_files.append(f"  hook: {hook_stop.relative_to(repo_root)}")
-
-    # File Save hook — tracks modifications
-    hook_save = hooks_dir / "mnemo-file-save.md"
-    hook_save.write_text(_KIRO_DESKTOP_HOOK_FILE_SAVE.lstrip(), encoding="utf-8")
-    installed_files.append(f"  hook: {hook_save.relative_to(repo_root)}")
+    # Post Tool Use hook — captures file modifications
+    post_tool_script = _hook_shell([
+        "#!/bin/sh",
+        "# Mnemo postToolUse — captures file modifications and tool observations",
+        "# Fail-safe: always exits 0",
+        "",
+        f'MNEMO="{mnemo_bin}"',
+        'input_json=$(cat 2>/dev/null || echo "{}")',
+        "",
+        "# Extract tool info",
+        'TOOL_NAME=""',
+        'TOOL_OUTPUT=""',
+        "if command -v jq >/dev/null 2>&1; then",
+        """  TOOL_NAME=$(echo "$input_json" | jq -r '.tool_name // empty' 2>/dev/null) || true""",
+        """  TOOL_OUTPUT=$(echo "$input_json" | jq -r '.tool_output // empty' 2>/dev/null | head -c 500) || true""",
+        "fi",
+        "",
+        "# Track file modifications",
+        'case "$TOOL_NAME" in',
+        "  *[Ww]rite*|*[Ee]dit*|*[Cc]reate*)",
+        '    FILE_PATH=""',
+        "    if command -v jq >/dev/null 2>&1; then",
+        """      FILE_PATH=$(echo "$input_json" | jq -r '.tool_input.path // .tool_input.file_path // empty' 2>/dev/null) || true""",
+        "    fi",
+        '    if [ -n "$FILE_PATH" ]; then',
+        '      "$MNEMO" tool mnemo_remember --content "Modified file: $FILE_PATH" --category "general" 2>/dev/null || true',
+        "    fi",
+        "    ;;",
+        "esac",
+        "",
+        "exit 0",
+    ])
+    hook_post_tool = hooks_dir / "mnemo-post-tool.kiro.hook"
+    hook_post_tool.write_text(json.dumps({
+        "version": "1.0.0",
+        "enabled": True,
+        "name": "Mnemo Post Tool",
+        "when": {
+            "type": "postToolUse",
+            "toolTypes": ["postToolUse"],
+        },
+        "then": {
+            "type": "runCommand",
+            "command": post_tool_script,
+        },
+    }, indent=2) + "\n", encoding="utf-8")
+    installed_files.append(f"  hook: {hook_post_tool.relative_to(repo_root)}")
 
     # Pre Tool Use hook — security validation
-    hook_pretool = hooks_dir / "mnemo-pre-tool-use.md"
-    hook_pretool.write_text(_KIRO_DESKTOP_HOOK_PRE_TOOL_USE.lstrip(), encoding="utf-8")
-    installed_files.append(f"  hook: {hook_pretool.relative_to(repo_root)}")
+    pre_tool_script = _hook_shell([
+        "#!/bin/sh",
+        "# Mnemo preToolUse — security validation before shell execution",
+        "# exit 0 = allow | exit 1 = block",
+        "",
+        'input_json=$(cat 2>/dev/null || echo "{}")',
+        "",
+        "# Extract tool input/command",
+        'TOOL_INPUT=""',
+        "if command -v jq >/dev/null 2>&1; then",
+        """  TOOL_INPUT=$(echo "$input_json" | jq -r '.tool_input.command // .tool_input // empty' 2>/dev/null) || true""",
+        "fi",
+        "",
+        "# If we can't parse input, allow (fail-open for usability)",
+        'if [ -z "$TOOL_INPUT" ]; then',
+        "  exit 0",
+        "fi",
+        "",
+        "# Block catastrophic commands",
+        """if echo "$TOOL_INPUT" | grep -qE 'rm -rf /($| )|rm -rf ~|rm -rf \\$HOME|> /dev/sd|dd if=/dev/zero|mkfs\\.' 2>/dev/null; then""",
+        '  echo "🚨 [Mnemo Security] BLOCKED: Catastrophic command detected" >&2',
+        "  exit 1",
+        "fi",
+        "",
+        "# Block remote code execution patterns",
+        """if echo "$TOOL_INPUT" | grep -qE 'curl.*\\|.*(sh|bash)|wget.*\\|.*(sh|bash)' 2>/dev/null; then""",
+        '  echo "🚨 [Mnemo Security] BLOCKED: Remote code execution pattern" >&2',
+        "  exit 1",
+        "fi",
+        "",
+        "# Block system directory modifications",
+        """if echo "$TOOL_INPUT" | grep -qE '(>|>>|tee|mv|rm|chmod|chown).*/etc/|.*/usr/bin|.*/sbin' 2>/dev/null; then""",
+        '  echo "⛔ [Mnemo Security] BLOCKED: System directory modification" >&2',
+        "  exit 1",
+        "fi",
+        "",
+        "# Block credential exfiltration",
+        """if echo "$TOOL_INPUT" | grep -qE 'cat.*(\\. env|credentials|\\.aws/credentials|id_rsa|\\.ssh/)|curl.*(-d|--data).*(password|token|secret)' 2>/dev/null; then""",
+        '  echo "⚠️ [Mnemo Security] BLOCKED: Potential credential access/exfiltration" >&2',
+        "  exit 1",
+        "fi",
+        "",
+        "# Allow everything else",
+        "exit 0",
+    ])
+    hook_pre_tool = hooks_dir / "mnemo-pre-tool.kiro.hook"
+    hook_pre_tool.write_text(json.dumps({
+        "version": "1.0.0",
+        "enabled": True,
+        "name": "Mnemo Security Guard",
+        "when": {
+            "type": "preToolUse",
+            "toolTypes": ["shell"],
+        },
+        "then": {
+            "type": "runCommand",
+            "command": pre_tool_script,
+        },
+    }, indent=2) + "\n", encoding="utf-8")
+    installed_files.append(f"  hook: {hook_pre_tool.relative_to(repo_root)}")
+
+    # Agent Stop hook — captures learnings at session end
+    stop_script = _hook_shell([
+        "#!/bin/sh",
+        "# Mnemo stop hook — session summarization + learning capture",
+        "# Fail-safe: always exits 0",
+        "",
+        f'MNEMO="{mnemo_bin}"',
+        "",
+        "# Read STDIN",
+        'input_json=$(cat 2>/dev/null || echo "{}")',
+        "",
+        "# Extract response text",
+        'RESPONSE=""',
+        "if command -v jq >/dev/null 2>&1; then",
+        """  RESPONSE=$(echo "$input_json" | jq -r '.response // .content // .message // .text // empty' 2>/dev/null) || true""",
+        "fi",
+        "",
+        'if [ -z "$RESPONSE" ] || [ ${#RESPONSE} -lt 50 ]; then',
+        "  exit 0",
+        "fi",
+        "",
+        'LOWER_RESPONSE=$(echo "$RESPONSE" | tr "[:upper:]" "[:lower:]")',
+        "",
+        "# --- Learning detection (bug fixes, discoveries) ---",
+        "LEARNING_SCORE=0",
+        'echo "$LOWER_RESPONSE" | grep -q "fixed\\|solved\\|resolved" && LEARNING_SCORE=$((LEARNING_SCORE + 1))',
+        'echo "$LOWER_RESPONSE" | grep -q "the issue was\\|the problem was\\|root cause\\|the bug was" && LEARNING_SCORE=$((LEARNING_SCORE + 1))',
+        'echo "$LOWER_RESPONSE" | grep -q "discovered\\|realized\\|figured out\\|learned\\|turned out" && LEARNING_SCORE=$((LEARNING_SCORE + 1))',
+        'echo "$LOWER_RESPONSE" | grep -q "solution\\|the fix\\|working now\\|now works" && LEARNING_SCORE=$((LEARNING_SCORE + 1))',
+        "",
+        'if [ "$LEARNING_SCORE" -ge 2 ]; then',
+        """  SUMMARY=$(echo "$RESPONSE" | grep -ioE "(the issue was|the problem was|root cause was|fixed by|solved by|the fix was)[^.]*\\." | head -1 | head -c 200)""",
+        '  if [ -n "$SUMMARY" ] && [ ${#SUMMARY} -gt 20 ]; then',
+        '    "$MNEMO" tool mnemo_remember --content "Auto-learned: $SUMMARY" --category "bug" 2>/dev/null || true',
+        "  fi",
+        "fi",
+        "",
+        "# --- Decision detection ---",
+        'echo "$LOWER_RESPONSE" | grep -q "decided to\\|decision:\\|chose to\\|going with\\|we\'ll use" && {',
+        """  DECISION=$(echo "$RESPONSE" | grep -iE "decided to|decision:|chose to|going with" | head -1 | head -c 200)""",
+        '  if [ -n "$DECISION" ] && [ ${#DECISION} -gt 20 ]; then',
+        '    "$MNEMO" tool mnemo_remember --content "Session decision: $DECISION" --category "architecture" 2>/dev/null || true',
+        "  fi",
+        "}",
+        "",
+        "exit 0",
+    ])
+    hook_stop = hooks_dir / "mnemo-stop.kiro.hook"
+    hook_stop.write_text(json.dumps({
+        "version": "1.0.0",
+        "enabled": True,
+        "name": "Mnemo Session Learning Capture",
+        "when": {
+            "type": "stop",
+            "toolTypes": ["stop"],
+        },
+        "then": {
+            "type": "runCommand",
+            "command": stop_script,
+        },
+    }, indent=2) + "\n", encoding="utf-8")
+    installed_files.append(f"  hook: {hook_stop.relative_to(repo_root)}")
 
     # --- 4. MCP config (same location as kiro-cli) ---
     mcp_dir = repo_root / ".kiro" / "settings"
@@ -868,7 +973,7 @@ def _install_kiro_desktop_hooks(repo_root: Path) -> str:
         f"Kiro Desktop IDE configured:\n"
         + "\n".join(installed_files) + "\n"
         f"MCP server: {mnemo_mcp}\n"
-        f"Hooks: prompt-submit, agent-stop, file-save, pre-tool-use\n"
+        f"Hooks: prompt-submit, post-tool, pre-tool, stop (.kiro.hook format)\n"
         f"Steering auto-loads Mnemo context in every conversation."
     )
 
