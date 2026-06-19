@@ -605,8 +605,9 @@ def search(query: str):
 @click.option("--type", "-t", "content_type", type=click.Choice(["pattern", "gotcha", "decision", "playbook"]), prompt=True)
 @click.option("--title", prompt=True)
 @click.option("--domain", prompt=True, default="general")
+@click.option("--content", "-c", default="", help="Pre-filled content (from agent/session)")
 @click.argument("path", default=".", type=click.Path(exists=True))
-def contribute(content_type: str, title: str, domain: str, path: str):
+def contribute(content_type: str, title: str, domain: str, content: str, path: str):
     """Contribute knowledge to the team Hive."""
     import subprocess
     import datetime
@@ -619,7 +620,6 @@ def contribute(content_type: str, title: str, domain: str, path: str):
     # Read template
     template_file = hive_dir / "templates" / f"{content_type}.md"
     if not template_file.exists():
-        # Fallback to package template
         template_file = Path(__file__).parent.parent / "hive" / "templates" / f"{content_type}.md"
 
     template = template_file.read_text(encoding="utf-8") if template_file.exists() else ""
@@ -636,6 +636,21 @@ def contribute(content_type: str, title: str, domain: str, path: str):
     template = template.replace("contributed_by: ", f"contributed_by: {contributor}")
     template = template.replace("date: ", f"date: {today}")
 
+    # If content provided (from agent), fill the template body
+    if content:
+        # Replace template placeholder sections with actual content
+        lines = template.split("\n")
+        filled_lines = []
+        for line in lines:
+            filled_lines.append(line)
+            # After the frontmatter closing ---, inject content
+        # Simple approach: append content after frontmatter
+        frontmatter_end = template.rfind("---")
+        if frontmatter_end > 0:
+            template = template[:frontmatter_end + 3] + "\n\n" + content
+        else:
+            template = template + "\n\n" + content
+
     # Determine target directory
     type_dirs = {"pattern": "patterns", "gotcha": "gotchas", "decision": "decisions", "playbook": "playbooks"}
     target_dir = hive_dir / "knowledge" / type_dirs[content_type]
@@ -644,10 +659,20 @@ def contribute(content_type: str, title: str, domain: str, path: str):
 
     target_file.write_text(template, encoding="utf-8")
 
-    # Open in editor
-    import os
-    editor = os.environ.get("EDITOR", "code")
-    click.echo(f"\n📝 Template created at: {target_file}")
+    if content:
+        # Auto-filled by agent — commit directly
+        click.echo(f"✅ Hive entry created: {target_file.relative_to(hive_dir)}")
+        subprocess.run(["git", "add", str(target_file)], cwd=str(hive_dir), capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", f"hive: add {content_type} - {title}"],
+            cwd=str(hive_dir), capture_output=True
+        )
+        click.echo("   Committed. Run `git push` in hive to share with team.")
+    else:
+        # Manual mode — open editor
+        import os
+        editor = os.environ.get("EDITOR", "code")
+        click.echo(f"\n📝 Template created at: {target_file}")
     click.echo("   Edit it, then run:")
     click.echo(f"   cd {hive_dir} && git add . && git commit -m 'hive: add {content_type} - {title}'")
     click.echo("   git push\n")
