@@ -130,6 +130,17 @@ def run_pipeline(repo_root: Path, force: bool = False) -> PipelineStats:
     if roslyn_count:
         print(f"  Phase 2b roslyn: enriched {roslyn_count} C# files ({roslyn_ms}ms)", flush=True)
 
+    # Phase 2c: Java enrichment — extract method invocations from AST
+    t0 = time.time()
+    java_files = [r.path for r in results if r.language == "java"]
+    java_enrichment = {}
+    if java_files:
+        from .java_enrich import enrich_java_files
+        java_enrichment = enrich_java_files(repo_root, java_files)
+    java_ms = int((time.time() - t0) * 1000)
+    if java_enrichment:
+        print(f"  Phase 2c java: enriched {len(java_enrichment)} files ({java_ms}ms)", flush=True)
+
     # Phase 3: Load into LadybugDB
     t0 = time.time()
     projects = detect_projects(repo_root)
@@ -144,7 +155,7 @@ def run_pipeline(repo_root: Path, force: bool = False) -> PipelineStats:
     from .scope import resolve_calls
     from .db import open_db
     _, conn = open_db(repo_root)
-    calls_count = resolve_calls(repo_root, files, results, conn)
+    calls_count = resolve_calls(repo_root, files, results, conn, java_enrichment=java_enrichment)
     scope_ms = int((time.time() - t0) * 1000)
     stats.edges_created += calls_count
     print(f"  Phase 4 scope: {calls_count} CALLS edges ({scope_ms}ms)", flush=True)
@@ -382,6 +393,7 @@ def phase_load(repo_root: Path, files: list[FileInfo], results: list[ParseResult
 
         # Methods
         method_rows = []
+        seen_mids: set[str] = set()
         for r in results:
             for cls in r.classes:
                 seen_methods: dict[str, int] = {}
@@ -392,6 +404,9 @@ def phase_load(repo_root: Path, files: list[FileInfo], results: list[ParseResult
                         seen_methods[mname] = seen_methods.get(mname, 0) + 1
                         suffix = f"_{seen_methods[mname]}" if seen_methods[mname] > 1 else ""
                         mid = f"{r.path}:{cls['name']}.{mname}{suffix}"
+                        if mid in seen_mids:
+                            continue
+                        seen_mids.add(mid)
                         sig = msig.replace("\n", " ").replace("\r", "")[:200]
                         method_rows.append([mid, mname, cls["name"], r.path, sig, "public"])
         if method_rows:

@@ -4,44 +4,38 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mnemo — Code Intelligence</title>
-<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<script src="https://unpkg.com/graphology@0.25.4/dist/graphology.umd.min.js"></script>
+<script src="https://unpkg.com/sigma@2.4.0/build/sigma.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-:root { --bg: #0a0e14; --surface: #111820; --border: #1e2a36; --accent: #00ffaa; --accent2: #00ccff; --text: #f0f4f8; --muted: #7a8a9a; --red: #ff6b8a; --blue: #64d2ff; --purple: #bf7fff; --amber: #ffcc00; --pink: #ff6bcc; }
-body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; overflow: hidden; }
-#app { display: grid; grid-template-columns: 280px 1fr; height: 100vh; }
+:root { --bg: #0a0e14; --surface: #111820; --border: #1e2a36; --accent: #00ffaa; --text: #f0f4f8; --muted: #7a8a9a; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-system, sans-serif; font-size: 14px; overflow: hidden; }
+#app { display: grid; grid-template-columns: 250px 1fr; height: 100vh; }
 .sidebar { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-.sidebar-head { padding: 20px; border-bottom: 1px solid var(--border); }
-.sidebar-head h1 { font-size: 20px; font-weight: 800; background: linear-gradient(135deg, #00ffaa, #00ccff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -0.5px; }
+.sidebar-head { padding: 16px; border-bottom: 1px solid var(--border); }
+.sidebar-head h1 { font-size: 18px; font-weight: 800; background: linear-gradient(135deg, #00ffaa, #00ccff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .sidebar-head .stats { font-size: 11px; color: var(--muted); margin-top: 4px; }
 .sidebar-nav { display: flex; border-bottom: 1px solid var(--border); }
-.sidebar-nav button { flex: 1; padding: 12px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.sidebar-nav button { flex: 1; padding: 10px 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-weight: 600; }
 .sidebar-nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
-.sidebar-nav button:hover { color: var(--text); }
-.sidebar-list { flex: 1; overflow-y: auto; padding: 4px 0; }
-.sidebar-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; cursor: pointer; border-left: 3px solid transparent; transition: all 0.1s; }
+.sidebar-list { flex: 1; overflow-y: auto; padding: 2px 0; }
+.sidebar-item { display: flex; align-items: center; gap: 8px; padding: 7px 16px; cursor: pointer; border-left: 3px solid transparent; }
 .sidebar-item:hover { background: rgba(0,255,170,0.04); border-left-color: var(--accent); }
-.sidebar-item .icon { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 6px currentColor; }
-.sidebar-item .label { font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; }
-.sidebar-item .badge { font-size: 10px; color: var(--muted); font-weight: 500; }
-.main { display: flex; flex-direction: column; position: relative; }
-.toolbar { padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--surface); display: flex; align-items: center; gap: 12px; z-index: 10; }
-.search { width: 300px; padding: 9px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; outline: none; transition: border 0.15s; }
-.search:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,255,170,0.1); }
-.pills { display: flex; gap: 5px; margin-left: 16px; }
-.pill { padding: 4px 10px; border-radius: 14px; font-size: 11px; cursor: pointer; border: 1px solid var(--border); color: var(--muted); background: none; font-weight: 500; transition: all 0.15s; }
-.pill.on { background: rgba(0,255,170,0.08); color: var(--accent); border-color: rgba(0,255,170,0.3); }
-.pill:hover { border-color: var(--muted); }
-.graph-wrap { flex: 1; position: relative; }
+.sidebar-item .icon { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.sidebar-item .label { font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-item .badge { font-size: 10px; color: var(--muted); }
+.main { position: relative; }
+.toolbar { position: absolute; top: 12px; left: 12px; z-index: 10; }
+.search { width: 220px; padding: 7px 12px; background: rgba(17,24,32,0.9); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 12px; outline: none; backdrop-filter: blur(8px); }
+.search:focus { border-color: var(--accent); }
 #graph { position: absolute; inset: 0; }
-.legend { position: absolute; bottom: 16px; right: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; display: flex; gap: 14px; font-size: 11px; color: var(--muted); z-index: 5; backdrop-filter: blur(8px); }
-.legend span { display: flex; align-items: center; gap: 5px; font-weight: 500; }
-.legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; box-shadow: 0 0 4px currentColor; }
-.detail { position: absolute; top: 16px; right: 16px; width: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; max-height: 65vh; overflow-y: auto; display: none; z-index: 10; backdrop-filter: blur(8px); }
-.detail h3 { color: var(--accent); font-size: 15px; font-weight: 700; margin-bottom: 8px; }
-.detail .meta { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
-.detail .meth { color: var(--blue); font-size: 11px; padding: 2px 0; font-family: 'JetBrains Mono', monospace; }
-.detail .close { position: absolute; top: 10px; right: 14px; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; }
+.detail { position: absolute; top: 12px; right: 12px; width: 260px; background: rgba(17,24,32,0.95); border: 1px solid var(--border); border-radius: 8px; padding: 14px; max-height: 55vh; overflow-y: auto; display: none; z-index: 10; backdrop-filter: blur(12px); }
+.detail h3 { color: var(--accent); font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.detail .meta { color: var(--muted); font-size: 10px; margin-bottom: 3px; }
+.detail .meth { color: #7dd3fc; font-size: 10px; padding: 1px 0; font-family: monospace; }
+.detail .close { position: absolute; top: 6px; right: 10px; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; }
+.loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); z-index: 100; }
+.loading span { color: var(--accent); font-size: 13px; }
 </style>
 </head>
 <body>
@@ -56,33 +50,20 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-s
     <div class="sidebar-list" id="list"></div>
   </div>
   <div class="main">
-    <div class="toolbar">
-      <input class="search" id="search" placeholder="Search..." />
-      <div class="pills" id="pills"></div>
-    </div>
-    <div class="graph-wrap">
-      <div id="graph"></div>
-      <div class="legend">
-        <span><i style="background:var(--red)"></i>Class</span>
-        <span><i style="background:var(--blue)"></i>Method</span>
-        <span><i style="background:var(--purple);border-radius:2px"></i>Cluster</span>
-        <span><i style="background:var(--pink)"></i>Memory</span>
-        <span><i style="background:var(--accent)"></i>Project</span>
-        <span><i style="background:#6b7280;border-radius:2px"></i>File</span>
-      </div>
-      <div class="detail" id="detail">
-        <button class="close" onclick="this.parentElement.style.display='none'">&times;</button>
-        <div id="detail-body"></div>
-      </div>
+    <div class="toolbar"><input class="search" id="search" placeholder="Search..." /></div>
+    <div id="graph"></div>
+    <div class="loading" id="loading"><span>Computing layout...</span></div>
+    <div class="detail" id="detail">
+      <button class="close" onclick="this.parentElement.style.display='none'">&times;</button>
+      <div id="detail-body"></div>
     </div>
   </div>
 </div>
 <script>
-let network, graphData, allNodes=[], tab='clusters';
-const show = { class:true, community:true, memory:true, project:true, function:true, method:true, file:true };
-const colors = { project:'#58d68d', class:'#f87171', function:'#7dd3fc', community:'#c084fc', memory:'#f472b6', decision:'#fbbf24', method:'#93c5fd', file:'#6b7280' };
-const nodeSize = { project:18, class:11, function:7, community:18, memory:13, decision:13, method:4, file:5 };
-const shapes = { project:'diamond', class:'dot', function:'triangle', community:'square', memory:'star', decision:'star', method:'dot', file:'square' };
+const Graph = graphology.Graph;
+let renderer, graph, allNodes=[], tab='clusters';
+const colors = { project:'#58d68d', class:'#f87171', function:'#7dd3fc', community:'#c084fc', memory:'#f472b6', decision:'#fbbf24', method:'#93c5fd', file:'#4b5563' };
+const sizes = { project:7, class:3, function:2.5, community:9, memory:5, decision:5, method:2, file:1.5 };
 
 async function init() {
   const [stats, gd, memory, comms] = await Promise.all([
@@ -91,73 +72,192 @@ async function init() {
     fetch('/api/memory').then(r=>r.json()),
     fetch('/api/communities').then(r=>r.json()),
   ]);
-  document.getElementById('stats').textContent = `${stats.classes}C · ${stats.communities}Cl`;
-  graphData = gd; allNodes = gd.nodes;
+  document.getElementById('stats').textContent = `${stats.nodes.toLocaleString()} nodes · ${stats.communities} clusters`;
+  allNodes = gd.nodes;
   window._mem = memory; window._comms = comms;
-  renderPills(); renderList(); buildGraph();
+  renderList();
+  buildGraph(gd);
 }
 
-function renderPills() {
-  document.getElementById('pills').innerHTML = Object.entries(show).map(([k,v]) =>
-    `<button class="pill ${v?'on':''}" onclick="show['${k}']=!show['${k}'];renderPills();buildGraph()">${k}</button>`
-  ).join('');
-}
+let hoveredNode = null;
 
-function buildGraph() {
-  const visible = graphData.nodes.filter(n => show[n.type] !== false);
-  const ids = new Set(visible.map(n => n.id));
-  const visEdges = graphData.edges.filter(e => ids.has(e.source) && ids.has(e.target));
+function buildGraph(gd) {
+  graph = new Graph();
 
-  const nodes = new vis.DataSet(visible.map(n => ({
-    id: n.id,
-    label: nodeSize[n.type] >= 11 ? (n.name||'').substring(0,22) : '',
-    color: { background: colors[n.type], border: colors[n.type], highlight: { background: '#fff', border: colors[n.type] } },
-    size: nodeSize[n.type],
-    shape: shapes[n.type] || 'dot',
-    title: `[${n.type}] ${n.name||n.id}`,
-    font: { size: 9, color: '#8b949e', face: 'system-ui' },
-  })));
-  const edges = new vis.DataSet(visEdges.map((e,i) => ({
-    id: i, from: e.source, to: e.target,
-    color: { color: '#586069', highlight: '#8b949e' },
-    width: 0.6,
-    arrows: { to: { enabled: true, scaleFactor: 0.4 } },
-    smooth: { type: 'continuous', roundness: 0.3 },
-  })));
+  for (const n of gd.nodes) {
+    if (graph.hasNode(n.id)) continue;
+    graph.addNode(n.id, {
+      label: n.name || '',
+      color: colors[n.type] || '#4b5563',
+      size: sizes[n.type] || 3,
+      _type: n.type,
+      x: (n.x || 0) * 1000,
+      y: (n.y || 0) * 1000,
+    });
+  }
 
-  if (network) network.destroy();
-  network = new vis.Network(document.getElementById('graph'), { nodes, edges }, {
-    physics: { solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -40, springLength: 80, damping: 0.5 }, stabilization: { iterations: 120 } },
-    interaction: { hover: true, tooltipDelay: 100, zoomView: true, dragView: true, multiselect: true },
-    layout: { improvedLayout: false },
-  });
-  network.on('click', p => {
-    if (p.nodes.length) { showDetail(p.nodes[0]); }
-    else if (p.edges.length) {
-      const edge = edges.get(p.edges[0]);
-      const src = allNodes.find(n => n.id === edge.from);
-      const tgt = allNodes.find(n => n.id === edge.to);
-      if (src && tgt) {
-        document.getElementById('detail-body').innerHTML = `<h3>Edge</h3><div class="meta">${src.type}: <b>${src.name||src.id}</b></div><div style="padding:4px 0;color:var(--accent)">→</div><div class="meta">${tgt.type}: <b>${tgt.name||tgt.id}</b></div>`;
-        document.getElementById('detail').style.display = 'block';
+  for (const e of gd.edges) {
+    if (!graph.hasNode(e.source) || !graph.hasNode(e.target)) continue;
+    if (e.source === e.target) continue;
+    try { graph.addEdge(e.source, e.target); } catch(err) {}
+  }
+
+  const container = document.getElementById('graph');
+  if (renderer) renderer.kill();
+
+  renderer = new Sigma(graph, container, {
+    renderLabels: true,
+    labelRenderedSizeThreshold: 7,
+    labelColor: { color: '#5a6a7a' },
+    labelSize: 10,
+    labelFont: 'Inter, system-ui',
+    minCameraRatio: 0.01,
+    maxCameraRatio: 30,
+    allowInvalidContainer: true,
+    defaultEdgeColor: '#1a2530',
+    defaultEdgeType: 'line',
+    nodeReducer(node, data) {
+      const res = { ...data };
+      if (hoveredNode) {
+        if (node === hoveredNode) {
+          res.color = '#ffffff';
+          res.size = data.size * 2;
+          res.label = data.label;
+          res.zIndex = 1;
+        } else if (graph.neighbors(hoveredNode).includes(node)) {
+          res.label = data.label;
+        } else {
+          res.color = '#151a22';
+          res.label = '';
+        }
       }
-    }
+      return res;
+    },
+    edgeReducer(edge, data) {
+      const res = { ...data };
+      if (hoveredNode) {
+        const src = graph.source(edge), tgt = graph.target(edge);
+        if (src === hoveredNode || tgt === hoveredNode) {
+          res.color = '#00ffaa55';
+          res.size = 1.5;
+        } else {
+          res.color = 'rgba(0,0,0,0)';
+        }
+      } else {
+        res.color = '#1a253088';
+        res.size = 0.4;
+      }
+      return res;
+    },
   });
-  network.once('stabilizationIterationsDone', () => network.fit({ animation: true }));
+
+  renderer.on('enterNode', ({ node }) => { hoveredNode = node; renderer.refresh(); });
+  renderer.on('leaveNode', () => { hoveredNode = null; renderer.refresh(); });
+  renderer.on('clickNode', ({ node }) => showDetail(node));
+  renderer.on('clickStage', () => { document.getElementById('detail').style.display='none'; });
+
+  document.getElementById('loading').style.display = 'none';
+
+  // Live gentle physics — nodes float like Obsidian
+  startPhysics();
 }
 
-function zoomComm(id) {
-  if (!network) return;
-  const members = graphData.edges.filter(e => e.source === id).map(e => e.target);
-  members.push(id);
-  const valid = members.filter(x => network.body.data.nodes.get(x));
-  if (valid.length) { network.fit({ nodes: valid, animation: { duration: 500, easingFunction: 'easeInOutQuad' } }); network.selectNodes(valid.slice(0,30)); }
+let physicsRunning = false;
+function startPhysics() {
+  if (physicsRunning) return;
+  physicsRunning = true;
+  const nodes = graph.nodes();
+  const n = nodes.length;
+  if (n > 20000) return; // too large for live physics
+
+  const gravity = 0.0001;
+  const repulsion = 0.5;
+  const attraction = 0.0005;
+  const damping = 0.9;
+  const vel = new Float32Array(n * 2); // vx, vy per node
+
+  // Build edge list once
+  const edgeList = [];
+  graph.forEachEdge((e, a, src, tgt) => {
+    const si = nodes.indexOf(src), ti = nodes.indexOf(tgt);
+    if (si >= 0 && ti >= 0) edgeList.push([si, ti]);
+  });
+  // Index for fast lookup
+  const nodeIdx = {};
+  nodes.forEach((id, i) => nodeIdx[id] = i);
+  const edgeIdx = [];
+  graph.forEachEdge((e, a, src, tgt) => {
+    const si = nodeIdx[src], ti = nodeIdx[tgt];
+    if (si !== undefined && ti !== undefined) edgeIdx.push(si, ti);
+  });
+
+  function tick() {
+    if (!physicsRunning) return;
+
+    // Sample-based repulsion (pick 30 random pairs per node subset)
+    const sampleSize = Math.min(n, 300);
+    for (let s = 0; s < sampleSize; s++) {
+      const i = Math.floor(Math.random() * n);
+      const j = Math.floor(Math.random() * n);
+      if (i === j) continue;
+      const ax = graph.getNodeAttribute(nodes[i], 'x');
+      const ay = graph.getNodeAttribute(nodes[i], 'y');
+      const bx = graph.getNodeAttribute(nodes[j], 'x');
+      const by = graph.getNodeAttribute(nodes[j], 'y');
+      const dx = ax - bx, dy = ay - by;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
+      const force = repulsion / (dist * dist);
+      const fx = (dx / dist) * force, fy = (dy / dist) * force;
+      vel[i*2] += fx; vel[i*2+1] += fy;
+      vel[j*2] -= fx; vel[j*2+1] -= fy;
+    }
+
+    // Attraction along edges (sample subset for performance)
+    const edgeSample = Math.min(edgeIdx.length / 2, 2000);
+    for (let e = 0; e < edgeSample; e++) {
+      const idx = Math.floor(Math.random() * (edgeIdx.length / 2)) * 2;
+      const i = edgeIdx[idx], j = edgeIdx[idx + 1];
+      const ax = graph.getNodeAttribute(nodes[i], 'x');
+      const ay = graph.getNodeAttribute(nodes[i], 'y');
+      const bx = graph.getNodeAttribute(nodes[j], 'x');
+      const by = graph.getNodeAttribute(nodes[j], 'y');
+      const dx = ax - bx, dy = ay - by;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
+      const force = dist * attraction;
+      vel[i*2] -= (dx / dist) * force; vel[i*2+1] -= (dy / dist) * force;
+      vel[j*2] += (dx / dist) * force; vel[j*2+1] += (dy / dist) * force;
+    }
+
+    // Gravity + apply velocities
+    for (let i = 0; i < n; i++) {
+      const x = graph.getNodeAttribute(nodes[i], 'x');
+      const y = graph.getNodeAttribute(nodes[i], 'y');
+      vel[i*2] -= x * gravity;
+      vel[i*2+1] -= y * gravity;
+      vel[i*2] *= damping;
+      vel[i*2+1] *= damping;
+      graph.setNodeAttribute(nodes[i], 'x', x + vel[i*2]);
+      graph.setNodeAttribute(nodes[i], 'y', y + vel[i*2+1]);
+    }
+
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
 }
-function zoomNode(id) {
-  if (!network) return;
-  network.focus(id, { scale: 2.5, animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
-  network.selectNodes([id]);
+
+function focusNode(id) {
+  if (!renderer || !graph.hasNode(id)) return;
+  const camera = renderer.getCamera();
+  const pos = renderer.getNodeDisplayData(id);
+  if (pos) camera.animate({ x: pos.x, y: pos.y, ratio: 0.1 }, { duration: 300 });
+  hoveredNode = id; renderer.refresh();
   showDetail(id);
+}
+
+function focusCommunity(id) {
+  if (!renderer || !graph.hasNode(id)) return;
+  const pos = renderer.getNodeDisplayData(id);
+  if (pos) renderer.getCamera().animate({ x: pos.x, y: pos.y, ratio: 0.3 }, { duration: 300 });
 }
 
 function setTab(t) { tab = t; document.querySelectorAll('.sidebar-nav button').forEach((b,i) => b.classList.toggle('active', ['clusters','classes','memory'][i]===t)); renderList(); }
@@ -165,28 +265,37 @@ function renderList() {
   const el = document.getElementById('list');
   if (tab === 'clusters') {
     const c = (window._comms?.communities||[]).sort((a,b)=>(b.count||0)-(a.count||0));
-    el.innerHTML = c.map(x => `<div class="sidebar-item" onclick="zoomComm('${x.id}')"><div class="icon" style="background:var(--purple)"></div><div class="label">${x.name}</div><div class="badge">${x.count}</div></div>`).join('');
+    el.innerHTML = c.map(x => `<div class="sidebar-item" onclick="focusCommunity('${x.id}')"><div class="icon" style="background:#c084fc"></div><div class="label">${x.name}</div><div class="badge">${x.count}</div></div>`).join('');
   } else if (tab === 'classes') {
     const c = allNodes.filter(n=>n.type==='class').sort((a,b)=>(a.name||'').localeCompare(b.name||''));
-    el.innerHTML = c.slice(0,100).map(n => `<div class="sidebar-item" onclick="zoomNode('${n.id}')"><div class="icon" style="background:var(--red)"></div><div class="label">${n.name}</div></div>`).join('');
+    el.innerHTML = c.slice(0,300).map(n => `<div class="sidebar-item" onclick="focusNode('${n.id}')"><div class="icon" style="background:#f87171"></div><div class="label">${n.name}</div></div>`).join('');
   } else {
     const m = (window._mem?.memories||[]).filter(x=>!x.evicted&&!x.superseded_by);
     const d = (window._mem?.decisions||[]).filter(x=>x.active!==false);
-    el.innerHTML = d.map(x => `<div class="sidebar-item"><div class="icon" style="background:var(--amber)"></div><div class="label">${x.decision}</div></div>`).join('') +
-      m.map(x => `<div class="sidebar-item"><div class="icon" style="background:var(--pink)"></div><div class="label">${x.content}</div></div>`).join('');
+    el.innerHTML = d.map(x => `<div class="sidebar-item"><div class="icon" style="background:#fbbf24"></div><div class="label">${x.decision}</div></div>`).join('') +
+      m.map(x => `<div class="sidebar-item"><div class="icon" style="background:#f472b6"></div><div class="label">${x.content}</div></div>`).join('');
   }
 }
 
 async function showDetail(id) {
-  const n = allNodes.find(x => x.id === id);
-  if (!n) return;
-  let h = `<h3>${n.name||id}</h3><div class="meta">${n.type}</div>`;
-  if (n.type === 'class') {
+  const attrs = graph.getNodeAttributes(id);
+  if (!attrs) return;
+  let h = `<h3>${attrs.label||id}</h3><div class="meta">${attrs._type}</div>`;
+  if (attrs._type === 'class') {
     try {
-      const s = await fetch('/api/symbol?name='+encodeURIComponent(n.name)).then(r=>r.json());
+      const s = await fetch('/api/symbol?name='+encodeURIComponent(attrs.label)).then(r=>r.json());
+      if (s.file) h += `<div class="meta">${s.file}</div>`;
       if (s.implements) h += `<div class="meta">: ${s.implements}</div>`;
-      if (s.methods?.length) s.methods.forEach(m => { h += `<div class="meth">${m.name||m}</div>`; });
+      if (s.methods?.length) { h += `<div style="margin-top:6px;font-size:10px;color:var(--muted)">Methods (${s.methods.length}):</div>`; s.methods.slice(0,20).forEach(m => { h += `<div class="meth">${m.signature||m.name}</div>`; }); }
     } catch(e){}
+  }
+  const neighbors = graph.neighbors(id);
+  if (neighbors.length) {
+    h += `<div style="margin-top:6px;font-size:10px;color:var(--muted)">Connected (${neighbors.length}):</div>`;
+    neighbors.slice(0,10).forEach(n => {
+      const na = graph.getNodeAttributes(n);
+      h += `<div class="meth" style="color:${colors[na._type]};cursor:pointer" onclick="focusNode('${n}')">${na.label||n}</div>`;
+    });
   }
   document.getElementById('detail-body').innerHTML = h;
   document.getElementById('detail').style.display = 'block';
@@ -197,7 +306,7 @@ document.getElementById('search').addEventListener('input', async function() {
   if (q.length < 2) { renderList(); return; }
   const d = await fetch('/api/search?q='+encodeURIComponent(q)).then(r=>r.json());
   document.getElementById('list').innerHTML = (d.results||[]).slice(0,40).map(r =>
-    `<div class="sidebar-item" onclick="zoomNode('${r.id}')"><div class="icon" style="background:${r.type==='class'?'var(--red)':'var(--blue)'}"></div><div class="label">${r.name}</div><div class="badge">${r.type}</div></div>`
+    `<div class="sidebar-item" onclick="focusNode('${r.id}')"><div class="icon" style="background:${colors[r.type]}"></div><div class="label">${r.name}</div><div class="badge">${r.type}</div></div>`
   ).join('') || '<div style="padding:20px;text-align:center;color:var(--muted)">No results</div>';
 });
 

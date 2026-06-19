@@ -123,8 +123,144 @@ class MnemoAPIHandler(BaseHTTPRequestHandler):
         return {"nodes": nodes, "edges": edges, "communities": communities, "files": files, "classes": classes, "functions": functions}
 
     def _graph(self, params: dict) -> dict:
-        """Return the FULL graph — every node, every edge."""
+        """Return graph data for rendering. Sigma.js/WebGL handles 100k+ nodes.
+        Use ?community=ID or ?file=PATH for focused subgraph views."""
         conn = self._get_conn()
+
+        # Drill-down: specific community
+        community_id = params.get("community", [""])[0]
+        if community_id:
+            return self._graph_community(conn, community_id)
+
+        # Drill-down: specific file
+        file_path = params.get("file", [""])[0]
+        if file_path:
+            return self._graph_file(conn, file_path)
+
+        # Check size — skip File nodes and Methods for very large repos (keep graph navigable)
+        r = conn.execute("MATCH (c:Class) RETURN count(c)")
+        class_count = r.get_next()[0]
+        include_files = class_count < 5000
+        include_methods = class_count < 2000
+
+        return self._graph_full(conn, include_files=include_files, include_methods=include_methods)
+
+    def _graph_summary(self, conn) -> dict:
+        """Summary view for large repos: projects, communities, and top classes only."""
+        nodes = []
+        edges = []
+        node_ids = set()
+
+        # Projects
+        r = conn.execute("MATCH (p:Project) RETURN p.id, p.name")
+        while r.has_next():
+            row = r.get_next()
+            nodes.append({"id": row[0], "name": row[1], "type": "project"})
+            node_ids.add(row[0])
+
+        # Communities with member count
+        r = conn.execute("MATCH (c:Class)-[:MEMBER_OF]->(comm:Community) RETURN comm.id, comm.name, count(c) AS cnt ORDER BY cnt DESC LIMIT 50")
+        while r.has_next():
+            row = r.get_next()
+            nodes.append({"id": row[0], "name": f"{row[1]} ({row[2]})", "type": "community", "size": row[2]})
+            node_ids.add(row[0])
+
+        # Top classes by method count (most connected/important)
+        r = conn.execute("MATCH (c:Class)-[:HAS_METHOD]->(m:Method) WITH c, count(m) AS mc ORDER BY mc DESC LIMIT 100 RETURN c.id, c.name, c.file, mc")
+        while r.has_next():
+            row = r.get_next()
+            nodes.append({"id": row[0], "name": row[1], "type": "class", "file": row[2], "methods": row[3]})
+            node_ids.add(row[0])
+
+        # CLASS_DEPENDS edges between visible classes
+        try:
+            r = conn.execute("MATCH (a:Class)-[:CLASS_DEPENDS]->(b:Class) RETURN a.id, b.id")
+            while r.has_next():
+                row = r.get_next()
+                if row[0] in node_ids and row[1] in node_ids:
+                    edges.append({"source": row[0], "target": row[1], "type": "depends"})
+        except RuntimeError:
+            pass
+
+        # Community membership for visible classes
+        r = conn.execute("MATCH (c:Class)-[:MEMBER_OF]->(comm:Community) RETURN c.id, comm.id")
+        while r.has_next():
+            row = r.get_next()
+            if row[0] in node_ids and row[1] in node_ids:
+                edges.append({"source": row[1], "target": row[0], "type": "member"})
+
+        return {"nodes": nodes, "edges": edges, "view": "summary", "total_nodes": len(nodes), "note": "Showing top-level view. Click a community or class to drill in."}
+
+    def _graph_community(self, conn, community_id: str) -> dict:
+        """Drill into a community — show all its members and their edges."""
+        nodes = []
+        edges = []
+        node_ids = set()
+
+        # Community node
+        r = conn.execute(f"MATCH (comm:Community {{id: '{community_id}'}}) RETURN comm.id, comm.name")
+        if r.has_next():
+            row = r.get_next()
+            nodes.append({"id": row[0], "name": row[1], "type": "community"})
+            node_ids.add(row[0])
+
+        # Member classes
+        r = conn.execute(f"MATCH (c:Class)-[:MEMBER_OF]->(comm:Community {{id: '{community_id}'}}) RETURN c.id, c.name, c.file")
+        while r.has_next():
+            row = r.get_next()
+            nodes.append({"id": row[0], "name": row[1], "type": "class", "file": row[2]})
+            node_ids.add(row[0])
+            edges.append({"source": community_id, "target": row[0], "type": "member"})
+
+        # Member functions
+        r = conn.execute(f"MATCH (f:Function)-[:FN_MEMBER_OF]->(comm:Community {{id: '{community_id}'}}) RETURN f.id, f.name, f.file")
+        while r.has_next():
+            row = r.get_next()
+            nodes.append({"id": row[0], "name": row[1], "type": "function", "file": row[2]})
+            node_ids.add(row[0])
+            edges.append({"source": community_id, "target": row[0], "type": "member"})
+
+        # Edges between members
+        try:
+            r = conn.execute("MATCH (a:Class)-[:CLASS_DEPENDS]->(b:Class) WHERE a.id IN $ids AND b.id IN $ids RETURN a.id, b.id")
+        except RuntimeError:
+            pass
+        # Fallback: check pairwise from node_ids
+        if len(node_ids) < 500:
+            try:
+                r = conn.execute("MATCH (a:Class)-[:CLASS_DEPENDS]->(b:Class) RETURN a.id, b.id")
+                while r.has_next():
+                    row = r.get_next()
+                    if row[0] in node_ids and row[1] in node_ids:
+                        edges.append({"source": row[0], "target": row[1], "type": "depends"})
+            except RuntimeError:
+                pass
+
+        return {"nodes": nodes, "edges": edges, "view": "community", "community": community_id}
+
+    def _graph_file(self, conn, file_path: str) -> dict:
+        """Show a specific file and its classes/methods."""
+        nodes = []
+        edges = []
+
+        nodes.append({"id": file_path, "name": file_path.split("/")[-1], "type": "file"})
+
+        r = conn.execute(f"MATCH (c:Class {{file: '{file_path}'}}) RETURN c.id, c.name")
+        while r.has_next():
+            row = r.get_next()
+            nodes.append({"id": row[0], "name": row[1], "type": "class"})
+            edges.append({"source": file_path, "target": row[0]})
+
+            # Methods
+            r2 = conn.execute(f"MATCH (c:Class {{id: '{row[0]}'}})-[:HAS_METHOD]->(m:Method) RETURN m.id, m.name")
+            while r2.has_next():
+                mrow = r2.get_next()
+                nodes.append({"id": mrow[0], "name": mrow[1], "type": "method"})
+                edges.append({"source": row[0], "target": mrow[0]})
+
+        return {"nodes": nodes, "edges": edges, "view": "file", "file": file_path}
+
+    def _graph_full(self, conn, include_files=True, include_methods=True) -> dict:
 
         nodes = []
         edges = []
@@ -138,17 +274,19 @@ class MnemoAPIHandler(BaseHTTPRequestHandler):
             node_ids.add(row[0])
 
         # Files
-        r = conn.execute("MATCH (f:File) RETURN f.path, f.language")
-        while r.has_next():
-            row = r.get_next()
-            nodes.append({"id": row[0], "name": row[0].split("/")[-1], "type": "file"})
-            node_ids.add(row[0])
+        # Files (skipped for large repos — too many nodes, sigma still smooth without them)
+        if include_files:
+            r = conn.execute("MATCH (f:File) RETURN f.path, f.language")
+            while r.has_next():
+                row = r.get_next()
+                nodes.append({"id": row[0], "name": row[0].split("/")[-1], "type": "file"})
+                node_ids.add(row[0])
 
-        # Project → File edges
-        r = conn.execute("MATCH (p:Project)-[:PROJECT_CONTAINS]->(f:File) RETURN p.id, f.path")
-        while r.has_next():
-            row = r.get_next()
-            edges.append({"source": row[0], "target": row[1]})
+            # Project → File edges
+            r = conn.execute("MATCH (p:Project)-[:PROJECT_CONTAINS]->(f:File) RETURN p.id, f.path")
+            while r.has_next():
+                row = r.get_next()
+                edges.append({"source": row[0], "target": row[1]})
 
         # ALL classes
         r = conn.execute("MATCH (c:Class) RETURN c.id, c.name, c.file")
@@ -176,6 +314,16 @@ class MnemoAPIHandler(BaseHTTPRequestHandler):
             if row[0] in node_ids and row[1] in node_ids:
                 edges.append({"source": row[0], "target": row[1]})
 
+        # CLASS_DEPENDS edges (Java enrichment)
+        try:
+            r = conn.execute("MATCH (a:Class)-[:CLASS_DEPENDS]->(b:Class) RETURN a.id, b.id")
+            while r.has_next():
+                row = r.get_next()
+                if row[0] in node_ids and row[1] in node_ids:
+                    edges.append({"source": row[0], "target": row[1]})
+        except RuntimeError:
+            pass
+
         # Project → Class edges (through files)
         r = conn.execute("MATCH (p:Project)-[:PROJECT_CONTAINS]->(f:File)<-[]-(c:Class) RETURN p.id, c.id")
         while r.has_next():
@@ -183,21 +331,23 @@ class MnemoAPIHandler(BaseHTTPRequestHandler):
             if row[0] in node_ids and row[1] in node_ids:
                 edges.append({"source": row[0], "target": row[1]})
 
-        # HAS_METHOD edges (class → method)
-        r = conn.execute("MATCH (c:Class)-[:HAS_METHOD]->(m:Method) RETURN c.id, m.id, m.name")
-        while r.has_next():
-            row = r.get_next()
-            if row[0] in node_ids:
-                nodes.append({"id": row[1], "name": row[2], "type": "method"})
-                node_ids.add(row[1])
-                edges.append({"source": row[0], "target": row[1]})
+        # HAS_METHOD edges (class → method) — skipped for very large repos
+        if include_methods:
+            r = conn.execute("MATCH (c:Class)-[:HAS_METHOD]->(m:Method) RETURN c.id, m.id, m.name")
+            while r.has_next():
+                row = r.get_next()
+                if row[0] in node_ids:
+                    nodes.append({"id": row[1], "name": row[2], "type": "method"})
+                    node_ids.add(row[1])
+                    edges.append({"source": row[0], "target": row[1]})
 
         # IMPORTS edges
-        r = conn.execute("MATCH (a:File)-[:IMPORTS]->(b:File) RETURN a.path, b.path")
-        while r.has_next():
-            row = r.get_next()
-            if row[0] in node_ids and row[1] in node_ids:
-                edges.append({"source": row[0], "target": row[1]})
+        if include_files:
+            r = conn.execute("MATCH (a:File)-[:IMPORTS]->(b:File) RETURN a.path, b.path")
+            while r.has_next():
+                row = r.get_next()
+                if row[0] in node_ids and row[1] in node_ids:
+                    edges.append({"source": row[0], "target": row[1]})
 
         # ALL communities
         r = conn.execute("MATCH (comm:Community) RETURN comm.id, comm.name")
@@ -235,6 +385,30 @@ class MnemoAPIHandler(BaseHTTPRequestHandler):
             nodes.append({"id": row[0], "name": label, "type": "decision"})
             node_ids.add(row[0])
 
+        return self._add_layout(nodes, edges)
+
+    def _add_layout(self, nodes: list, edges: list) -> dict:
+        """Load pre-computed positions from layout.json. Compute on first access."""
+        from .config import mnemo_path
+        layout_path = mnemo_path(self.repo_root) / "layout.json"
+        if not layout_path.exists():
+            # Compute layout on first serve request
+            from .engine.layout import compute_and_save_layout
+            conn = self._get_conn()
+            compute_and_save_layout(self.repo_root, conn)
+
+        if layout_path.exists():
+            layout = json.loads(layout_path.read_text())
+            for n in nodes:
+                pos = layout.get(n["id"])
+                if pos:
+                    n["x"] = pos[0] * 1000
+                    n["y"] = pos[1] * 1000
+                else:
+                    import hashlib
+                    h = int(hashlib.md5(n["id"].encode()).hexdigest()[:8], 16)
+                    n["x"] = ((h % 2000) - 1000) * 0.5
+                    n["y"] = (((h >> 16) % 2000) - 1000) * 0.5
         return {"nodes": nodes, "edges": edges}
 
     def _search(self, params: dict) -> dict:

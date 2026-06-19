@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="#install">Install</a> • <a href="#why-mnemo">Why</a> • <a href="#benchmarks">Benchmarks</a> • <a href="#how-it-works">How It Works</a> • <a href="#supported-clients">Clients</a> • <a href="#features">Features</a> • <a href="#mcp-tools-16-agent-facing">Tools</a> • <a href="#dashboard-ui">Dashboard</a> • <a href="#architecture">Architecture</a>
+  <a href="#install">Install</a> • <a href="#why-mnemo">Why</a> • <a href="#benchmarks">Benchmarks</a> • <a href="#how-it-works">How It Works</a> • <a href="#supported-clients">Clients</a> • <a href="#features">Features</a> • <a href="#council-multi-angle-evaluation">Council</a> • <a href="#mcp-tools-16-agent-facing">Tools</a> • <a href="#dashboard-ui">Dashboard</a> • <a href="#architecture">Architecture</a>
 </p>
 
 ---
@@ -338,6 +338,99 @@ Works with **any** agent that speaks MCP. One server, one memory, shared across 
 - **Cross-impact analysis**: what breaks in OTHER services if you change a symbol
 - **Shared knowledge**: decisions and patterns visible across workspace
 - **Service registry**: auto-detected from project manifests
+
+---
+
+## Council (Multi-Angle Evaluation)
+
+Mnemo includes a built-in evaluation council that catches issues BEFORE they ship. When you give the agent a complex task, it automatically spawns independent evaluators — each using a fundamentally different validation method — and iterates until all pass.
+
+### How It Works
+
+```
+Your Task → Phase Detection → Council Assembly → GAN Loop → Quality Output
+                                                     ↕
+                                              Mnemo Memory
+                                         (learns from each session)
+```
+
+**The agent decides when to council.** Simple tasks (typos, renames) → just does it. Complex tasks (features, architecture, debugging) → summons the council automatically.
+
+### The GAN Loop
+
+```
+Generator (writes code)
+     ↓
+Evaluator Council (parallel, blind to each other)
+  • Drift Detector   → "Does this match the spec?"
+  • Adversarial      → "Can I break it?" (null inputs, timeouts, race conditions)
+  • Security         → "Is this safe?" (injection, data leaks, compliance)
+  • Real-World       → "Will this survive production?" (deploy, scale, cost)
+  • Innovation       → "Is there a better paradigm?"
+     ↓
+Verdict:
+  ✅ ALL PASS     → advance
+  ❌ FAIL         → feedback to generator, loop again (max 3 iterations)
+  🔄 REPLAN       → approach is wrong, revise strategy
+```
+
+### SDLC Phases
+
+The council adapts its composition based on what you're doing:
+
+| Phase | Triggered by | Evaluators | Mode |
+|-------|---|---|---|
+| **plan** | "how should I...", "design", "architect" | drift, security, innovation | Advisory (no loop) |
+| **implement** | "build", "add", "create" | drift, adversarial, security, realworld | GAN loop (max 3 iter) |
+| **test** | "test", "validate" | drift, adversarial, realworld | GAN loop (max 3 iter) |
+| **review** | "review", "audit", "PR" | security, adversarial, innovation | Advisory (no loop) |
+| **debug** | "fix", "broken", "error", "500" | adversarial, drift, realworld | GAN loop (max 3 iter) |
+
+### Memory Integration
+
+What makes this different from other council/evaluation tools:
+
+- **Before evaluation**: council queries Mnemo memory for past issues on similar tasks
+- **After evaluation**: findings are stored back to memory
+- **Over time**: evaluators get smarter because they know YOUR codebase's specific weaknesses
+
+```
+Session 1:  Adversarial catches null check issue → stored in memory
+Session 5:  Same pattern in different file → evaluator proactively checks
+Session 10: Agent has learned your codebase's recurring problems
+```
+
+### Usage
+
+The council activates automatically for complex tasks. You can also trigger it explicitly:
+
+```
+"Council this: review my auth implementation"
+"Evaluate this from multiple angles"
+"Run the council on this change"
+```
+
+Or skip it:
+```
+"Skip council, just do it"
+```
+
+Direct CLI usage (outside the agent):
+```bash
+bash council/council.sh -- "Add caching to eligibility endpoint"
+bash council/council.sh --phase review --file src/auth.ts -- "Review this"
+bash council/council.sh --phase debug -- "Eligibility returns 500"
+```
+
+### Why Not Just Ask an AI to Write Code?
+
+| Plain AI | Mnemo with Council |
+|---|---|
+| One perspective | 5 independent evaluation methods |
+| Same check every time | Each evaluator uses a structurally different approach |
+| Forgets everything | Remembers what it caught, gets smarter |
+| You catch issues in PR review | Issues caught during generation |
+| "It works" | "It works AND survives adversarial testing AND meets compliance AND scales" |
 
 ---
 
