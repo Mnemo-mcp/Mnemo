@@ -4,6 +4,8 @@ __pycache__/
 dist/
 build/
 .mnemo/
+.ruff_cache/
+.pytest_cache/
 
 # Roslyn analyzer build output
 analyzers/roslyn/bin/
