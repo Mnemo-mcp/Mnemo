@@ -351,7 +351,7 @@ HIVE_DIR="$HOME/.mnemo/hive/knowledge"
 HIVE_RESULTS=""
 if [ -d "$HIVE_DIR" ]; then
   HIVE_RESULTS=$(grep -ril "$QUERY" "$HIVE_DIR" 2>/dev/null | head -3 | while read -r f; do
-    grep -m1 "^title:" "$f" 2>/dev/null | sed 's/title: *"\\{0,1\\}//;s/"$//'
+    grep -m1 "^title:" "$f" 2>/dev/null | sed 's/title: *"//;s/"$//'
   done) || HIVE_RESULTS=""
 fi
 
