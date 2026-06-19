@@ -17,6 +17,7 @@ _DIM = 384
 
 _session: "ort.InferenceSession | None" = None
 _tokenizer: "Tokenizer | None" = None
+_unavailable: bool = False
 
 
 def _model_dir() -> Path:
@@ -24,21 +25,45 @@ def _model_dir() -> Path:
 
 
 def _ensure_loaded():
-    global _session, _tokenizer
-    if _session is not None:
+    global _session, _tokenizer, _unavailable
+    if _session is not None or _unavailable:
         return
 
-    import onnxruntime as ort
-    from tokenizers import Tokenizer
-
     model_path = _model_dir() / "model.onnx"
-    if not model_path.exists():
-        _download_model()
+    tokenizer_path = _model_dir() / "tokenizer.json"
 
-    _tokenizer = Tokenizer.from_file(str(_model_dir() / "tokenizer.json"))
-    _tokenizer.enable_padding(pad_id=0, pad_token="[PAD]")
-    _tokenizer.enable_truncation(max_length=_MAX_LENGTH)
-    _session = ort.InferenceSession(str(model_path), providers=["CPUExecutionProvider"])
+    if not model_path.exists():
+        try:
+            _download_model()
+        except Exception:
+            _unavailable = True
+            return
+
+    # Validate tokenizer.json is valid JSON before loading
+    if not tokenizer_path.exists() or tokenizer_path.stat().st_size < 100:
+        _unavailable = True
+        return
+
+    try:
+        import json
+        with open(tokenizer_path) as f:
+            json.load(f)
+    except (json.JSONDecodeError, OSError):
+        # Corrupted file — remove and mark unavailable
+        tokenizer_path.unlink(missing_ok=True)
+        _unavailable = True
+        return
+
+    try:
+        import onnxruntime as ort
+        from tokenizers import Tokenizer
+
+        _tokenizer = Tokenizer.from_file(str(tokenizer_path))
+        _tokenizer.enable_padding(pad_id=0, pad_token="[PAD]")
+        _tokenizer.enable_truncation(max_length=_MAX_LENGTH)
+        _session = ort.InferenceSession(str(model_path), providers=["CPUExecutionProvider"])
+    except Exception:
+        _unavailable = True
 
 
 def _download_model():
@@ -49,15 +74,23 @@ def _download_model():
     base = "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main"
     files = {"model.onnx": f"{base}/onnx/model.onnx", "tokenizer.json": f"{base}/tokenizer.json"}
     for name, url in files.items():
-        if not (d / name).exists():
-            subprocess.run(["curl", "-sL", url, "-o", str(d / name)], check=True)
+        dest = d / name
+        if not dest.exists():
+            subprocess.run(
+                ["curl", "-sfSL", "--retry", "2", url, "-o", str(dest)],
+                check=True,
+            )
+            # Validate download isn't empty/HTML error
+            if dest.stat().st_size < 100:
+                dest.unlink(missing_ok=True)
+                raise RuntimeError(f"Download of {name} failed: file too small")
 
 
 def embed(texts: list[str]) -> np.ndarray:
     """Embed texts into 384-dim normalized vectors. Returns (N, 384) float32 array."""
     _ensure_loaded()
-    if not texts:
-        return np.zeros((0, _DIM), dtype=np.float32)
+    if not texts or _unavailable:
+        return np.zeros((len(texts) if texts else 0, _DIM), dtype=np.float32)
 
     # Batch in chunks of 512 to avoid memory explosion on large repos
     BATCH_SIZE = 512
@@ -92,6 +125,9 @@ def _embed_batch(texts: list[str]) -> np.ndarray:
 
 def embed_one(text: str) -> np.ndarray:
     """Embed a single text. Returns (384,) float32 array."""
+    _ensure_loaded()
+    if _unavailable:
+        return np.zeros(_DIM, dtype=np.float32)
     return embed([text])[0]
 
 
