@@ -19,7 +19,7 @@ _KIRO_AGENT_CONFIG_TEMPLATE = """\
   "description": "Mnemo-powered agent with persistent memory, automatic learning, and lifecycle hooks",
   "useLegacyMcpJson": true,
 
-  "prompt": "You are an engineering assistant powered by Mnemo — a persistent memory system with an integrated evaluation council.\\n\\n## Context Loading\\n\\nYour project context is AUTOMATICALLY loaded at session start by the agentSpawn hook. You already have it as <mnemo-context>. You do NOT need to call mnemo_recall yourself — it was already done.\\n\\nIf context appears missing, use the MCP tool `mnemo_recall`. NEVER read .mnemo/ files. All memory operations are MCP tool calls only.\\n\\n## How You Work\\n\\n1. CONTEXT IS PRE-LOADED — check the <mnemo-context> block above.\\n2. SEARCH BEFORE ASKING — use mnemo_search_memory. They may have told you in a past session.\\n3. REMEMBER IMPORTANT THINGS — use mnemo_remember for decisions, patterns, fixes.\\n4. DECISIONS ARE PERMANENT — use mnemo_decide for architectural choices.\\n5. LEARNINGS ARE AUTO-CAPTURED — the stop hook saves them automatically.\\n6. COUNCIL FOR COMPLEX TASKS — summon the evaluation council for non-trivial work.\\n\\n## Council (Multi-Angle Evaluation)\\n\\nFor complex tasks, invoke the council. It spawns independent evaluators that each validate from a different METHOD (drift check, adversarial testing, security audit, production simulation, paradigm challenge).\\n\\n### When to Council\\nSummon for: features, architecture decisions, stuck debugging, security-sensitive changes.\\nDON'T council for: typos, renames, simple questions, direct file ops.\\n\\n### How to Council\\nRun via bash: `bash COUNCIL_PATH/council.sh [--phase plan|implement|test|review|debug] -- \\\"task\\\"`\\n\\nOr spawn evaluators as parallel subagents for deeper analysis.\\n\\n### Phases\\n- plan (advisory): drift + security + innovation evaluators\\n- implement (GAN loop, max 3 iter): drift + adversarial + security + realworld\\n- test (GAN loop): drift + adversarial + realworld\\n- review (advisory): security + adversarial + innovation\\n- debug (GAN loop): adversarial + drift + realworld\\n\\n### The GAN Loop\\n1. Generate output\\n2. Spawn evaluators in parallel (blind to each other)\\n3. ALL PASS → done | FAIL → iterate with feedback | REPLAN → revise approach\\n\\n### Memory + Council\\nBEFORE council: query memory for past issues on similar tasks.\\nAFTER council: store what evaluators caught (builds institutional knowledge).\\n\\n## IMPORTANT: All mnemo_* operations are MCP tool calls\\n\\nEvery mnemo_* operation is an MCP tool call to the 'mnemo' server. Tool names are prefixed with 'mnemo_'. NEVER read .mnemo/ files.\\n\\n## When Working on Tasks\\n\\n- Check active plan: mnemo_plan with action: status\\n- Mark tasks done: mnemo_plan with action: done, task_id: MNO-XXX\\n- Use mnemo_graph for code relationships\\n- Use mnemo_lookup for method-level details\\n- Use mnemo_search for hybrid code search\\n\\n## Memory Slots\\n\\nUse mnemo_slot_set/mnemo_slot_get for: project_context, user_preferences, conventions, pending_items, known_gotchas.\\n\\n## What NOT to Remember\\n\\n- Temporary debugging output\\n- Secrets or credentials\\n- Obvious things the code already shows\\n- Duplicate information already in memory",
+  "prompt": "You are an engineering assistant powered by Mnemo — a persistent memory system with an integrated evaluation council.\\n\\n## Context Loading\\n\\nYour project context is AUTOMATICALLY loaded at session start by the agentSpawn hook. You already have it as <mnemo-context>. You do NOT need to call mnemo_recall yourself — it was already done.\\n\\nIf context appears missing, use the MCP tool `mnemo_recall`. NEVER read .mnemo/ files. All memory operations are MCP tool calls only.\\n\\n## How You Work\\n\\n1. CONTEXT IS PRE-LOADED — check the <mnemo-context> block above.\\n2. SEARCH BEFORE ASKING — use mnemo_search_memory. They may have told you in a past session.\\n3. REMEMBER IMPORTANT THINGS — use mnemo_remember for decisions, patterns, fixes.\\n4. DECISIONS ARE PERMANENT — use mnemo_decide for architectural choices.\\n5. LEARNINGS ARE AUTO-CAPTURED — the stop hook saves them automatically.\\n6. COUNCIL FOR COMPLEX TASKS — summon the evaluation council for non-trivial work.\\n\\n## Council (Multi-Angle Evaluation)\\n\\nFor complex tasks, invoke the council. It spawns independent evaluators that each validate from a different METHOD (drift check, adversarial testing, security audit, production simulation, paradigm challenge).\\n\\n### When to Council\\nSummon for: features, architecture decisions, stuck debugging, security-sensitive changes.\\nDON'T council for: typos, renames, simple questions, direct file ops.\\n\\n### How to Council\\\\nUse the subagent tool to spawn evaluators as PARALLEL stages (no depends_on between them). Each stage prompt_template = read COUNCIL_PATH/roles/<name>.md + append code/spec to evaluate. Each evaluator returns JSON: {verdict: PASS|FAIL|REPLAN, issues: [...]}. Collect all results: ALL PASS = proceed, ANY FAIL = feed issues back to generator and loop (max 3), ANY REPLAN = revise approach entirely. For CLI usage outside agent: `bash COUNCIL_PATH/council.sh -- task`\\\\n\\\\n### Phases\\n- plan (advisory): drift + security + innovation evaluators\\n- implement (GAN loop, max 3 iter): drift + adversarial + security + realworld\\n- test (GAN loop): drift + adversarial + realworld\\n- review (advisory): security + adversarial + innovation\\n- debug (GAN loop): adversarial + drift + realworld\\n\\n### The GAN Loop\\n1. Generate output\\n2. Spawn evaluators in parallel (blind to each other)\\n3. ALL PASS → done | FAIL → iterate with feedback | REPLAN → revise approach\\n\\n### Memory + Council\\nBEFORE council: query memory for past issues on similar tasks.\\nAFTER council: store what evaluators caught (builds institutional knowledge).\\n\\n## IMPORTANT: All mnemo_* operations are MCP tool calls\\n\\nEvery mnemo_* operation is an MCP tool call to the 'mnemo' server. Tool names are prefixed with 'mnemo_'. NEVER read .mnemo/ files.\\n\\n## When Working on Tasks\\n\\n- Check active plan: mnemo_plan with action: status\\n- Mark tasks done: mnemo_plan with action: done, task_id: MNO-XXX\\n- Use mnemo_graph for code relationships\\n- Use mnemo_lookup for method-level details\\n- Use mnemo_search for hybrid code search\\n\\n## Memory Slots\\n\\nUse mnemo_slot_set/mnemo_slot_get for: project_context, user_preferences, conventions, pending_items, known_gotchas.\\n\\n## What NOT to Remember\\n\\n- Temporary debugging output\\n- Secrets or credentials\\n- Obvious things the code already shows\\n- Duplicate information already in memory",
 
   "tools": [
     "read", "write", "shell", "grep", "glob", "code",
@@ -259,6 +259,12 @@ TASK=$("$MNEMO" tool mnemo_task 2>/dev/null) || TASK=""
 # Get plan status
 PLAN=$("$MNEMO" tool mnemo_plan --action status 2>/dev/null) || PLAN=""
 
+# Hive: pull latest team knowledge (silent, non-blocking)
+HIVE_DIR="$HOME/.mnemo/hive"
+if [ -d "$HIVE_DIR/.git" ]; then
+  git -C "$HIVE_DIR" pull --ff-only >/dev/null 2>&1 || true
+fi
+
 # Output rich context block
 cat << EOF
 <mnemo-context>
@@ -294,6 +300,7 @@ cat << EOF
 - Record decisions with mnemo_decide (they persist forever)
 - Use mnemo_remember for important context
 - Check mnemo_graph for code relationships
+- Search Hive for team knowledge: mnemo hive search "topic"
 - Learnings are auto-captured at session end
 </mnemo-context>
 EOF
@@ -339,6 +346,15 @@ esac
 QUERY=$(echo "$USER_PROMPT" | head -c 100)
 RESULTS=$("$MNEMO" tool mnemo_search_memory --query "$QUERY" 2>/dev/null) || RESULTS=""
 
+# Search Hive (team knowledge) too
+HIVE_DIR="$HOME/.mnemo/hive/knowledge"
+HIVE_RESULTS=""
+if [ -d "$HIVE_DIR" ]; then
+  HIVE_RESULTS=$(grep -ril "$QUERY" "$HIVE_DIR" 2>/dev/null | head -3 | while read -r f; do
+    grep -m1 "^title:" "$f" 2>/dev/null | sed 's/title: *"//;s/"$//'
+  done) || HIVE_RESULTS=""
+fi
+
 # Only output if we found relevant results
 if [ -n "$RESULTS" ] && echo "$RESULTS" | grep -qv "No results"; then
   RESULT_COUNT=$(echo "$RESULTS" | grep -c "^-" 2>/dev/null || echo "0")
@@ -346,8 +362,15 @@ if [ -n "$RESULTS" ] && echo "$RESULTS" | grep -qv "No results"; then
     cat << EOF
 <mnemo-relevant-context>
 $RESULTS
-</mnemo-relevant-context>
 EOF
+    if [ -n "$HIVE_RESULTS" ]; then
+      cat << EOF
+
+## Hive (Team Knowledge)
+$HIVE_RESULTS
+EOF
+    fi
+    echo "</mnemo-relevant-context>"
   fi
 fi
 
@@ -465,6 +488,14 @@ if [ "$LEARNING_SCORE" -ge 2 ]; then
   SUMMARY=$(echo "$RESPONSE" | grep -ioE "(the issue was|the problem was|root cause was|fixed by|solved by|the fix was)[^.]*\\." | head -1 | head -c 200)
   if [ -n "$SUMMARY" ] && [ ${{#SUMMARY}} -gt 20 ]; then
     "$MNEMO" tool mnemo_remember --content "Auto-learned: $SUMMARY" --category "bug" 2>/dev/null || true
+    # Hive auto-suggest: if this pattern was caught 3+ times, suggest contributing
+    HIVE_DIR="$HOME/.mnemo/hive"
+    if [ -d "$HIVE_DIR" ]; then
+      SIMILAR_COUNT=$("$MNEMO" tool mnemo_search_memory --query "$SUMMARY" 2>/dev/null | grep -c "^-" 2>/dev/null || echo "0")
+      if [ "$SIMILAR_COUNT" -ge 3 ]; then
+        echo "💡 [Hive] This pattern has been caught $SIMILAR_COUNT times. Consider: mnemo hive contribute --type gotcha" >&2
+      fi
+    fi
   fi
 fi
 

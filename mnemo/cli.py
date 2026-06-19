@@ -499,5 +499,190 @@ def ui(path: str, port: int, no_open: bool):
     start_server(repo_root, port=port)
 
 
+# --- Hive: shared team knowledge ---
+
+@cli.group()
+def hive():
+    """Shared team knowledge. Contribute, search, and sync."""
+    pass
+
+
+@hive.command("init")
+@click.option("--repo", "-r", default="", help="Git URL of shared hive repo")
+@click.argument("path", default=".", type=click.Path(exists=True))
+def hive_init(repo: str, path: str):
+    """Initialize Hive — clone or create the shared knowledge repo."""
+    import subprocess
+
+    hive_dir = Path.home() / ".mnemo" / "hive"
+
+    if hive_dir.exists():
+        click.echo(f"Hive already initialized at {hive_dir}")
+        click.echo("Run `mnemo hive pull` to sync latest.")
+        return
+
+    if repo:
+        click.echo(f"Cloning hive from {repo}...")
+        subprocess.run(["git", "clone", repo, str(hive_dir)], check=True)
+    else:
+        click.echo("Creating local hive...")
+        hive_dir.mkdir(parents=True, exist_ok=True)
+        # Copy templates from package
+        import shutil
+        pkg_hive = Path(__file__).parent.parent / "hive"
+        if pkg_hive.exists():
+            for item in ["templates", "knowledge", "README.md"]:
+                src = pkg_hive / item
+                dst = hive_dir / item
+                if src.is_dir():
+                    shutil.copytree(src, dst, dirs_exist_ok=True)
+                elif src.is_file():
+                    shutil.copy2(src, dst)
+        subprocess.run(["git", "init"], cwd=str(hive_dir), check=True, capture_output=True)
+        subprocess.run(["git", "add", "."], cwd=str(hive_dir), check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "hive: initialize"], cwd=str(hive_dir), check=True, capture_output=True)
+
+    click.echo(f"✅ Hive initialized at {hive_dir}")
+
+
+@hive.command()
+def pull():
+    """Pull latest team knowledge from remote."""
+    import subprocess
+
+    hive_dir = Path.home() / ".mnemo" / "hive"
+    if not hive_dir.exists():
+        click.echo("Hive not initialized. Run `mnemo hive init` first.")
+        return
+
+    result = subprocess.run(
+        ["git", "pull", "--ff-only"],
+        cwd=str(hive_dir),
+        capture_output=True, text=True
+    )
+    if result.returncode == 0:
+        click.echo(f"✅ Hive synced. {result.stdout.strip()}")
+    else:
+        click.echo(f"⚠️ Pull failed (using cached): {result.stderr.strip()}")
+
+
+@hive.command()
+@click.argument("query")
+def search(query: str):
+    """Search team knowledge in Hive."""
+    import os
+
+    hive_dir = Path.home() / ".mnemo" / "hive" / "knowledge"
+    if not hive_dir.exists():
+        click.echo("Hive not initialized. Run `mnemo hive init` first.")
+        return
+
+    # Simple grep-based search across all knowledge files
+    results = []
+    for md_file in hive_dir.rglob("*.md"):
+        content = md_file.read_text(encoding="utf-8")
+        if query.lower() in content.lower():
+            # Extract title from frontmatter
+            title = md_file.stem.replace("-", " ").title()
+            for line in content.split("\n"):
+                if line.startswith("title:"):
+                    title = line.split(":", 1)[1].strip().strip('"')
+                    break
+            rel_path = md_file.relative_to(hive_dir)
+            results.append((title, str(rel_path)))
+
+    if not results:
+        click.echo(f"No results for '{query}' in Hive.")
+        return
+
+    click.echo(f"Found {len(results)} result(s):\n")
+    for title, path in results:
+        click.echo(f"  📄 {title}")
+        click.echo(f"     {path}\n")
+
+
+@hive.command()
+@click.option("--type", "-t", "content_type", type=click.Choice(["fix", "decided", "pitfall", "howto"]), prompt=True)
+@click.option("--title", prompt=True)
+@click.option("--domain", prompt=True, default="general")
+@click.option("--content", "-c", default="", help="Pre-filled content (from agent/session)")
+@click.argument("path", default=".", type=click.Path(exists=True))
+def contribute(content_type: str, title: str, domain: str, content: str, path: str):
+    """Contribute knowledge to the team Hive."""
+    import subprocess
+    import datetime
+
+    hive_dir = Path.home() / ".mnemo" / "hive"
+    if not hive_dir.exists():
+        click.echo("Hive not initialized. Run `mnemo hive init` first.")
+        return
+
+    # Read template
+    template_file = hive_dir / "templates" / f"{content_type}.md"
+    if not template_file.exists():
+        template_file = Path(__file__).parent.parent / "hive" / "templates" / f"{content_type}.md"
+
+    template = template_file.read_text(encoding="utf-8") if template_file.exists() else ""
+
+    # Fill frontmatter
+    slug = title.lower().replace(" ", "-").replace("/", "-")[:50]
+    today = datetime.date.today().isoformat()
+    contributor = subprocess.run(
+        ["git", "config", "user.name"], capture_output=True, text=True
+    ).stdout.strip() or "unknown"
+
+    template = template.replace('title: ""', f'title: "{title}"')
+    template = template.replace("domain: ", f"domain: {domain}")
+    template = template.replace("contributed_by: ", f"contributed_by: {contributor}")
+    template = template.replace("date: ", f"date: {today}")
+
+    # If content provided (from agent), fill the template body
+    if content:
+        # Replace template placeholder sections with actual content
+        lines = template.split("\n")
+        filled_lines = []
+        for line in lines:
+            filled_lines.append(line)
+            # After the frontmatter closing ---, inject content
+        # Simple approach: append content after frontmatter
+        frontmatter_end = template.rfind("---")
+        if frontmatter_end > 0:
+            template = template[:frontmatter_end + 3] + "\n\n" + content
+        else:
+            template = template + "\n\n" + content
+
+    # Determine target directory
+    type_dirs = {"fix": "fixes", "decided": "decided", "pitfall": "pitfalls", "howto": "howtos"}
+    target_dir = hive_dir / "knowledge" / type_dirs[content_type]
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target_file = target_dir / f"{slug}.md"
+
+    target_file.write_text(template, encoding="utf-8")
+
+    if content:
+        # Auto-filled by agent — commit directly
+        click.echo(f"✅ Hive entry created: {target_file.relative_to(hive_dir)}")
+        subprocess.run(["git", "add", str(target_file)], cwd=str(hive_dir), capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", f"hive: add {content_type} - {title}"],
+            cwd=str(hive_dir), capture_output=True
+        )
+        click.echo("   Committed. Run `git push` in hive to share with team.")
+    else:
+        # Manual mode — open editor
+        import os
+        editor = os.environ.get("EDITOR", "code")
+        click.echo(f"\n📝 Template created at: {target_file}")
+    click.echo("   Edit it, then run:")
+    click.echo(f"   cd {hive_dir} && git add . && git commit -m 'hive: add {content_type} - {title}'")
+    click.echo("   git push\n")
+
+    # Try to open in editor
+    try:
+        subprocess.run([editor, str(target_file)], check=False)
+    except FileNotFoundError:
+        pass
+
+
 if __name__ == "__main__":
     cli()
