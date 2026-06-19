@@ -507,10 +507,10 @@ def hive():
     pass
 
 
-@hive.command()
+@hive.command("init")
 @click.option("--repo", "-r", default="", help="Git URL of shared hive repo")
 @click.argument("path", default=".", type=click.Path(exists=True))
-def init(repo: str, path: str):
+def hive_init(repo: str, path: str):
     """Initialize Hive — clone or create the shared knowledge repo."""
     import subprocess
 
@@ -645,11 +645,12 @@ def contribute(content_type: str, title: str, domain: str, path: str):
     target_file.write_text(template, encoding="utf-8")
 
     # Open in editor
+    import os
     editor = os.environ.get("EDITOR", "code")
     click.echo(f"\n📝 Template created at: {target_file}")
-    click.echo(f"   Edit it, then run:")
+    click.echo("   Edit it, then run:")
     click.echo(f"   cd {hive_dir} && git add . && git commit -m 'hive: add {content_type} - {title}'")
-    click.echo(f"   git push\n")
+    click.echo("   git push\n")
 
     # Try to open in editor
     try:
