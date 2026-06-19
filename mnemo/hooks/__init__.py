@@ -259,6 +259,12 @@ TASK=$("$MNEMO" tool mnemo_task 2>/dev/null) || TASK=""
 # Get plan status
 PLAN=$("$MNEMO" tool mnemo_plan --action status 2>/dev/null) || PLAN=""
 
+# Hive: pull latest team knowledge (silent, non-blocking)
+HIVE_DIR="$HOME/.mnemo/hive"
+if [ -d "$HIVE_DIR/.git" ]; then
+  git -C "$HIVE_DIR" pull --ff-only >/dev/null 2>&1 || true
+fi
+
 # Output rich context block
 cat << EOF
 <mnemo-context>
@@ -294,6 +300,7 @@ cat << EOF
 - Record decisions with mnemo_decide (they persist forever)
 - Use mnemo_remember for important context
 - Check mnemo_graph for code relationships
+- Search Hive for team knowledge: mnemo hive search "topic"
 - Learnings are auto-captured at session end
 </mnemo-context>
 EOF
@@ -339,6 +346,15 @@ esac
 QUERY=$(echo "$USER_PROMPT" | head -c 100)
 RESULTS=$("$MNEMO" tool mnemo_search_memory --query "$QUERY" 2>/dev/null) || RESULTS=""
 
+# Search Hive (team knowledge) too
+HIVE_DIR="$HOME/.mnemo/hive/knowledge"
+HIVE_RESULTS=""
+if [ -d "$HIVE_DIR" ]; then
+  HIVE_RESULTS=$(grep -ril "$QUERY" "$HIVE_DIR" 2>/dev/null | head -3 | while read -r f; do
+    grep -m1 "^title:" "$f" 2>/dev/null | sed 's/title: *"\\{0,1\\}//;s/"$//'
+  done) || HIVE_RESULTS=""
+fi
+
 # Only output if we found relevant results
 if [ -n "$RESULTS" ] && echo "$RESULTS" | grep -qv "No results"; then
   RESULT_COUNT=$(echo "$RESULTS" | grep -c "^-" 2>/dev/null || echo "0")
@@ -346,8 +362,15 @@ if [ -n "$RESULTS" ] && echo "$RESULTS" | grep -qv "No results"; then
     cat << EOF
 <mnemo-relevant-context>
 $RESULTS
-</mnemo-relevant-context>
 EOF
+    if [ -n "$HIVE_RESULTS" ]; then
+      cat << EOF
+
+## Hive (Team Knowledge)
+$HIVE_RESULTS
+EOF
+    fi
+    echo "</mnemo-relevant-context>"
   fi
 fi
 
@@ -465,6 +488,14 @@ if [ "$LEARNING_SCORE" -ge 2 ]; then
   SUMMARY=$(echo "$RESPONSE" | grep -ioE "(the issue was|the problem was|root cause was|fixed by|solved by|the fix was)[^.]*\\." | head -1 | head -c 200)
   if [ -n "$SUMMARY" ] && [ ${{#SUMMARY}} -gt 20 ]; then
     "$MNEMO" tool mnemo_remember --content "Auto-learned: $SUMMARY" --category "bug" 2>/dev/null || true
+    # Hive auto-suggest: if this pattern was caught 3+ times, suggest contributing
+    HIVE_DIR="$HOME/.mnemo/hive"
+    if [ -d "$HIVE_DIR" ]; then
+      SIMILAR_COUNT=$("$MNEMO" tool mnemo_search_memory --query "$SUMMARY" 2>/dev/null | grep -c "^-" 2>/dev/null || echo "0")
+      if [ "$SIMILAR_COUNT" -ge 3 ]; then
+        echo "💡 [Hive] This pattern has been caught $SIMILAR_COUNT times. Consider: mnemo hive contribute --type gotcha" >&2
+      fi
+    fi
   fi
 fi
 
