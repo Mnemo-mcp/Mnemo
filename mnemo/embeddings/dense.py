@@ -59,6 +59,19 @@ def embed(texts: list[str]) -> np.ndarray:
     if not texts:
         return np.zeros((0, _DIM), dtype=np.float32)
 
+    # Batch in chunks of 512 to avoid memory explosion on large repos
+    BATCH_SIZE = 512
+    if len(texts) <= BATCH_SIZE:
+        return _embed_batch(texts)
+
+    parts = []
+    for i in range(0, len(texts), BATCH_SIZE):
+        parts.append(_embed_batch(texts[i:i + BATCH_SIZE]))
+    return np.vstack(parts)
+
+
+def _embed_batch(texts: list[str]) -> np.ndarray:
+    """Embed a single batch of texts."""
     encoded = _tokenizer.encode_batch(texts)
     input_ids = np.array([e.ids for e in encoded], dtype=np.int64)
     attention_mask = np.array([e.attention_mask for e in encoded], dtype=np.int64)

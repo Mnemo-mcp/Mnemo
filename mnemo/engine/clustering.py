@@ -44,10 +44,11 @@ def _build_symbol_graph(conn: Any) -> nx.Graph:
     # Build file→symbols mapping
     file_to_symbols = _get_file_symbols(conn)
 
-    # Co-location edges (same file = likely same module)
+    # Co-location edges (same file = likely same module), capped to avoid O(n²)
     for symbols in file_to_symbols.values():
-        for i in range(len(symbols)):
-            for j in range(i + 1, len(symbols)):
+        cap = min(len(symbols), 10)  # max 10 symbols per file for co-location
+        for i in range(cap):
+            for j in range(i + 1, cap):
                 if symbols[i] in G and symbols[j] in G:
                     G.add_edge(symbols[i], symbols[j], weight=1.0)
 

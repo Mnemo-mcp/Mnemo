@@ -25,6 +25,7 @@ def resolve_calls(
     files: list[FileInfo],
     results: list[ParseResult],
     conn: Any,
+    java_enrichment: dict | None = None,
 ) -> int:
     """Resolve CALLS edges and load them into LadybugDB. Returns edge count."""
     # Step 1: Build symbol registry — which file defines which symbols
@@ -51,55 +52,80 @@ def resolve_calls(
     file_imports: dict[str, set[str]] = defaultdict(set)  # file → set of imported file paths
     file_set = {fi.path for fi in files}
 
+    # Build suffix index for Java imports (com/foo/Bar.java → full path)
+    java_suffix_index: dict[str, str] = {}
+    for fp in file_set:
+        if fp.endswith(".java"):
+            # Index by the package-relative suffix (e.g., com/availity/aries/Foo.java)
+            # For Java monorepos, strip common prefixes like src/main/java/
+            for prefix in ("src/main/java/", "src/test/java/", "src/"):
+                idx = fp.find(prefix)
+                if idx != -1:
+                    suffix = fp[idx + len(prefix):]
+                    java_suffix_index[suffix] = fp
+                    break
+            else:
+                # Use filename as-is for last-resort match
+                java_suffix_index[fp] = fp
+
     for r in results:
         for imp in r.imports:
-            target = _resolve_import_to_file(imp, r.path, file_set)
+            target = _resolve_import_to_file(imp, r.path, file_set, java_suffix_index)
             if target and target != r.path:
                 file_imports[r.path].add(target)
 
-    # Step 3: For each file, find references to external symbols
+    # Step 3: For each file, resolve calls via imports (fast, import-driven)
     calls: list[tuple[str, str, float, str]] = []  # (from_id, to_id, confidence, reason)
 
-    for r in results:
-        filepath = repo_root / r.path
-        try:
-            source = filepath.read_text(errors="replace")
-        except (OSError, PermissionError):
-            continue
+    # For large repos (>2000 files), use import-only resolution (skip brute-force scan)
+    large_repo = len(files) > 2000
 
+    for r in results:
         local_symbols = file_symbols[r.path]
         imported_files = file_imports[r.path]
 
+        if not imported_files:
+            continue
+
+        from_id = f"{r.path}:{_get_primary_symbol(r)}"
+
         # Collect imported symbols (symbols defined in files we import)
-        imported_symbols: dict[str, str] = {}  # symbol_name → source_file
         for imp_file in imported_files:
             for sym in file_symbols.get(imp_file, set()):
-                imported_symbols[sym] = imp_file
+                if sym in local_symbols or len(sym) < 3:
+                    continue
+                to_id = f"{imp_file}:{sym}"
+                calls.append((from_id, to_id, 0.9, "import-resolved"))
 
-        # Scan source for symbol references
-        # Look for class instantiation, function calls, type references
-        for symbol_name, defining_file in symbol_to_file.items():
-            if defining_file == r.path:
-                continue  # Skip self-references
-            if len(symbol_name) < 3:
-                continue  # Skip very short names (too many false positives)
-            if symbol_name in local_symbols:
-                continue  # Skip if we define the same name locally
-
-            # Check if this symbol appears in the source
-            if symbol_name not in source:
+        # For small repos, also do global scan (affordable)
+        if not large_repo:
+            filepath = repo_root / r.path
+            try:
+                source = filepath.read_text(errors="replace")
+            except (OSError, PermissionError):
                 continue
 
-            # Determine confidence based on resolution path
-            from_id = f"{r.path}:{_get_primary_symbol(r)}"
-            to_id = f"{defining_file}:{symbol_name}"
-
-            if defining_file in imported_files:
-                # Import-resolved: high confidence
-                calls.append((from_id, to_id, 0.9, "import-resolved"))
-            else:
-                # Global resolution: lower confidence
+            for symbol_name, defining_file in symbol_to_file.items():
+                if defining_file == r.path or defining_file in imported_files:
+                    continue
+                if len(symbol_name) < 3 or symbol_name in local_symbols:
+                    continue
+                if symbol_name not in source:
+                    continue
+                to_id = f"{defining_file}:{symbol_name}"
                 calls.append((from_id, to_id, 0.5, "global"))
+
+    # Step 3b: Java enrichment — convert method invocations to CALLS edges
+    if java_enrichment:
+        for file_path, enrichment in java_enrichment.items():
+            for inv in enrichment.invocations:
+                # Resolve target_type to a file using symbol_to_file
+                target_file = symbol_to_file.get(inv.target_type)
+                if not target_file or target_file == file_path:
+                    continue
+                from_id = f"{file_path}:{inv.caller_class}"
+                to_id = f"{target_file}:{inv.target_type}"
+                calls.append((from_id, to_id, 0.85, "java-invocation"))
 
     # Step 4: Load CALLS edges via CSV
     if not calls:
@@ -112,40 +138,48 @@ def resolve_calls(
         if key not in best or conf > best[key][0]:
             best[key] = (conf, reason)
 
-    # We need to map to Function node IDs that exist in the DB
-    # Query existing function IDs
+    # Collect node IDs by type
     result = conn.execute("MATCH (f:Function) RETURN f.id")
     func_ids = set()
     while result.has_next():
         func_ids.add(result.get_next()[0])
+    result = conn.execute("MATCH (c:Class) RETURN c.id")
+    class_ids = set()
+    while result.has_next():
+        class_ids.add(result.get_next()[0])
 
-    # Filter to only edges where both endpoints exist
-    valid_calls = []
+    # Split into Function→Function and Class→Class edges
+    fn_calls = []
+    class_deps = []
     for (from_id, to_id), (conf, reason) in best.items():
         if from_id in func_ids and to_id in func_ids:
-            valid_calls.append([from_id, to_id, conf, reason])
+            fn_calls.append([from_id, to_id, conf, reason])
+        elif from_id in class_ids and to_id in class_ids:
+            class_deps.append([from_id, to_id, conf, reason])
 
-    if not valid_calls:
-        return 0
-
+    total = 0
     with tempfile.TemporaryDirectory() as tmp:
-        calls_csv = Path(tmp) / "calls.csv"
-        with open(calls_csv, "w", newline="") as f:
-            csv.writer(f).writerows(valid_calls)
-        try:
-            conn.execute(f'COPY CALLS FROM "{calls_csv}"')
-        except RuntimeError:
-            # Fallback: insert one by one, skip failures
-            for row in valid_calls:
-                try:
-                    conn.execute(
-                        f"MATCH (a:Function {{id: '{row[0]}'}}), (b:Function {{id: '{row[1]}'}}) "
-                        f"CREATE (a)-[:CALLS {{confidence: {row[2]}, reason: '{row[3]}'}}]->(b)"
-                    )
-                except RuntimeError:
-                    pass
+        if fn_calls:
+            calls_csv = Path(tmp) / "calls.csv"
+            with open(calls_csv, "w", newline="") as f:
+                csv.writer(f).writerows(fn_calls)
+            try:
+                conn.execute(f'COPY CALLS FROM "{calls_csv}"')
+                total += len(fn_calls)
+            except RuntimeError:
+                pass
 
-    return len(valid_calls)
+        if class_deps:
+            deps_csv = Path(tmp) / "class_deps.csv"
+            with open(deps_csv, "w", newline="") as f:
+                csv.writer(f).writerows(class_deps)
+            try:
+                conn.execute(f'COPY CLASS_DEPENDS FROM "{deps_csv}"')
+                total += len(class_deps)
+            except RuntimeError:
+                pass
+
+    return total
 
 
 def _get_primary_symbol(r: ParseResult) -> str:
@@ -157,12 +191,16 @@ def _get_primary_symbol(r: ParseResult) -> str:
     return os.path.basename(r.path).split(".")[0]
 
 
-def _resolve_import_to_file(import_stmt: str, source_file: str, file_set: set[str]) -> str | None:
+def _resolve_import_to_file(import_stmt: str, source_file: str, file_set: set[str], java_suffix_index: dict[str, str] | None = None) -> str | None:
     """Resolve an import statement to a file path."""
     parts = import_stmt.replace("from ", "").replace("import ", "").replace("using ", "").split()
     if not parts:
         return None
     module = parts[0].strip("'\"").rstrip(";").strip()
+
+    # Skip wildcard imports (e.g., java.util.*)
+    if module.endswith("*"):
+        return None
 
     # Try path-based resolution
     base = module.replace(".", "/")
@@ -178,6 +216,7 @@ def _resolve_import_to_file(import_stmt: str, source_file: str, file_set: set[st
         candidates = [
             f"{base}.py", f"{base}.ts", f"{base}.js", f"{base}.cs",
             f"{base}/index.ts", f"{base}/index.js", f"{base}/__init__.py",
+            f"{base}.java",
         ]
         if src_dir:
             candidates += [
@@ -188,4 +227,11 @@ def _resolve_import_to_file(import_stmt: str, source_file: str, file_set: set[st
     for c in candidates:
         if c in file_set:
             return c
+
+    # Java: use suffix index for O(1) lookup
+    if java_suffix_index and source_file.endswith(".java"):
+        java_suffix = base + ".java"
+        if java_suffix in java_suffix_index:
+            return java_suffix_index[java_suffix]
+
     return None
