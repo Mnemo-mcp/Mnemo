@@ -1,15 +1,15 @@
 ---
 title: ""
 domain: 
-type: trap
+type: pitfall
 contributed_by: 
 date: 
 tags: []
 ---
 
-## Trap
+## Pitfall
 
-What wastes your time? One sentence.
+What's the non-obvious trap? One sentence.
 
 ## Symptoms
 

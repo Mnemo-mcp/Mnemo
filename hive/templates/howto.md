@@ -1,7 +1,7 @@
 ---
 title: ""
 domain: 
-type: path
+type: howto
 contributed_by: 
 date: 
 tags: []

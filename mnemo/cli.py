@@ -602,7 +602,7 @@ def search(query: str):
 
 
 @hive.command()
-@click.option("--type", "-t", "content_type", type=click.Choice(["fix", "trap", "choice", "path"]), prompt=True)
+@click.option("--type", "-t", "content_type", type=click.Choice(["fix", "decided", "pitfall", "howto"]), prompt=True)
 @click.option("--title", prompt=True)
 @click.option("--domain", prompt=True, default="general")
 @click.option("--content", "-c", default="", help="Pre-filled content (from agent/session)")
@@ -652,7 +652,7 @@ def contribute(content_type: str, title: str, domain: str, content: str, path: s
             template = template + "\n\n" + content
 
     # Determine target directory
-    type_dirs = {"fix": "fixes", "trap": "traps", "choice": "choices", "path": "paths"}
+    type_dirs = {"fix": "fixes", "decided": "decided", "pitfall": "pitfalls", "howto": "howtos"}
     target_dir = hive_dir / "knowledge" / type_dirs[content_type]
     target_dir.mkdir(parents=True, exist_ok=True)
     target_file = target_dir / f"{slug}.md"

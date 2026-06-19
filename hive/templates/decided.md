@@ -1,7 +1,7 @@
 ---
 title: ""
 domain: 
-type: choice
+type: decided
 contributed_by: 
 date: 
 tags: []
@@ -12,7 +12,7 @@ status: accepted
 
 What forced this decision?
 
-## Choice
+## Decision
 
 What we picked. One sentence.
 
