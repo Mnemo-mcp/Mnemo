@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-MEMORY_NAMESPACE = "memory"
+from ._shared import MEMORY_NAMESPACE
 
 
 def _memory_to_chunk(entry: dict[str, Any]) -> dict[str, Any] | None:

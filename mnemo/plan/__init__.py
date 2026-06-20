@@ -9,19 +9,14 @@ from pathlib import Path
 from typing import Any
 
 from ..config import mnemo_path
+from ..utils import load_json_file
 
 
 PLANS_FILE = "plans.json"
 
 
 def _load_plans(repo_root: Path) -> list[dict[str, Any]]:
-    path = mnemo_path(repo_root) / PLANS_FILE
-    if not path.exists():
-        return []
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return []
+    return load_json_file(mnemo_path(repo_root) / PLANS_FILE)
 
 
 def _save_plans(repo_root: Path, plans: list[dict[str, Any]]) -> None:
@@ -514,7 +509,7 @@ _STEP_PATTERNS = [
 
 def _looks_like_plan(text: str) -> bool:
     """Detect if text describes work that should be tracked as a plan.
-    
+
     Requires BOTH a plan-level signal AND actionable bullet items.
     Simple lists of facts/observations won't trigger this.
     """
@@ -575,11 +570,11 @@ def _extract_plan_title(text: str) -> str:
 
 def auto_create_plan_from_text(repo_root: Path, text: str, source: str = "memory") -> str | None:
     """If text looks like a deliberate plan (not just context), auto-create it.
-    
+
     Only triggers when text has BOTH:
     - Action verbs indicating work to be done (migrate, implement, refactor, etc.)
     - 3+ concrete task-like items (bullet points with actionable language)
-    
+
     Does NOT trigger on:
     - General context/notes being remembered
     - Lists of facts or observations
@@ -595,3 +590,93 @@ def auto_create_plan_from_text(repo_root: Path, text: str, source: str = "memory
     title = _extract_plan_title(text)
     result = create_plan(repo_root, title, tasks, priority="high")
     return f"📋 Auto-created plan from {source}:\n{result}"
+
+
+# --- Task context functions (migrated from sprint/) ---
+
+
+def _load_tasks(repo_root: Path) -> list[dict]:
+    """Load tasks from storage."""
+    from ..storage import Collections, get_storage
+    data = get_storage(repo_root).read_collection(Collections.TASKS)
+    return data if isinstance(data, list) else []
+
+
+def _save_tasks(repo_root: Path, tasks: list[dict]) -> None:
+    """Save tasks to storage."""
+    from ..storage import Collections, get_storage
+    get_storage(repo_root).write_collection(Collections.TASKS, tasks)
+
+
+def set_current_task(
+    repo_root: Path,
+    task_id: str,
+    description: str = "",
+    files: list[str] | None = None,
+    notes: str = "",
+) -> dict:
+    """Set the current task/ticket being worked on."""
+    import time
+    tasks = _load_tasks(repo_root)
+
+    for task in tasks:
+        if task["task_id"] == task_id:
+            task["last_active"] = time.time()
+            if description:
+                task["description"] = description
+            if files:
+                task["files"] = sorted(set(task.get("files", []) + files))
+            if notes:
+                task["notes"] = task.get("notes", "") + "\n" + notes
+            task["status"] = "active"
+            _save_tasks(repo_root, tasks)
+            return task
+
+    entry = {
+        "task_id": task_id,
+        "description": description,
+        "files": files or [],
+        "notes": notes,
+        "status": "active",
+        "created": time.time(),
+        "last_active": time.time(),
+    }
+    tasks.append(entry)
+    _save_tasks(repo_root, tasks)
+    return entry
+
+
+def complete_task(repo_root: Path, task_id: str, summary: str = "") -> str:
+    """Mark a task as complete with an optional summary."""
+    import time
+    tasks = _load_tasks(repo_root)
+    for task in tasks:
+        if task["task_id"] == task_id:
+            task["status"] = "completed"
+            task["completed_at"] = time.time()
+            if summary:
+                task["summary"] = summary
+            _save_tasks(repo_root, tasks)
+            return f"Task {task_id} marked complete."
+    return f"Task {task_id} not found."
+
+
+def get_current_task(repo_root: Path) -> str:
+    """Get the currently active task context."""
+    tasks = _load_tasks(repo_root)
+    active = [task for task in tasks if task.get("status") == "active"]
+
+    if not active:
+        return "No active task. Use mnemo_task to set one."
+
+    lines = ["# Active Tasks\n"]
+    for task in active:
+        lines.append(f"## {task['task_id']}")
+        if task.get("description"):
+            lines.append(task["description"])
+        if task.get("files"):
+            lines.append(f"**Files:** {', '.join(task['files'])}")
+        if task.get("notes"):
+            lines.append(f"**Notes:** {task['notes']}")
+        lines.append("")
+    return "\n".join(lines)

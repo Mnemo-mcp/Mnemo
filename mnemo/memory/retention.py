@@ -15,7 +15,6 @@ from ._shared import (
     COMPRESS_THRESHOLD,
     PINNED_CATEGORIES,
     _as_list,
-    _next_id,
     _text_similarity,
     _refresh_rule,
 )
@@ -92,7 +91,6 @@ def compress_memory(repo_root: Path) -> str:
                     continue
                 jaccard = len(tokens_a & tokens_b) / len(tokens_a | tokens_b)
                 if jaccard > 0.5:
-                    _next_id(entries + compressed)
                     merged_content = items[i].get("content", "") + " | " + items[j].get("content", "")
                     if len(merged_content) > 500:
                         merged_content = merged_content[:497] + "..."

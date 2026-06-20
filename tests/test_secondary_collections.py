@@ -1,10 +1,11 @@
 import json
+import time
 from pathlib import Path
 
-from mnemo.code_review import add_review, get_rejected_suggestions, get_reviews_for_file
+from mnemo.storage import Collections, get_storage
 from mnemo.errors import add_error, search_errors
 from mnemo.incidents import add_incident, search_incidents
-from mnemo.sprint import complete_task, get_current_task, set_current_task
+from mnemo.plan import set_current_task, get_current_task, complete_task
 
 
 def test_errors_use_storage_adapter(tmp_path: Path):
@@ -31,10 +32,19 @@ def test_incidents_use_storage_adapter(tmp_path: Path):
 
 
 def test_reviews_use_storage_adapter(tmp_path: Path):
-    add_review(tmp_path, "Reviewed auth change", ["auth.py"], "Avoid globals", "rejected")
+    storage = get_storage(tmp_path)
+    reviews = storage.read_collection(Collections.REVIEWS)
+    if not isinstance(reviews, list):
+        reviews = []
+    entry = {"id": 1, "timestamp": time.time(), "summary": "Reviewed auth change",
+             "files": ["auth.py"], "feedback": "Avoid globals", "outcome": "rejected"}
+    reviews.append(entry)
+    storage.write_collection(Collections.REVIEWS, reviews)
 
-    assert get_reviews_for_file(tmp_path, "auth.py")[0]["feedback"] == "Avoid globals"
-    assert get_rejected_suggestions(tmp_path)[0]["summary"] == "Reviewed auth change"
+    loaded = storage.read_collection(Collections.REVIEWS)
+    assert loaded[0]["feedback"] == "Avoid globals"
+    assert loaded[0]["outcome"] == "rejected"
+    assert loaded[0]["summary"] == "Reviewed auth change"
 
 
 def test_tasks_use_storage_adapter(tmp_path: Path):

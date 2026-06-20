@@ -64,12 +64,37 @@ def _record(root: Path, args: dict) -> str:
 
     elif record_type == "review":
         if action == "add":
-            from ..code_review import add_review
-            entry = add_review(root, args.get("summary", ""), args.get("files", []),
-                               args.get("feedback", ""), args.get("outcome", "approved"))
+            from ..storage import Collections, get_storage
+            storage = get_storage(root)
+            reviews = storage.read_collection(Collections.REVIEWS)
+            if not isinstance(reviews, list):
+                reviews = []
+            import time
+            next_id = max((r.get("id", 0) for r in reviews), default=0) + 1
+            entry = {"id": next_id, "timestamp": time.time(), "summary": args.get("summary", ""),
+                     "files": args.get("files", []), "feedback": args.get("feedback", ""),
+                     "outcome": args.get("outcome", "approved")}
+            reviews.append(entry)
+            storage.write_collection(Collections.REVIEWS, reviews[-100:])
             return f"Review #{entry['id']} stored."
-        from ..code_review import format_reviews
-        return format_reviews(root, limit=int(args.get("limit", 20)), offset=int(args.get("offset", 0)))
+        from ..storage import Collections, get_storage
+        storage = get_storage(root)
+        reviews = storage.read_collection(Collections.REVIEWS)
+        if not isinstance(reviews, list) or not reviews:
+            return "No code review history stored."
+        limit = int(args.get("limit", 20))
+        offset = int(args.get("offset", 0))
+        total = len(reviews)
+        page = reviews[offset:offset + limit]
+        lines = [f"# Code Review History ({total} total)\n"]
+        for review in page:
+            status = f"[{review['outcome']}]" if review.get("outcome") else ""
+            lines.append(f"- {review['summary']} {status}")
+            if review.get("feedback"):
+                lines.append(f"  Feedback: {review['feedback']}")
+        if total > offset + limit:
+            lines.append(f"\n*Showing {len(page)} of {total}. Use offset={offset + limit} for more.*")
+        return "\n".join(lines)
 
     elif record_type == "correction":
         if action == "add":
@@ -94,9 +119,18 @@ def _record(root: Path, args: dict) -> str:
       },
       required=["summary"])
 def _add_review(root: Path, args: dict) -> str:
-    from ..code_review import add_review
-    entry = add_review(root, args["summary"], args.get("files", []),
-                       args.get("feedback", ""), args.get("outcome", "approved"))
+    import time
+    from ..storage import Collections, get_storage
+    storage = get_storage(root)
+    reviews = storage.read_collection(Collections.REVIEWS)
+    if not isinstance(reviews, list):
+        reviews = []
+    next_id = max((r.get("id", 0) for r in reviews), default=0) + 1
+    entry = {"id": next_id, "timestamp": time.time(), "summary": args["summary"],
+             "files": args.get("files", []), "feedback": args.get("feedback", ""),
+             "outcome": args.get("outcome", "approved")}
+    reviews.append(entry)
+    storage.write_collection(Collections.REVIEWS, reviews[-100:])
     return f"Review #{entry['id']} stored."
 
 
@@ -107,8 +141,24 @@ def _add_review(root: Path, args: dict) -> str:
           "offset": {"type": "integer", "description": "Skip first N results (default 0)"},
       })
 def _reviews(root: Path, args: dict) -> str:
-    from ..code_review import format_reviews
-    return format_reviews(root, limit=int(args.get("limit", 20)), offset=int(args.get("offset", 0)))
+    from ..storage import Collections, get_storage
+    storage = get_storage(root)
+    reviews = storage.read_collection(Collections.REVIEWS)
+    if not isinstance(reviews, list) or not reviews:
+        return "No code review history stored."
+    limit = int(args.get("limit", 20))
+    offset = int(args.get("offset", 0))
+    total = len(reviews)
+    page = reviews[offset:offset + limit]
+    lines = [f"# Code Review History ({total} total)\n"]
+    for review in page:
+        status = f"[{review['outcome']}]" if review.get("outcome") else ""
+        lines.append(f"- {review['summary']} {status}")
+        if review.get("feedback"):
+            lines.append(f"  Feedback: {review['feedback']}")
+    if total > offset + limit:
+        lines.append(f"\n*Showing {len(page)} of {total}. Use offset={offset + limit} for more.*")
+    return "\n".join(lines)
 
 
 @tool("mnemo_add_error",
@@ -194,7 +244,10 @@ def _onboarding(root: Path, args: dict) -> str:
       "Show which tests cover a file, or get overall test coverage summary. Use when modifying code to know what tests to run.",
       properties={"query": {"type": "string", "description": "File name to find tests for (omit for coverage summary)"}})
 def _tests(root: Path, args: dict) -> str:
-    from ..test_intel import get_tests_for_file, get_coverage_summary
+    try:
+        from ..test_intel import get_tests_for_file, get_coverage_summary
+    except ImportError:
+        return "Test intelligence module not available."
     query = args.get("query", "")
     return get_tests_for_file(root, query) if query else get_coverage_summary(root)
 

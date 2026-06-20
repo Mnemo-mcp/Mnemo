@@ -19,7 +19,7 @@ _KIRO_AGENT_CONFIG_TEMPLATE = """\
   "description": "Mnemo-powered agent with persistent memory, automatic learning, and lifecycle hooks",
   "useLegacyMcpJson": true,
 
-  "prompt": "You are an engineering assistant powered by Mnemo — a persistent memory system with an integrated evaluation council.\\n\\n## Context Loading\\n\\nYour project context is AUTOMATICALLY loaded at session start by the agentSpawn hook. You already have it as <mnemo-context>. You do NOT need to call mnemo_recall yourself — it was already done.\\n\\nIf context appears missing, use the MCP tool `mnemo_recall`. NEVER read .mnemo/ files. All memory operations are MCP tool calls only.\\n\\n## How You Work\\n\\n1. CONTEXT IS PRE-LOADED — check the <mnemo-context> block above.\\n2. SEARCH BEFORE ASKING — use mnemo_search_memory. They may have told you in a past session.\\n3. REMEMBER IMPORTANT THINGS — use mnemo_remember for decisions, patterns, fixes.\\n4. DECISIONS ARE PERMANENT — use mnemo_decide for architectural choices.\\n5. LEARNINGS ARE AUTO-CAPTURED — the stop hook saves them automatically.\\n6. COUNCIL FOR COMPLEX TASKS — summon the evaluation council for non-trivial work.\\n\\n## Council (Multi-Angle Evaluation)\\n\\nFor complex tasks, invoke the council. It spawns independent evaluators that each validate from a different METHOD (drift check, adversarial testing, security audit, production simulation, paradigm challenge).\\n\\n### When to Council\\nSummon for: features, architecture decisions, stuck debugging, security-sensitive changes.\\nDON'T council for: typos, renames, simple questions, direct file ops.\\n\\n### How to Council\\\\nUse the subagent tool to spawn evaluators as PARALLEL stages (no depends_on between them). Each stage prompt_template = read COUNCIL_PATH/roles/<name>.md + append code/spec to evaluate. Each evaluator returns JSON: {verdict: PASS|FAIL|REPLAN, issues: [...]}. Collect all results: ALL PASS = proceed, ANY FAIL = feed issues back to generator and loop (max 3), ANY REPLAN = revise approach entirely. For CLI usage outside agent: `bash COUNCIL_PATH/council.sh -- task`\\\\n\\\\n### Phases\\n- plan (advisory): drift + security + innovation evaluators\\n- implement (GAN loop, max 3 iter): drift + adversarial + security + realworld\\n- test (GAN loop): drift + adversarial + realworld\\n- review (advisory): security + adversarial + innovation\\n- debug (GAN loop): adversarial + drift + realworld\\n\\n### The GAN Loop\\n1. Generate output\\n2. Spawn evaluators in parallel (blind to each other)\\n3. ALL PASS → done | FAIL → iterate with feedback | REPLAN → revise approach\\n\\n### Memory + Council\\nBEFORE council: query memory for past issues on similar tasks.\\nAFTER council: store what evaluators caught (builds institutional knowledge).\\n\\n## IMPORTANT: All mnemo_* operations are MCP tool calls\\n\\nEvery mnemo_* operation is an MCP tool call to the 'mnemo' server. Tool names are prefixed with 'mnemo_'. NEVER read .mnemo/ files.\\n\\n## When Working on Tasks\\n\\n- Check active plan: mnemo_plan with action: status\\n- Mark tasks done: mnemo_plan with action: done, task_id: MNO-XXX\\n- Use mnemo_graph for code relationships\\n- Use mnemo_lookup for method-level details\\n- Use mnemo_search for hybrid code search\\n\\n## Memory Slots\\n\\nUse mnemo_slot_set/mnemo_slot_get for: project_context, user_preferences, conventions, pending_items, known_gotchas.\\n\\n## What NOT to Remember\\n\\n- Temporary debugging output\\n- Secrets or credentials\\n- Obvious things the code already shows\\n- Duplicate information already in memory",
+  "prompt": "You are an engineering assistant powered by Mnemo — a persistent memory system.\\n\\n## Context Loading\\n\\nYour project context is AUTOMATICALLY loaded at session start by the agentSpawn hook. You already have it as <mnemo-context>. You do NOT need to call mnemo_recall yourself — it was already done.\\n\\nIf context appears missing, use the MCP tool `mnemo_recall`. NEVER read .mnemo/ files. All memory operations are MCP tool calls only.\\n\\n## Memory Responsibilities\\n\\nHooks auto-capture user decisions from their messages. YOUR job is to persist context that only YOU can see:\\n\\n### Call `mnemo_decide` when:\\n- You make or confirm an architectural choice (database, framework, pattern, deployment target)\\n- You choose between approaches during implementation\\n- The user approves a technical direction you proposed\\n\\n### Call `mnemo_remember` when:\\n- You discover something about the codebase through investigation (category: architecture)\\n- You fix a bug — save root cause + fix (category: bug)\\n- You identify a pattern or convention in the code (category: pattern)\\n- You learn a user preference through their feedback (category: preference)\\n\\n### Call `mnemo_search_memory` before:\\n- Asking the user a question (they may have answered in a past session)\\n- Making assumptions about the project setup\\n\\n### Do NOT remember:\\n- Temporary debugging output\\n- Things obvious from the code itself\\n- File paths you modified (noise)\\n\\n## Tools\\n\\n- `mnemo_plan` — task tracking (create, status, done)\\n- `mnemo_graph` — code knowledge graph (neighbors, stats, find)\\n- `mnemo_lookup` — 360° symbol/service details\\n- `mnemo_search` — hybrid search (code + memory + APIs)\\n- `mnemo_impact` — blast radius analysis\\n- `mnemo_audit` — security, health, conventions\\n\\n## Memory Slots\\n\\nUse `mnemo_slot_set`/`mnemo_slot_get` for structured context: project_context, user_preferences, conventions, pending_items, known_gotchas.",
 
   "tools": [
     "read", "write", "shell", "grep", "glob", "code",
@@ -88,54 +88,58 @@ inclusion: on_demand
 
 # Mnemo — Persistent Engineering Memory
 
-Mnemo gives you persistent memory across sessions. Context is automatically loaded at session start via the agentSpawn hook.
+## What Hooks Handle (automatic, you don't need to do this)
 
-## Context Loading (Automatic)
+- **Session start**: context loaded automatically via agentSpawn hook
+- **User decisions**: user-prompt-submit hook detects naming, preferences, corrections from user messages
+- **Bug fix detection**: stop hook detects learning patterns from your responses
+- **Security**: pre-tool-use hook blocks dangerous commands
 
-The agentSpawn hook automatically calls `mnemo_recall` and injects the result into your context. You do NOT need to call mnemo_recall yourself — it's already done. If for some reason context appears missing, call the MCP tool `mnemo_recall` (do NOT read files — use the tool).
+## What YOU Must Handle (hooks can't see this)
 
-## What You Should Do
+Hooks only see user messages and your final response. They can't see what you discover DURING work. You must persist:
 
-### Search Before Asking
-Before asking the user something, search memory via the MCP tool: `mnemo_search_memory`. They may have told you in a past session.
+| When | Tool | Category |
+|------|------|----------|
+| You choose an approach | `mnemo_decide` | — |
+| You discover how the codebase works | `mnemo_remember` | architecture |
+| You fix a bug | `mnemo_remember` | bug |
+| You notice a pattern/convention | `mnemo_remember` | pattern |
+| User gives feedback on your work | `mnemo_remember` | preference |
 
-### Record Decisions
-Use the MCP tool `mnemo_decide` for architectural choices — these are permanent and never evicted.
+## Tool Reference
 
-### Remember Important Context
-Use the MCP tool `mnemo_remember` for:
-- Bug fixes and root causes
-- Patterns discovered in the codebase
-- User preferences and conventions
-- Important findings during investigation
+| Tool | Purpose |
+|------|---------|
+| `mnemo_recall` | Load context (auto-called at start) |
+| `mnemo_remember` | Store context (architecture, bug, pattern, preference, general) |
+| `mnemo_decide` | Permanent architectural decision (never evicted) |
+| `mnemo_forget` | Delete a memory by ID |
+| `mnemo_search_memory` | Search past memories |
+| `mnemo_lookup` | 360° symbol/service details |
+| `mnemo_search` | Hybrid search: code + memory + APIs |
+| `mnemo_graph` | Knowledge graph queries |
+| `mnemo_impact` | Blast radius analysis |
+| `mnemo_plan` | Task tracking (create, status, done, add) |
+| `mnemo_audit` | Security, health, conventions |
+| `mnemo_record` | Errors, incidents, reviews, corrections |
+| `mnemo_generate` | Commit/PR descriptions |
+| `mnemo_map` | Regenerate repo map |
+| `mnemo_lesson` | Learned patterns with decay |
 
-### Track Plans
-- Check active plans: `mnemo_plan` with action "status"
-- Mark tasks done: `mnemo_plan` with action "done" and task_id
-- Plans auto-create when you describe multi-step work
+## Memory Slots
 
-### Understand Code
-- `mnemo_graph` — query the knowledge graph (neighbors, paths, hubs, why)
-- `mnemo_lookup` — method-level details for a file
-- `mnemo_search` — hybrid search (BM25 + vector + graph)
-- `mnemo_impact` — what breaks if you change something
+Structured context via `mnemo_slot_set`/`mnemo_slot_get`:
+- `project_context` — what this project is
+- `user_preferences` — style, conventions
+- `pending_items` — follow-ups
+- `known_gotchas` — pitfalls
 
-### Memory Slots
-Use `mnemo_slot_set`/`mnemo_slot_get` for structured context:
-- `project_context` — what this project is about
-- `user_preferences` — coding style, conventions
-- `pending_items` — things to follow up on
-- `known_gotchas` — traps and pitfalls
+## Rules
 
-## Important: All Mnemo operations are MCP TOOL CALLS
-
-Every `mnemo_*` operation is an MCP tool call to the "mnemo" server. Do NOT try to read files to get this information. Use the tools directly.
-
-## What NOT to Remember
-- Temporary debugging output
-- Secrets or credentials (auto-stripped anyway)
-- Obvious things the code already shows
-- Duplicate information already in memory
+- All operations are MCP tool calls to the 'mnemo' server
+- NEVER read .mnemo/ files directly
+- Search memory before asking the user a question
 """
 
 _CLAUDE_SKILL = """# Mnemo Memory System
@@ -159,16 +163,6 @@ _CLAUDE_SKILL = """# Mnemo Memory System
 - Temporary debug output
 - Secrets (auto-stripped anyway)
 - Things obvious from the code
-"""
-
-_CLAUDE_SPAWN_SCRIPT = """#!/bin/sh
-# Mnemo: load context on session start
-mnemo tool mnemo_recall
-"""
-
-_CLAUDE_STOP_SCRIPT = """#!/bin/sh
-# Mnemo: save session summary
-mnemo tool mnemo_remember --content "Session ended"
 """
 
 
@@ -310,7 +304,8 @@ exit 0
 """)
 
     _write_hook(hooks_dir / "user-prompt-submit.sh", f"""#!/bin/sh
-# Mnemo userPromptSubmit hook — searches relevant memories for current prompt
+# Mnemo userPromptSubmit hook — AI-powered decision detection + memory search
+# Uses embedding-based intent classification (not regex) to auto-persist user decisions
 # stdout → injected as context before the prompt | stderr → warnings
 # Fail-safe: always exits 0
 
@@ -335,42 +330,32 @@ if [ -z "$USER_PROMPT" ] || [ ${{#USER_PROMPT}} -lt 10 ]; then
   exit 0
 fi
 
-# Skip simple greetings and acknowledgments
+# Skip simple greetings
 LOWER_PROMPT=$(echo "$USER_PROMPT" | tr '[:upper:]' '[:lower:]')
 case "$LOWER_PROMPT" in
-  "hi"|"hello"|"hey"|"thanks"|"thank you"|"ok"|"okay"|"yes"|"no"|"sure"|"got it"|"cool")
+  "hi"|"hello"|"hey"|"thanks"|"thank you"|"ok"|"okay"|"yes"|"no"|"sure"|"got it"|"cool"|"looks good"|"lgtm"|"nice"|"great"|"perfect"|"continue")
     exit 0 ;;
 esac
 
-# Search for relevant memories (truncate query to 100 chars)
+# --- AUTO-CAPTURE: AI-based intent classification ---
+# Classifies message using embedding similarity (~1ms, no external APIs)
+CAPTURE_RESULT=$("$MNEMO" tool auto_capture --message "$USER_PROMPT" 2>/dev/null) || CAPTURE_RESULT=""
+if echo "$CAPTURE_RESULT" | grep -q "^captured"; then
+  echo "📌 [Mnemo] Auto-captured: $CAPTURE_RESULT" >&2
+fi
+
+# --- MEMORY SEARCH ---
 QUERY=$(echo "$USER_PROMPT" | head -c 100)
 RESULTS=$("$MNEMO" tool mnemo_search_memory --query "$QUERY" 2>/dev/null) || RESULTS=""
 
-# Search Hive (team knowledge) too
-HIVE_DIR="$HOME/.mnemo/hive/knowledge"
-HIVE_RESULTS=""
-if [ -d "$HIVE_DIR" ]; then
-  HIVE_RESULTS=$(grep -ril "$QUERY" "$HIVE_DIR" 2>/dev/null | head -3 | while read -r f; do
-    grep -m1 "^title:" "$f" 2>/dev/null | sed 's/title: *"//;s/"$//'
-  done) || HIVE_RESULTS=""
-fi
-
-# Only output if we found relevant results
 if [ -n "$RESULTS" ] && echo "$RESULTS" | grep -qv "No results"; then
   RESULT_COUNT=$(echo "$RESULTS" | grep -c "^-" 2>/dev/null || echo "0")
   if [ "$RESULT_COUNT" -gt 0 ]; then
     cat << EOF
 <mnemo-relevant-context>
 $RESULTS
+</mnemo-relevant-context>
 EOF
-    if [ -n "$HIVE_RESULTS" ]; then
-      cat << EOF
-
-## Hive (Team Knowledge)
-$HIVE_RESULTS
-EOF
-    fi
-    echo "</mnemo-relevant-context>"
   fi
 fi
 
@@ -426,29 +411,50 @@ exit 0
 """)
 
     _write_hook(hooks_dir / "post-tool-use.sh", f"""#!/bin/sh
-# Mnemo postToolUse — captures file modifications and tool observations
-# Fail-safe: always exits 0
+# Mnemo postToolUse — captures meaningful tool outcomes
+# Captures: failed commands, new file creation patterns, test results
+# Fail-safe: always exits 0, must complete within 3s timeout
 
 MNEMO="{mnemo_bin}"
 input_json=$(cat 2>/dev/null || echo "{{}}")
 
 # Extract tool info
 TOOL_NAME=""
-TOOL_OUTPUT=""
+TOOL_SUCCESS="true"
+EXIT_STATUS=""
+FILE_PATH=""
 if command -v jq >/dev/null 2>&1; then
-  TOOL_NAME=$(echo "$input_json" | jq -r '.tool_name // empty' 2>/dev/null) || true
-  TOOL_OUTPUT=$(echo "$input_json" | jq -r '.tool_output // empty' 2>/dev/null | head -c 500) || true
+  TOOL_NAME=$(echo "$input_json" | jq -r '.tool_name // .toolName // "unknown"' 2>/dev/null) || TOOL_NAME="unknown"
+  TOOL_SUCCESS=$(echo "$input_json" | jq -r '.tool_response.success // "true"' 2>/dev/null) || TOOL_SUCCESS="true"
+  EXIT_STATUS=$(echo "$input_json" | jq -r '.tool_response.exit_status // empty' 2>/dev/null) || EXIT_STATUS=""
+  FILE_PATH=$(echo "$input_json" | jq -r '.tool_input.path // .tool_input.file_path // empty' 2>/dev/null) || FILE_PATH=""
 fi
 
-# Track file modifications
+[ "$TOOL_NAME" = "unknown" ] && exit 0
+
 case "$TOOL_NAME" in
-  *[Ww]rite*|*[Ee]dit*|*[Cc]reate*)
-    FILE_PATH=""
-    if command -v jq >/dev/null 2>&1; then
-      FILE_PATH=$(echo "$input_json" | jq -r '.tool_input.path // .tool_input.file_path // empty' 2>/dev/null) || true
+  # Track failed commands — debugging signal
+  shell|bash)
+    if [ "$TOOL_SUCCESS" = "false" ] || echo "$EXIT_STATUS" | grep -qv "^exit status: 0$"; then
+      CMD=$(echo "$input_json" | jq -r '.tool_input.command // empty' 2>/dev/null | head -c 100) || true
+      ERROR=$(echo "$input_json" | jq -r '.tool_response.stderr // empty' 2>/dev/null | head -c 150) || true
+      if [ -n "$CMD" ] && [ -n "$ERROR" ]; then
+        "$MNEMO" tool mnemo_remember --content "Command failed: $CMD → $ERROR" --category "bug" 2>/dev/null || true
+      fi
     fi
+    ;;
+  # Track new file creation — records what conventions the agent followed
+  write|create)
     if [ -n "$FILE_PATH" ]; then
-      "$MNEMO" tool mnemo_remember --content "Modified file: $FILE_PATH" --category "general" 2>/dev/null || true
+      # Only track source files, not config/temp
+      case "$FILE_PATH" in
+        *.java|*.py|*.ts|*.js|*.go|*.rs|*.cs)
+          # Extract class/function name from path
+          FILENAME=$(basename "$FILE_PATH")
+          DIRNAME=$(dirname "$FILE_PATH" | sed 's|.*/src/||' | sed 's|/|.|g')
+          "$MNEMO" tool mnemo_remember --content "Created: $FILENAME in $DIRNAME" --category "general" 2>/dev/null || true
+          ;;
+      esac
     fi
     ;;
 esac
@@ -457,7 +463,8 @@ exit 0
 """)
 
     _write_hook(hooks_dir / "stop.sh", f"""#!/bin/sh
-# Mnemo stop hook — session summarization + learning capture
+# Mnemo stop hook — auto-captures learnings, decisions, and context from session
+# Reads STDIN (the agent's final response), detects patterns worth saving
 # Fail-safe: always exits 0
 
 MNEMO="{mnemo_bin}"
@@ -477,57 +484,67 @@ fi
 
 LOWER_RESPONSE=$(echo "$RESPONSE" | tr '[:upper:]' '[:lower:]')
 
-# --- Learning detection (bug fixes, discoveries) ---
+# --- 1. Bug fix / learning detection ---
 LEARNING_SCORE=0
 echo "$LOWER_RESPONSE" | grep -q "fixed\\|solved\\|resolved" && LEARNING_SCORE=$((LEARNING_SCORE + 1))
-echo "$LOWER_RESPONSE" | grep -q "the issue was\\|the problem was\\|root cause\\|the bug was" && LEARNING_SCORE=$((LEARNING_SCORE + 1))
-echo "$LOWER_RESPONSE" | grep -q "discovered\\|realized\\|figured out\\|learned\\|turned out" && LEARNING_SCORE=$((LEARNING_SCORE + 1))
-echo "$LOWER_RESPONSE" | grep -q "solution\\|the fix\\|working now\\|now works" && LEARNING_SCORE=$((LEARNING_SCORE + 1))
+echo "$LOWER_RESPONSE" | grep -q "the issue was\\|the problem was\\|root cause\\|the bug was\\|caused by" && LEARNING_SCORE=$((LEARNING_SCORE + 1))
+echo "$LOWER_RESPONSE" | grep -q "discovered\\|realized\\|figured out\\|learned\\|turned out\\|the reason" && LEARNING_SCORE=$((LEARNING_SCORE + 1))
+echo "$LOWER_RESPONSE" | grep -q "solution\\|the fix\\|working now\\|now works\\|resolved by" && LEARNING_SCORE=$((LEARNING_SCORE + 1))
 
 if [ "$LEARNING_SCORE" -ge 2 ]; then
-  SUMMARY=$(echo "$RESPONSE" | grep -ioE "(the issue was|the problem was|root cause was|fixed by|solved by|the fix was)[^.]*\\." | head -1 | head -c 200)
+  SUMMARY=$(echo "$RESPONSE" | grep -ioE "(the issue was|the problem was|root cause was|caused by|fixed by|solved by|the fix was|resolved by)[^.]*\\." | head -1 | head -c 200)
+  if [ -z "$SUMMARY" ]; then
+    SUMMARY=$(echo "$RESPONSE" | grep -iE "fixed|solved|resolved|discovered|the reason" | head -1 | head -c 200)
+  fi
   if [ -n "$SUMMARY" ] && [ ${{#SUMMARY}} -gt 20 ]; then
-    "$MNEMO" tool mnemo_remember --content "Auto-learned: $SUMMARY" --category "bug" 2>/dev/null || true
-    # Hive auto-suggest: if this pattern was caught 3+ times, suggest contributing
-    HIVE_DIR="$HOME/.mnemo/hive"
-    if [ -d "$HIVE_DIR" ]; then
-      SIMILAR_COUNT=$("$MNEMO" tool mnemo_search_memory --query "$SUMMARY" 2>/dev/null | grep -c "^-" 2>/dev/null || echo "0")
-      if [ "$SIMILAR_COUNT" -ge 3 ]; then
-        echo "💡 [Hive] This pattern has been caught $SIMILAR_COUNT times. Consider: mnemo hive contribute --type gotcha" >&2
-      fi
-    fi
+    "$MNEMO" tool mnemo_remember --content "Bug fix: $SUMMARY" --category "bug" 2>/dev/null || true
   fi
 fi
 
-# --- Decision detection ---
-echo "$LOWER_RESPONSE" | grep -q "decided to\\|decision:\\|chose to\\|going with\\|we'll use" && {{
-  DECISION=$(echo "$RESPONSE" | grep -iE "decided to|decision:|chose to|going with" | head -1 | head -c 200)
+# --- 2. Decision detection ---
+echo "$LOWER_RESPONSE" | grep -qE "decided to |i'll use |going with |chose |using .* for |setting up .* with " && {{
+  DECISION=$(echo "$RESPONSE" | grep -iE "decided to|I'll use|going with|chose|using .* for|setting up .* with" | head -1 | head -c 200)
   if [ -n "$DECISION" ] && [ ${{#DECISION}} -gt 20 ]; then
-    "$MNEMO" tool mnemo_remember --content "Session decision: $DECISION" --category "architecture" 2>/dev/null || true
+    "$MNEMO" tool mnemo_decide --decision "$DECISION" 2>/dev/null || true
   fi
 }}
 
-# --- Session summary (captures what was accomplished) ---
-# Detect substantial work sessions (long responses with action verbs)
+# --- 3. Context establishment ---
+echo "$LOWER_RESPONSE" | grep -qE "your (project|service|app|api|codebase) (uses|is|has)|the (stack|architecture|structure) (is|uses)" && {{
+  CONTEXT=$(echo "$RESPONSE" | grep -iE "your (project|service|app|api|codebase)|the (stack|architecture|structure)" | head -2 | head -c 300)
+  if [ -n "$CONTEXT" ] && [ ${{#CONTEXT}} -gt 30 ]; then
+    "$MNEMO" tool mnemo_remember --content "Project context: $CONTEXT" --category "architecture" 2>/dev/null || true
+  fi
+}}
+
+# --- 4. Pattern detection ---
+echo "$LOWER_RESPONSE" | grep -qE "pattern (is|you|here)|convention (is|you|here)|following the .* pattern" && {{
+  PATTERN=$(echo "$RESPONSE" | grep -iE "pattern|convention|follows" | head -1 | head -c 200)
+  if [ -n "$PATTERN" ] && [ ${{#PATTERN}} -gt 20 ]; then
+    "$MNEMO" tool mnemo_remember --content "Codebase pattern: $PATTERN" --category "pattern" 2>/dev/null || true
+  fi
+}}
+
+# --- 5. Catch-all: substantial sessions get a summary persisted ---
 WORD_COUNT=$(echo "$RESPONSE" | wc -w | tr -d ' ')
-if [ "$WORD_COUNT" -gt 200 ]; then
-  # Extract key accomplishments
-  ACCOMPLISHMENTS=$(echo "$RESPONSE" | grep -iE "^[*-] |implemented|created|added|built|fixed|completed|refactored|deployed" | head -5 | head -c 400)
-  if [ -n "$ACCOMPLISHMENTS" ] && [ ${{#ACCOMPLISHMENTS}} -gt 30 ]; then
-    "$MNEMO" tool mnemo_remember --content "Session work: $ACCOMPLISHMENTS" --category "general" 2>/dev/null || true
+if [ "$WORD_COUNT" -gt 150 ]; then
+  KEY_LINES=$(echo "$RESPONSE" | grep -iE "^[-*•] |created |implemented |found |discovered |the .* (is|are|uses|has) |added |fixed |built |set up " | head -5 | head -c 500)
+  if [ -n "$KEY_LINES" ] && [ ${{#KEY_LINES}} -gt 30 ]; then
+    "$MNEMO" tool mnemo_remember --content "Session summary: $KEY_LINES" --category "general" 2>/dev/null || true
   fi
 fi
 
 exit 0
 """)
 
-    # Generate agent config with resolved paths
+    # Generate agent config with RELATIVE paths — Kiro runs hooks from project root
+    # Using relative paths ensures hooks work even if the repo directory moves
     config_str = _KIRO_AGENT_CONFIG_TEMPLATE
-    config_str = config_str.replace("HOOK_SPAWN_PATH", str(hooks_dir / "agent-spawn.sh"))
-    config_str = config_str.replace("HOOK_PROMPT_PATH", str(hooks_dir / "user-prompt-submit.sh"))
-    config_str = config_str.replace("HOOK_PRETOOL_PATH", str(hooks_dir / "pre-tool-use.sh"))
-    config_str = config_str.replace("HOOK_POSTTOOL_PATH", str(hooks_dir / "post-tool-use.sh"))
-    config_str = config_str.replace("HOOK_STOP_PATH", str(hooks_dir / "stop.sh"))
+    config_str = config_str.replace("HOOK_SPAWN_PATH", ".kiro/hooks/agent-spawn.sh")
+    config_str = config_str.replace("HOOK_PROMPT_PATH", ".kiro/hooks/user-prompt-submit.sh")
+    config_str = config_str.replace("HOOK_PRETOOL_PATH", ".kiro/hooks/pre-tool-use.sh")
+    config_str = config_str.replace("HOOK_POSTTOOL_PATH", ".kiro/hooks/post-tool-use.sh")
+    config_str = config_str.replace("HOOK_STOP_PATH", ".kiro/hooks/stop.sh")
     config_str = config_str.replace("MCP_BINARY_PATH", mnemo_mcp)
 
     # Council path — find council/ relative to mnemo package install

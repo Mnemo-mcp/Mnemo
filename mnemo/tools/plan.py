@@ -35,7 +35,7 @@ def _plan(root: Path, args: dict) -> str:
 
 
 def _handle_task(root: Path, args: dict) -> str:
-    from ..sprint import set_current_task, get_current_task
+    from ..plan import set_current_task, get_current_task
     task_id = args.get("task_id", "")
     if not task_id:
         return get_current_task(root)
@@ -45,7 +45,7 @@ def _handle_task(root: Path, args: dict) -> str:
 
 
 def _handle_task_done(root: Path, args: dict) -> str:
-    from ..sprint import complete_task, _load_tasks
+    from ..plan import complete_task, _load_tasks
     from ..storage import Collections, get_storage
     from ..memory import add_memory
 

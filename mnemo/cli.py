@@ -570,8 +570,6 @@ def pull():
 @click.argument("query")
 def search(query: str):
     """Search team knowledge in Hive."""
-    import os
-
     hive_dir = Path.home() / ".mnemo" / "hive" / "knowledge"
     if not hive_dir.exists():
         click.echo("Hive not initialized. Run `mnemo hive init` first.")
@@ -639,11 +637,6 @@ def contribute(content_type: str, title: str, domain: str, content: str, path: s
     # If content provided (from agent), fill the template body
     if content:
         # Replace template placeholder sections with actual content
-        lines = template.split("\n")
-        filled_lines = []
-        for line in lines:
-            filled_lines.append(line)
-            # After the frontmatter closing ---, inject content
         # Simple approach: append content after frontmatter
         frontmatter_end = template.rfind("---")
         if frontmatter_end > 0:
