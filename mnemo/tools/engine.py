@@ -50,7 +50,7 @@ def _context(root: Path, args: dict) -> str:
     lines = [f"# Context: {name}\n"]
 
     # Find the symbol (class or function)
-    r = conn.execute(f"MATCH (c:Class) WHERE c.name = '{name}' RETURN c.id, c.file, c.implements")
+    r = conn.execute("MATCH (c:Class) WHERE c.name = $name RETURN c.id, c.file, c.implements", {"name": name})
     found = False
     while r.has_next():
         row = r.get_next()
@@ -60,7 +60,7 @@ def _context(root: Path, args: dict) -> str:
         found = True
 
     if not found:
-        r = conn.execute(f"MATCH (f:Function) WHERE f.name = '{name}' RETURN f.id, f.file, f.signature")
+        r = conn.execute("MATCH (f:Function) WHERE f.name = $name RETURN f.id, f.file, f.signature", {"name": name})
         while r.has_next():
             row = r.get_next()
             lines.append(f"**Function** `{name}` in `{row[1]}`")
@@ -71,7 +71,7 @@ def _context(root: Path, args: dict) -> str:
         return f"Symbol '{name}' not found in the graph."
 
     # Methods (if class)
-    r = conn.execute(f"MATCH (c:Class {{name: '{name}'}})-[:HAS_METHOD]->(m:Method) RETURN m.name, m.signature")
+    r = conn.execute("MATCH (c:Class)-[:HAS_METHOD]->(m:Method) WHERE c.name = $name RETURN m.name, m.signature", {"name": name})
     methods = []
     while r.has_next():
         row = r.get_next()
@@ -83,7 +83,7 @@ def _context(root: Path, args: dict) -> str:
             lines.append(f"  ... +{len(methods)-15} more")
 
     # What calls this symbol
-    r = conn.execute(f"MATCH (a:Function)-[c:CALLS]->(b:Function) WHERE b.name = '{name}' RETURN a.name, a.file, c.confidence")
+    r = conn.execute("MATCH (a:Function)-[c:CALLS]->(b:Function) WHERE b.name = $name RETURN a.name, a.file, c.confidence", {"name": name})
     callers = []
     while r.has_next():
         row = r.get_next()
@@ -93,7 +93,7 @@ def _context(root: Path, args: dict) -> str:
         lines.extend(callers[:10])
 
     # What this symbol calls
-    r = conn.execute(f"MATCH (a:Function)-[c:CALLS]->(b:Function) WHERE a.name = '{name}' RETURN b.name, b.file, c.confidence")
+    r = conn.execute("MATCH (a:Function)-[c:CALLS]->(b:Function) WHERE a.name = $name RETURN b.name, b.file, c.confidence", {"name": name})
     callees = []
     while r.has_next():
         row = r.get_next()
@@ -103,7 +103,7 @@ def _context(root: Path, args: dict) -> str:
         lines.extend(callees[:10])
 
     # Community membership
-    r = conn.execute(f"MATCH (c:Class {{name: '{name}'}})-[:MEMBER_OF]->(comm:Community) RETURN comm.name")
+    r = conn.execute("MATCH (c:Class)-[:MEMBER_OF]->(comm:Community) WHERE c.name = $name RETURN comm.name", {"name": name})
     while r.has_next():
         lines.append(f"\n**Community**: {r.get_next()[0]}")
 
@@ -170,7 +170,7 @@ def _traverse_callers(conn, name: str, max_depth: int) -> list[tuple[str, int, s
         current, depth = queue.pop(0)
         if depth >= max_depth:
             continue
-        r = conn.execute(f"MATCH (a:Function)-[:CALLS]->(b:Function) WHERE b.name = '{current}' RETURN a.name, a.file")
+        r = conn.execute("MATCH (a:Function)-[:CALLS]->(b:Function) WHERE b.name = $current RETURN a.name, a.file", {"current": current})
         while r.has_next():
             row = r.get_next()
             if row[0] not in visited:
@@ -191,7 +191,7 @@ def _traverse_callees(conn, name: str, max_depth: int) -> list[tuple[str, int, s
         current, depth = queue.pop(0)
         if depth >= max_depth:
             continue
-        r = conn.execute(f"MATCH (a:Function)-[:CALLS]->(b:Function) WHERE a.name = '{current}' RETURN b.name, b.file")
+        r = conn.execute("MATCH (a:Function)-[:CALLS]->(b:Function) WHERE a.name = $current RETURN b.name, b.file", {"current": current})
         while r.has_next():
             row = r.get_next()
             if row[0] not in visited:
@@ -222,25 +222,25 @@ def _search(root: Path, args: dict) -> str:
     results = []
 
     if not type_filter or type_filter == "class":
-        r = conn.execute(f"MATCH (c:Class) WHERE c.name CONTAINS '{query}' RETURN 'class' AS type, c.name, c.file LIMIT {limit}")
+        r = conn.execute(f"MATCH (c:Class) WHERE c.name CONTAINS $query RETURN 'class' AS type, c.name, c.file LIMIT {limit}", {"query": query})
         while r.has_next():
             row = r.get_next()
             results.append(f"  [{row[0]}] {row[1]} — {row[2]}")
 
     if not type_filter or type_filter == "function":
-        r = conn.execute(f"MATCH (f:Function) WHERE f.name CONTAINS '{query}' RETURN 'function' AS type, f.name, f.file LIMIT {limit}")
+        r = conn.execute(f"MATCH (f:Function) WHERE f.name CONTAINS $query RETURN 'function' AS type, f.name, f.file LIMIT {limit}", {"query": query})
         while r.has_next():
             row = r.get_next()
             results.append(f"  [{row[0]}] {row[1]} — {row[2]}")
 
     if not type_filter or type_filter == "method":
-        r = conn.execute(f"MATCH (m:Method) WHERE m.name CONTAINS '{query}' RETURN 'method' AS type, m.name, m.file LIMIT {limit}")
+        r = conn.execute(f"MATCH (m:Method) WHERE m.name CONTAINS $query RETURN 'method' AS type, m.name, m.file LIMIT {limit}", {"query": query})
         while r.has_next():
             row = r.get_next()
             results.append(f"  [{row[0]}] {row[1]} — {row[2]}")
 
     if not type_filter or type_filter == "file":
-        r = conn.execute(f"MATCH (f:File) WHERE f.path CONTAINS '{query}' RETURN 'file' AS type, f.path, f.language LIMIT {limit}")
+        r = conn.execute(f"MATCH (f:File) WHERE f.path CONTAINS $query RETURN 'file' AS type, f.path, f.language LIMIT {limit}", {"query": query})
         while r.has_next():
             row = r.get_next()
             results.append(f"  [{row[0]}] {row[1]} ({row[2]})")
@@ -265,7 +265,7 @@ def _communities(root: Path, args: dict) -> str:
 
     if name_filter:
         # Show details for a specific community
-        r = conn.execute(f"MATCH (c:Class)-[:MEMBER_OF]->(comm:Community) WHERE comm.name CONTAINS '{name_filter}' RETURN c.name, c.file")
+        r = conn.execute("MATCH (c:Class)-[:MEMBER_OF]->(comm:Community) WHERE comm.name CONTAINS $name_filter RETURN c.name, c.file", {"name_filter": name_filter})
         members = []
         while r.has_next():
             row = r.get_next()

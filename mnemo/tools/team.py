@@ -220,7 +220,7 @@ def _impact(root: Path, args: dict) -> str:
     query = args.get("query", "")
     lines = [f"# Impact Analysis: {query}\n"]
     # Files that import the queried file/service
-    r = conn.execute(f"MATCH (a:File)-[:IMPORTS]->(b:File) WHERE b.path CONTAINS '{query}' RETURN a.path")
+    r = conn.execute("MATCH (a:File)-[:IMPORTS]->(b:File) WHERE b.path CONTAINS $query RETURN a.path", {"query": query})
     dependents = []
     while r.has_next():
         dependents.append(r.get_next()[0])

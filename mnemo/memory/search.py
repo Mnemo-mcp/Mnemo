@@ -181,17 +181,17 @@ def lookup(repo_root: Path, query: str) -> str:
             _, conn = open_db(repo_root)
             # Search for matching classes/functions
             results = []
-            r = conn.execute(f"MATCH (c:Class) WHERE c.name CONTAINS '{query}' OR c.file CONTAINS '{query}' RETURN c.name, c.file, c.implements LIMIT 10")
+            r = conn.execute("MATCH (c:Class) WHERE c.name CONTAINS $query OR c.file CONTAINS $query RETURN c.name, c.file, c.implements LIMIT 10", {"query": query})
             while r.has_next():
                 row = r.get_next()
                 results.append(f"**{row[0]}** ({row[1]})" + (f" : {row[2]}" if row[2] else ""))
                 # Get methods
-                r2 = conn.execute(f"MATCH (c:Class {{name: '{row[0]}'}})-[:HAS_METHOD]->(m:Method) RETURN m.name, m.signature")
+                r2 = conn.execute("MATCH (c:Class)-[:HAS_METHOD]->(m:Method) WHERE c.name = $cname RETURN m.name, m.signature", {"cname": row[0]})
                 while r2.has_next():
                     mrow = r2.get_next()
                     results.append(f"  {mrow[1][:100]}")
 
-            r = conn.execute(f"MATCH (f:Function) WHERE f.name CONTAINS '{query}' OR f.file CONTAINS '{query}' RETURN f.name, f.file, f.signature LIMIT 10")
+            r = conn.execute("MATCH (f:Function) WHERE f.name CONTAINS $query OR f.file CONTAINS $query RETURN f.name, f.file, f.signature LIMIT 10", {"query": query})
             while r.has_next():
                 row = r.get_next()
                 results.append(f"**{row[0]}** ({row[1]}): {row[2][:80]}")
