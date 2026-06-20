@@ -204,11 +204,9 @@ def lookup(repo_root: Path, query: str) -> str:
 
     # Fallback: parse from disk
     from ..repo_map import MAX_FILE_SIZE, SUPPORTED_EXTENSIONS, _extract_file, _should_ignore
-    from ..chunking import make_code_chunks
 
     query_lower = query.lower().strip("/")
     matches: list[tuple[str, dict[str, Any]]] = []
-    discovered_chunks = []
 
     for ext, language in SUPPORTED_EXTENSIONS.items():
         for filepath in repo_root.rglob(f"*{ext}"):
@@ -224,13 +222,6 @@ def lookup(repo_root: Path, query: str) -> str:
             info = _extract_file(source, language)
             if info:
                 matches.append((rel, info))
-                discovered_chunks.extend(make_code_chunks(rel, language, info))
-
-    if discovered_chunks:
-        try:
-            index_chunks(repo_root, "code", discovered_chunks)
-        except Exception as exc:
-            logger.warning(f"Failed to index discovered chunks: {exc}")
 
     if not matches:
         return f"No files matching '{query}' found."
