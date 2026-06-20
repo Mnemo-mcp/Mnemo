@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -26,11 +25,11 @@ from ._shared import (
     _as_dict,
     _next_id,
     _text_similarity,
-    _index_memory_entry,
-    _graph_link_entry,
     _refresh_rule,
+    _get_current_branch,
 )
-# _get_current_branch is accessed via `import mnemo.memory` at call time for mockability
+from .indexing import _index_memory_entry
+from .linking import _graph_link_entry
 
 
 def _auto_categorize(text: str) -> str:
@@ -135,7 +134,7 @@ def add_memory(repo_root: Path, content: str, category: str = "general", source:
         "recall_count": 0,
         "last_recalled": None,
         "tier": tier,
-        "branch": sys.modules[__name__.rsplit(".", 1)[0]]._get_current_branch(repo_root),
+        "branch": _get_current_branch(repo_root),
         "tags": auto_tags,
         "files": files[:10],
         "concepts": concepts,

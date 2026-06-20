@@ -5,6 +5,7 @@ import json
 import re
 from pathlib import Path
 from ..config import mnemo_path
+from ._shared import _FILE_PATH_RE
 
 CORE_BUDGET = 2000
 ARCHIVAL_BUDGET = 4000
@@ -22,7 +23,6 @@ DEFAULT_SLOTS = {
 
 _recall_counter = 0
 
-_FILE_PATH_RE = re.compile(r'(?:[\w./\\-]+/[\w./\\-]+\.(?:py|js|ts|tsx|jsx|go|rs|java|cs|rb|php|c|cpp|h|hpp|kt|swift|scala|json|yaml|yml|toml|md|sh))\b')
 _TODO_RE = re.compile(r'\b(todo|need to|should)\b', re.I)
 
 

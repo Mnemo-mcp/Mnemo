@@ -18,6 +18,7 @@ from ._shared import (
     MEMORY_TOKEN_BUDGET,
     TOKEN_CHAR_RATIO,
     MEMORY_NAMESPACE,
+    CATEGORY_WEIGHTS,
     _CATEGORY_PATTERNS,
     _as_list,
     _as_dict,
@@ -336,7 +337,6 @@ def _recall_memory(repo_root: Path, storage) -> str:
 
     recent.sort(key=lambda e: e.get("timestamp", 0), reverse=True)
 
-    CATEGORY_WEIGHTS = {'architecture': 0.9, 'preference': 0.85, 'decision': 0.9, 'pattern': 0.8, 'bug': 0.7, 'general': 0.5, 'todo': 0.6}
 
     def _score(entry):
         cat = entry.get("category", "general")
@@ -465,7 +465,7 @@ def recall(repo_root: Path, tier: str = "standard") -> str:
 
     # Periodic maintenance (every 10th recall)
     if _recall_counter % 10 == 0:
-        from ..corrections import decay_corrections
+        from ..records.corrections import decay_corrections
         decay_corrections(repo_root)
         try:
             auto_forget_sweep(repo_root)
@@ -488,7 +488,7 @@ def _recall_compact(repo_root: Path) -> str:
     """Compact tier (~500 tokens): task + 3 memories + plan step + 1 warning."""
     from .retention import summarize_for_injection
     from ..plan import _load_plans
-    from ..regressions import _load_regressions
+    from ..quality.regressions import _load_regressions
 
     storage = get_storage(repo_root)
     parts: list[str] = []
@@ -560,8 +560,6 @@ def _recall_standard(repo_root: Path, base: Path, storage) -> str:
             branch = entry.get("branch", "main")
             if branch in (current_branch, "main", "master") or _compute_retention(entry, now) >= 0.5:
                 hot_memories.append(entry)
-
-    CATEGORY_WEIGHTS = {'architecture': 0.9, 'preference': 0.85, 'decision': 0.9, 'pattern': 0.8, 'bug': 0.7, 'general': 0.5, 'todo': 0.6}
 
     def _score_std(entry):
         cat = entry.get("category", "general")

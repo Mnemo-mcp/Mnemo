@@ -8,18 +8,13 @@ import time
 from pathlib import Path
 
 from ..config import mnemo_path
+from ..utils import load_json_file
 
 LESSONS_FILE = "lessons.json"
 
 
 def _load(repo_root: Path) -> list[dict]:
-    path = mnemo_path(repo_root) / LESSONS_FILE
-    if not path.exists():
-        return []
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return []
+    return load_json_file(mnemo_path(repo_root) / LESSONS_FILE)
 
 
 def _save(repo_root: Path, lessons: list[dict]) -> None:
