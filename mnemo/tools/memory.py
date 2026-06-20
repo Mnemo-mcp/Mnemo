@@ -136,3 +136,31 @@ def _lesson(root: Path, args: dict) -> str:
         for entry in lessons:
             lines.append(f"- [{entry['confidence']:.2f}] {entry['content']}")
         return "\n".join(lines)
+
+
+@tool("mnemo_episode",
+      "Engineering episodes — track connected problem→decision→fix→outcome stories. Actions: list, start, close.",
+      properties={
+          "action": {"type": "string", "description": "list, start, or close"},
+          "title": {"type": "string", "description": "Episode title (for start)"},
+          "problem": {"type": "string", "description": "Problem description (for start)"},
+          "episode_id": {"type": "string", "description": "Episode ID (for close or view)"},
+          "outcome": {"type": "string", "description": "Outcome summary (for close)"},
+      })
+def _episode(root: Path, args: dict) -> str:
+    from ..memory.episodes import format_episode, start_episode, close_episode
+    action = args.get("action", "list")
+    if action == "start":
+        ep = start_episode(root, args.get("title", "Untitled"), args.get("problem", ""))
+        return f"Started episode {ep['id']}: {ep['title']}"
+    elif action == "close":
+        return close_episode(root, args.get("episode_id", ""), args.get("outcome", ""))
+    else:
+        return format_episode(root, args.get("episode_id", ""))
+
+
+@tool("mnemo_temporal",
+      "Show temporal intelligence — file instability scores, change frequency, hotspots over time.")
+def _temporal(root: Path, args: dict) -> str:
+    from ..memory.temporal import format_temporal_report
+    return format_temporal_report(root)

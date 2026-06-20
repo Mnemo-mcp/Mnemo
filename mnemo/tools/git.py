@@ -22,20 +22,6 @@ def _generate(root: Path, args: dict) -> str:
     return f"Unknown target: {target}. Use: commit, pr"
 
 
-@tool("mnemo_commit_message",
-      "Generate a commit message from staged git changes and recent memory context. Returns a conventional commit format message.")
-def _commit_message(root: Path, args: dict) -> str:
-    from ..commit_gen import generate_commit_message
-    return generate_commit_message(root)
-
-
-@tool("mnemo_pr_description",
-      "Generate a PR description from branch diff, active task context, and recent memory. Returns markdown formatted PR body.")
-def _pr_description(root: Path, args: dict) -> str:
-    from ..pr_gen import generate_pr_description
-    return generate_pr_description(root)
-
-
 @tool("mnemo_hooks_install",
       "Install Mnemo pre-commit git hook for security and pattern validation.")
 def _hooks_install(root: Path, args: dict) -> str:

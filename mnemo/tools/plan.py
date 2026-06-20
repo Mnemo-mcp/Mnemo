@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..tool_registry import tool, register
+from ..tool_registry import tool
 
 
 @tool("mnemo_plan",
@@ -80,44 +80,4 @@ def _handle_task_done(root: Path, args: dict) -> str:
     return result
 
 
-# Register old tool names as aliases pointing to the same handler
-def _task_alias(root: Path, args: dict) -> str:
-    """Alias for mnemo_task -> mnemo_plan action=task."""
-    args = dict(args)
-    args["action"] = "task"
-    return _plan(root, args)
 
-
-def _task_done_alias(root: Path, args: dict) -> str:
-    """Alias for mnemo_task_done -> mnemo_plan action=task_done."""
-    args = dict(args)
-    args["action"] = "task_done"
-    return _plan(root, args)
-
-
-register("mnemo_task", _task_alias, {
-    "description": "Set or get the current task/ticket being worked on. Without task_id, shows active tasks.",
-    "inputSchema": {
-        "type": "object",
-        "properties": {
-            "repo_path": {"type": "string", "description": "Path to the repository root (auto-detected if omitted)"},
-            "task_id": {"type": "string", "description": "Ticket ID (e.g. JIRA-123)"},
-            "description": {"type": "string"},
-            "files": {"type": "array", "items": {"type": "string"}},
-            "notes": {"type": "string"},
-        },
-    },
-})
-
-register("mnemo_task_done", _task_done_alias, {
-    "description": "Mark a task as completed.",
-    "inputSchema": {
-        "type": "object",
-        "properties": {
-            "repo_path": {"type": "string", "description": "Path to the repository root (auto-detected if omitted)"},
-            "task_id": {"type": "string"},
-            "summary": {"type": "string"},
-        },
-        "required": ["task_id"],
-    },
-})

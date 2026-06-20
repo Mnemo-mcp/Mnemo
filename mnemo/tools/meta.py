@@ -5,6 +5,16 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from ..tool_registry import tool
+
+
+@tool("mnemo_ask",
+      "Intent-based meta-tool. Ask a natural language question and Mnemo routes to the right tools internally. Use for complex queries that span multiple tools.",
+      properties={"query": {"type": "string", "description": "Natural language question (e.g. 'why does CosmosDbService exist?', 'what breaks if I change AuthService?')"}},
+      required=["query"])
+def _ask(root: Path, args: dict) -> str:
+    return ask(root, args.get("query", ""))
+
 
 # Intent patterns
 _INTENTS = {
@@ -79,12 +89,10 @@ def ask(repo_root: Path, query: str) -> str:
             results.append(handler(repo_root, {"file": entity or ""}))
 
     elif intent == "history":
-        handler = get_handler("mnemo_search_errors")
+        handler = get_handler("mnemo_record")
         if handler and entity:
-            results.append(handler(repo_root, {"query": entity}))
-        handler = get_handler("mnemo_incidents")
-        if handler:
-            results.append(handler(repo_root, {"query": entity or ""}))
+            results.append(handler(repo_root, {"type": "error", "action": "search", "query": entity}))
+            results.append(handler(repo_root, {"type": "incident", "action": "list", "query": entity}))
 
     elif intent == "plan":
         handler = get_handler("mnemo_plan")
