@@ -439,7 +439,7 @@ case "$TOOL_NAME" in
       CMD=$(echo "$input_json" | jq -r '.tool_input.command // empty' 2>/dev/null | head -c 100) || true
       ERROR=$(echo "$input_json" | jq -r '.tool_response.stderr // empty' 2>/dev/null | head -c 150) || true
       if [ -n "$CMD" ] && [ -n "$ERROR" ]; then
-        "$MNEMO" tool mnemo_remember --content "Command failed: $CMD → $ERROR" --category "bug" 2>/dev/null || true
+        printf '%s' "Command failed: $CMD → $ERROR" | "$MNEMO" tool mnemo_remember --content "$(cat)" --category "bug" 2>/dev/null || true
       fi
     fi
     ;;
@@ -452,7 +452,7 @@ case "$TOOL_NAME" in
           # Extract class/function name from path
           FILENAME=$(basename "$FILE_PATH")
           DIRNAME=$(dirname "$FILE_PATH" | sed 's|.*/src/||' | sed 's|/|.|g')
-          "$MNEMO" tool mnemo_remember --content "Created: $FILENAME in $DIRNAME" --category "general" 2>/dev/null || true
+          "$MNEMO" tool mnemo_remember --content "Created: ${FILENAME} in ${DIRNAME}" --category "general" 2>/dev/null || true
           ;;
       esac
     fi
@@ -497,7 +497,7 @@ if [ "$LEARNING_SCORE" -ge 2 ]; then
     SUMMARY=$(echo "$RESPONSE" | grep -iE "fixed|solved|resolved|discovered|the reason" | head -1 | head -c 200)
   fi
   if [ -n "$SUMMARY" ] && [ ${{#SUMMARY}} -gt 20 ]; then
-    "$MNEMO" tool mnemo_remember --content "Bug fix: $SUMMARY" --category "bug" 2>/dev/null || true
+    printf '%s' "Bug fix: $SUMMARY" | "$MNEMO" tool mnemo_remember --content "$(cat)" --category "bug" 2>/dev/null || true
   fi
 fi
 
@@ -505,7 +505,7 @@ fi
 echo "$LOWER_RESPONSE" | grep -qE "decided to |i'll use |going with |chose |using .* for |setting up .* with " && {{
   DECISION=$(echo "$RESPONSE" | grep -iE "decided to|I'll use|going with|chose|using .* for|setting up .* with" | head -1 | head -c 200)
   if [ -n "$DECISION" ] && [ ${{#DECISION}} -gt 20 ]; then
-    "$MNEMO" tool mnemo_decide --decision "$DECISION" 2>/dev/null || true
+    printf '%s' "$DECISION" | "$MNEMO" tool mnemo_decide --decision "$(cat)" 2>/dev/null || true
   fi
 }}
 

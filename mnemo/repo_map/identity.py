@@ -78,9 +78,15 @@ def _infer_conventions(repo_root: Path, patterns: list[str]) -> list[str]:
 def save_identity(repo_root: Path) -> str:
     """Generate and save repo identity to .mnemo/repo_identity.json."""
     identity = generate_identity(repo_root)
+    # Ensure optional fields exist with defaults
+    identity.setdefault("patterns", [])
+    identity.setdefault("conventions", _infer_conventions(repo_root, identity.get("patterns", [])))
     path = mnemo_path(repo_root) / IDENTITY_FILE
     path.write_text(json.dumps(identity, indent=2) + "\n", encoding="utf-8")
-    return f"Repo identity saved: {len(identity['languages'])} languages, {len(identity['patterns'])} patterns, {len(identity['conventions'])} conventions"
+    langs = identity.get("languages", [])
+    patterns = identity.get("patterns", [])
+    conventions = identity.get("conventions", [])
+    return f"Repo identity saved: {len(langs)} languages, {len(patterns)} patterns, {len(conventions)} conventions"
 
 
 def load_identity(repo_root: Path) -> dict[str, Any] | None:

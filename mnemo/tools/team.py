@@ -208,9 +208,9 @@ def _dependencies(root: Path, args: dict) -> str:
     return "\n".join(lines) if len(lines) > 1 else "No cross-service dependencies found."
 
 
-@tool("mnemo_impact",
-      "Impact analysis — what breaks if you change a specific service or file.",
-      properties={"query": {"type": "string", "description": "Service or file name to analyze"}},
+@tool("mnemo_impact_imports",
+      "File-level impact — find which files import/depend on a given file.",
+      properties={"query": {"type": "string", "description": "File name or path fragment to analyze"}},
       required=["query"])
 def _impact(root: Path, args: dict) -> str:
     from ..engine.db import open_db, get_db_path

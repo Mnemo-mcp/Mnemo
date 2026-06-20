@@ -43,9 +43,12 @@ def ask(repo_root: Path, query: str) -> str:
     results = []
 
     if intent == "architecture":
-        handler = get_handler("mnemo_ask")
+        handler = get_handler("mnemo_lookup")
+        if handler and entity:
+            results.append(handler(repo_root, {"query": entity}))
+        handler = get_handler("mnemo_search_memory")
         if handler:
-            results.append(handler(repo_root, {}))
+            results.append(handler(repo_root, {"query": query, "category": "architecture"}))
 
     elif intent == "impact":
         handler = get_handler("mnemo_impact")

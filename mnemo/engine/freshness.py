@@ -131,9 +131,9 @@ def _delete_file_nodes(conn, file_path: str) -> None:
         pass
     # Delete file node
     try:
-        conn.execute(f"MATCH (f:File {{id: '{fp}'}})-[e]->() DELETE e")
-        conn.execute(f"MATCH ()-[e]->(f:File {{id: '{fp}'}}) DELETE e")
-        conn.execute(f"MATCH (f:File {{id: '{fp}'}}) DELETE f")
+        conn.execute(f"MATCH (f:File {{path: '{fp}'}})-[e]->() DELETE e")
+        conn.execute(f"MATCH ()-[e]->(f:File {{path: '{fp}'}}) DELETE e")
+        conn.execute(f"MATCH (f:File {{path: '{fp}'}}) DELETE f")
     except RuntimeError:
         pass
 
@@ -144,7 +144,7 @@ def _insert_file_nodes(conn, fi, parse_result) -> None:
 
     # File node
     try:
-        conn.execute(f"CREATE (:File {{id: '{fp}', language: '{fi.language}', hash: '{fi.hash}', size: {fi.size}}})")
+        conn.execute(f"CREATE (:File {{path: '{fp}', language: '{fi.language}', hash: '{fi.hash}', size: {fi.size}}})")
     except RuntimeError:
         pass
 

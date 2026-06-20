@@ -186,6 +186,13 @@ def forget_memory(repo_root: Path, memory_id: int) -> str:
         evict_memory_from_graph(repo_root, memory_id)
     except Exception:
         pass
+    # Remove from vector index
+    try:
+        from ..retrieval import remove_chunk
+        from ._shared import MEMORY_NAMESPACE
+        remove_chunk(repo_root, MEMORY_NAMESPACE, str(memory_id))
+    except Exception:
+        pass
     _refresh_rule(repo_root)
     return f"Memory #{memory_id} deleted."
 
