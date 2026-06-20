@@ -41,22 +41,22 @@ def _record(root: Path, args: dict) -> str:
 
     if record_type == "error":
         if action == "add":
-            from ..errors import add_error
+            from ..records.errors import add_error
             entry = add_error(root, args.get("error", ""), args.get("cause", ""),
                               args.get("fix", ""), args.get("file", ""), args.get("tags", []))
             return f"Error #{entry['id']} stored."
-        from ..errors import search_errors
+        from ..records.errors import search_errors
         return search_errors(root, args.get("query", ""))
 
     elif record_type == "incident":
         if action == "add":
-            from ..incidents import add_incident
+            from ..records.incidents import add_incident
             entry = add_incident(root, args.get("title", ""), args.get("what_happened", ""),
                                  args.get("root_cause", ""), args.get("fix", ""),
                                  args.get("prevention", ""), args.get("severity", "medium"),
                                  args.get("services", []))
             return f"Incident #{entry['id']} recorded."
-        from ..incidents import search_incidents, format_incidents
+        from ..records.incidents import search_incidents, format_incidents
         query = args.get("query", "")
         if query:
             return search_incidents(root, query)
@@ -98,11 +98,11 @@ def _record(root: Path, args: dict) -> str:
 
     elif record_type == "correction":
         if action == "add":
-            from ..corrections import add_correction
+            from ..records.corrections import add_correction
             entry = add_correction(root, args.get("suggestion", ""), args.get("correction", ""),
                                    args.get("context", ""), args.get("file", ""))
             return f"Correction #{entry['id']} stored."
-        from ..corrections import get_corrections
+        from ..records.corrections import get_corrections
         return get_corrections(root, args.get("query", ""),
                                limit=int(args.get("limit", 20)), offset=int(args.get("offset", 0)))
 

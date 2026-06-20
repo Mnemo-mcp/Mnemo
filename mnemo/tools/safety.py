@@ -20,27 +20,27 @@ def _audit(root: Path, args: dict) -> str:
     sections: list[str] = []
 
     if report in ("security", "full"):
-        from ..security import check_security
+        from ..quality.security import check_security
         sections.append(f"## Security\n{check_security(root, file_scope)}")
 
     if report in ("dead-code", "full"):
-        from ..dead_code import detect_dead_code
+        from ..quality.dead_code import detect_dead_code
         sections.append(f"## Dead Code\n{detect_dead_code(root)}")
 
     if report in ("drift", "full"):
-        from ..drift import detect_drift
+        from ..quality.drift import detect_drift
         sections.append(f"## Drift\n{detect_drift(root)}")
 
     if report in ("health", "full"):
-        from ..health import calculate_health
+        from ..quality.health import calculate_health
         sections.append(f"## Health\n{calculate_health(root)}")
 
     if report in ("breaking", "full"):
-        from ..breaking import detect_breaking_changes
+        from ..quality.breaking import detect_breaking_changes
         sections.append(f"## Breaking Changes\n{detect_breaking_changes(root)}")
 
     if report in ("conventions", "full"):
-        from ..conventions import check_conventions
+        from ..quality.conventions import check_conventions
         sections.append(f"## Conventions\n{check_conventions(root, file_scope)}")
 
     return f"# Audit Report ({report})\n\n" + "\n\n".join(sections)
@@ -50,7 +50,7 @@ def _audit(root: Path, args: dict) -> str:
       "Scan codebase for security issues (hardcoded secrets, SQL injection, eval, shell injection). Optionally scope to a single file.",
       properties={"file": {"type": "string", "description": "Optional file path to scope scan"}})
 def _check_security(root: Path, args: dict) -> str:
-    from ..security import check_security
+    from ..quality.security import check_security
     return check_security(root, args.get("file", ""))
 
 
@@ -64,7 +64,7 @@ def _check_security(root: Path, args: dict) -> str:
       },
       required=["name", "regex"])
 def _add_security_pattern(root: Path, args: dict) -> str:
-    from ..security import add_security_pattern
+    from ..quality.security import add_security_pattern
     entry = add_security_pattern(root, args["name"], args["regex"],
                                  args.get("severity", "medium"), args.get("description", ""))
     return f"Security pattern #{entry['id']} added: {entry['name']}"
@@ -74,7 +74,7 @@ def _add_security_pattern(root: Path, args: dict) -> str:
       "Detect breaking changes by comparing current public API against saved baseline. Use action='baseline' to save current state.",
       properties={"action": {"type": "string", "description": "'check' (default) to detect changes, 'baseline' to save current API as baseline"}})
 def _breaking_changes(root: Path, args: dict) -> str:
-    from ..breaking import detect_breaking_changes, save_baseline
+    from ..quality.breaking import detect_breaking_changes, save_baseline
     if args.get("action") == "baseline":
         return save_baseline(root)
     return detect_breaking_changes(root)
@@ -90,7 +90,7 @@ def _breaking_changes(root: Path, args: dict) -> str:
       },
       required=["file", "bug", "fix"])
 def _add_regression(root: Path, args: dict) -> str:
-    from ..regressions import add_regression
+    from ..quality.regressions import add_regression
     entry = add_regression(root, args["file"], args["bug"], args["fix"], args.get("test", ""))
     return f"Regression #{entry['id']} recorded for {entry['file']}"
 
@@ -99,7 +99,7 @@ def _add_regression(root: Path, args: dict) -> str:
       "Check if a file has known regression risks. Without a file, lists all regressions.",
       properties={"file": {"type": "string", "description": "File to check (omit to list all)"}})
 def _check_regressions(root: Path, args: dict) -> str:
-    from ..regressions import check_regressions, list_regressions
+    from ..quality.regressions import check_regressions, list_regressions
     file = args.get("file", "")
     return check_regressions(root, file) if file else list_regressions(root)
 
@@ -107,7 +107,7 @@ def _check_regressions(root: Path, args: dict) -> str:
 @tool("mnemo_drift",
       "Detect architecture drift — compare current code patterns against stored architectural decisions.")
 def _drift(root: Path, args: dict) -> str:
-    from ..drift import detect_drift
+    from ..quality.drift import detect_drift
     return detect_drift(root)
 
 
@@ -118,7 +118,7 @@ def _drift(root: Path, args: dict) -> str:
           "action": {"type": "string", "description": "'detect' to re-scan conventions, omit to check violations"},
       })
 def _check_conventions(root: Path, args: dict) -> str:
-    from ..conventions import detect_conventions, check_conventions
+    from ..quality.conventions import detect_conventions, check_conventions
     if args.get("action") == "detect":
         conventions = detect_conventions(root)
         return f"# Detected Conventions\n\n```json\n{json.dumps(conventions, indent=2)}\n```"
@@ -128,12 +128,12 @@ def _check_conventions(root: Path, args: dict) -> str:
 @tool("mnemo_dead_code",
       "Detect potentially unused classes, methods, and functions in the codebase. Reports symbols only referenced in their definition file.")
 def _dead_code(root: Path, args: dict) -> str:
-    from ..dead_code import detect_dead_code
+    from ..quality.dead_code import detect_dead_code
     return detect_dead_code(root)
 
 
 @tool("mnemo_health",
       "Code health report — complexity hotspots, large files, potential god classes.")
 def _health(root: Path, args: dict) -> str:
-    from ..health import calculate_health
+    from ..quality.health import calculate_health
     return calculate_health(root)

@@ -32,7 +32,7 @@ def run_check(repo_root: Path) -> str:
     """Run pre-commit validations (security scan on staged files)."""
     import subprocess  # nosec B404
 
-    from ..security import check_security
+    from ..quality.security import check_security
 
     try:
         result = subprocess.run(  # nosec B603 B607
