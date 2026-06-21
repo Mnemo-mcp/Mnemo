@@ -180,7 +180,7 @@ class TestContradiction:
 
     def test_superseded_has_superseded_by_field(self, repo):
         log_decision(repo, "Use PostgreSQL for the primary database")
-        e2 = log_decision(repo, "Use MySQL for the primary database instead of PostgreSQL")
+        log_decision(repo, "Use MySQL for the primary database instead of PostgreSQL")
 
         snapshot = json.loads(_snapshot_path(repo).read_text())
         inactive = [d for d in snapshot if not d.get("active")]

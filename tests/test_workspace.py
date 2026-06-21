@@ -178,7 +178,7 @@ class TestDiscoverRepos:
 
     def test_skips_self(self, tmp_path):
         main = _make_repo(tmp_path, "main")
-        result = discover_repos(main, tmp_path)
+        discover_repos(main, tmp_path)
         # Should not link itself
         linked = get_linked_repos(main)
         assert not any(r.resolve() == main.resolve() for r in linked)

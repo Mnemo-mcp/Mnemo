@@ -154,7 +154,7 @@ class TestRetention:
         })
         storage.write_collection(Collections.MEMORY, entries)
 
-        result = auto_forget_sweep(mnemo_project)
+        auto_forget_sweep(mnemo_project)
         remaining = json.loads((mnemo_project / ".mnemo" / "memory.json").read_text())
         # The hot memory should survive
         assert any(e["id"] == 999 for e in remaining)

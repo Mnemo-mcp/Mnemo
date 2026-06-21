@@ -241,7 +241,7 @@ class TestSkillInstallation:
 
 # --- Orchestrator ---
 
-from mnemo.skills.orchestrator import (
+from mnemo.skills.orchestrator import (  # noqa: E402
     get_phase_status,
     start_autorun,
     advance_phase,
