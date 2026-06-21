@@ -35,3 +35,5 @@ plan_documents/
 .desloppify/
 .kiro/
 .claude/
+eval/
+docs/

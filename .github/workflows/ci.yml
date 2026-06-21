@@ -26,6 +26,19 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
 
+      - name: Cache ONNX model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mnemo/models/all-MiniLM-L6-v2
+          key: onnx-all-MiniLM-L6-v2
+
+      - name: Download ONNX model
+        run: |
+          mkdir -p ~/.cache/mnemo/models/all-MiniLM-L6-v2
+          cd ~/.cache/mnemo/models/all-MiniLM-L6-v2
+          [ -f tokenizer.json ] || curl -sfSL --retry 3 https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json -o tokenizer.json
+          [ -f model.onnx ] || curl -sfSL --retry 3 https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx -o model.onnx
+
       - name: Lint
         run: ruff check .
 

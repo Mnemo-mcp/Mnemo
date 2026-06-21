@@ -83,7 +83,7 @@ target-version = "py310"
 exclude = ["benchmark"]
 
 [tool.ruff.lint]
-ignore = ["E501", "F401"]
+ignore = ["E501", "F401", "E741"]
 
 [tool.coverage.run]
 source = ["mnemo"]

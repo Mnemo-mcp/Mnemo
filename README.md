@@ -221,7 +221,7 @@ Works with **any** agent that speaks MCP. One server, one memory, shared across 
 │  2. Parse: tree-sitter AST (14 langs) + Roslyn (C#)              │
 │  3. Graph: LadybugDB — files, classes, methods, CALLS edges      │
 │  4. Scope: cross-file function call resolution                   │
-│  5. Cluster: Leiden community detection                          │
+│  5. Cluster: Louvain community detection                         │
 │  6. Index: ONNX vector embeddings for semantic search            │
 │  7. Detect: languages, services, key classes, frameworks         │
 │  8. Configure: MCP server + hooks for your AI client             │
@@ -307,7 +307,7 @@ Works with **any** agent that speaks MCP. One server, one memory, shared across 
 - **Knowledge graph**: files, folders, classes, methods, functions, projects, communities
 - **14 languages**: Python, JS/TS, C#, Go, Java, Rust, Ruby, PHP, C/C++, Kotlin, Swift, Scala
 - **Roslyn enrichment**: C# method signatures, implements, full AST detail
-- **Leiden community detection**: automatic functional clustering
+- **Louvain community detection**: automatic functional clustering
 - **CALLS edges**: scope-resolved function call graph with confidence scoring
 - **Impact analysis**: upstream/downstream blast radius (N-hop BFS)
 - **Incremental freshness**: graph + vector index auto-update within 30s of file changes
@@ -625,7 +625,7 @@ mnemo serve    # http://localhost:3333
 └── slots.json           Pinned structured context (conventions, gotchas)
 ```
 
-**Stack**: Python · LadybugDB (Kuzu) · ONNX Runtime · tree-sitter · Roslyn · NetworkX (Leiden)
+**Stack**: Python · LadybugDB (Kuzu) · ONNX Runtime · tree-sitter · Roslyn · NetworkX (Louvain)
 
 **Zero cloud. Zero API keys. Zero telemetry. Everything runs locally.**
 
