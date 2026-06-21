@@ -20,16 +20,6 @@ def link_memory_to_graph(repo_root: Path, node_id: str, node_type: str, text: st
         pass
 
 
-def unlink_from_graph(repo_root: Path, node_id: str) -> None:
-    """Remove a memory/decision node from the graph."""
-    try:
-        from ..engine.memory_graph import evict_memory_from_graph
-        parts = node_id.split(":")
-        num_id = int(parts[1]) if len(parts) > 1 else 0
-        evict_memory_from_graph(repo_root, num_id)
-    except Exception:
-        pass
-
 
 def _graph_link_entry(repo_root: Path, node_id: str, node_type: str = "memory", text: str = "") -> None:
     """Link a memory entry to the graph. Delegates to engine."""

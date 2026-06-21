@@ -8,8 +8,8 @@ const features = [
   { title: "Knowledge Graph", desc: "Interconnected nodes of engineering context — architecture, patterns, decisions — all linked semantically.", icon: "◈", span: false },
   { title: "Natural Decay", desc: "Stale information fades naturally. Frequently accessed knowledge is reinforced and stays fresh.", icon: "◔", span: false },
   { title: "Multi-Agent", desc: "Works with Kiro, Claude Code, Cursor, Copilot, and Amazon Q. One memory shared across all agents.", icon: "⬡", span: false },
-  { title: "Cross-Session", desc: "Context persists indefinitely across sessions. Pick up exactly where you left off, every time.", icon: "⇌", span: false },
-  { title: "Zero Config", desc: "One command to install, one command to init. No configuration files, no setup wizards, no friction.", icon: "⚡", span: false },
+  { title: "Event-Sourced Decisions", desc: "Immutable JSONL event log for architectural decisions. Supersede or redact — full audit trail, nothing lost.", icon: "⎔", span: false },
+  { title: "Workflow Skills", desc: "6 SDLC skills with quality gates: investigate → plan → implement → verify → review → ship.", icon: "⚡", span: false },
 ];
 
 function AnimatedCounter({ target, suffix = "", prefix = "", display }: { target: number; suffix?: string; prefix?: string; display?: string }) {

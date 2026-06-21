@@ -6,9 +6,6 @@ import time
 from pathlib import Path
 
 
-# Tier definitions
-TIERS = ("working", "session", "persistent", "episodic")
-
 # TTL in seconds (0 = permanent)
 TIER_TTL = {
     "working": 4 * 3600,       # 4 hours

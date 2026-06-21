@@ -5,12 +5,11 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from ..config import SUPPORTED_EXTENSIONS, should_ignore
+from ..config import MAX_FILE_SIZE, SUPPORTED_EXTENSIONS, should_ignore
 from ..storage import Collections, get_storage
 
 CHANGELOG_FILE = "changelog.json"
 HASH_INDEX_FILE = "hashes.json"
-MAX_FILE_SIZE = 100_000
 
 
 def _should_ignore(path: Path) -> bool:

@@ -59,7 +59,7 @@ class TestMCPToolDispatch:
     def test_remember_stores_memory(self, repo):
         result = handle_tool_call("mnemo_remember", {
             "repo_path": str(repo),
-            "content": "Test memory entry",
+            "content": "Test memory entry for validation pipeline integration",
             "category": "general",
         })
         assert result.get("isError") is not True

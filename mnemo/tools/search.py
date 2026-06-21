@@ -42,7 +42,7 @@ def _unified_search(root: Path, args: dict) -> str:
             sections.append(f"## APIs\n{result}")
 
     if scope in ("errors", "all"):
-        from ..errors import search_errors
+        from ..records.errors import search_errors
         result = search_errors(root, query)
         if result and "No " not in result[:20]:
             sections.append(f"## Errors\n{result}")

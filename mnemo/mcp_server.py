@@ -22,7 +22,7 @@ def _find_repo_root(start: Path | None = None) -> Path | None:
 
 
 _GRAPH_TOOLS = frozenset({
-    "mnemo_lookup", "mnemo_graph", "mnemo_impact", "mnemo_symbol",
+    "mnemo_lookup", "mnemo_graph", "mnemo_impact",
     "mnemo_search", "mnemo_communities", "mnemo_map",
 })
 

@@ -9,15 +9,15 @@ from pathlib import Path
 from typing import Any
 
 from ..config import mnemo_path
-from ..retrieval import semantic_query, index_chunks
+from ..retrieval import semantic_query
 from ..storage import Collections, get_storage
 
 from ._shared import (
-    logger,
     MAX_OUTPUT_CHARS,
     MEMORY_TOKEN_BUDGET,
     TOKEN_CHAR_RATIO,
     MEMORY_NAMESPACE,
+    CATEGORY_WEIGHTS,
     _CATEGORY_PATTERNS,
     _as_list,
     _as_dict,
@@ -181,17 +181,17 @@ def lookup(repo_root: Path, query: str) -> str:
             _, conn = open_db(repo_root)
             # Search for matching classes/functions
             results = []
-            r = conn.execute(f"MATCH (c:Class) WHERE c.name CONTAINS '{query}' OR c.file CONTAINS '{query}' RETURN c.name, c.file, c.implements LIMIT 10")
+            r = conn.execute("MATCH (c:Class) WHERE c.name CONTAINS $query OR c.file CONTAINS $query RETURN c.name, c.file, c.implements LIMIT 10", {"query": query})
             while r.has_next():
                 row = r.get_next()
                 results.append(f"**{row[0]}** ({row[1]})" + (f" : {row[2]}" if row[2] else ""))
                 # Get methods
-                r2 = conn.execute(f"MATCH (c:Class {{name: '{row[0]}'}})-[:HAS_METHOD]->(m:Method) RETURN m.name, m.signature")
+                r2 = conn.execute("MATCH (c:Class)-[:HAS_METHOD]->(m:Method) WHERE c.name = $cname RETURN m.name, m.signature", {"cname": row[0]})
                 while r2.has_next():
                     mrow = r2.get_next()
                     results.append(f"  {mrow[1][:100]}")
 
-            r = conn.execute(f"MATCH (f:Function) WHERE f.name CONTAINS '{query}' OR f.file CONTAINS '{query}' RETURN f.name, f.file, f.signature LIMIT 10")
+            r = conn.execute("MATCH (f:Function) WHERE f.name CONTAINS $query OR f.file CONTAINS $query RETURN f.name, f.file, f.signature LIMIT 10", {"query": query})
             while r.has_next():
                 row = r.get_next()
                 results.append(f"**{row[0]}** ({row[1]}): {row[2][:80]}")
@@ -203,11 +203,9 @@ def lookup(repo_root: Path, query: str) -> str:
 
     # Fallback: parse from disk
     from ..repo_map import MAX_FILE_SIZE, SUPPORTED_EXTENSIONS, _extract_file, _should_ignore
-    from ..chunking import make_code_chunks
 
     query_lower = query.lower().strip("/")
     matches: list[tuple[str, dict[str, Any]]] = []
-    discovered_chunks = []
 
     for ext, language in SUPPORTED_EXTENSIONS.items():
         for filepath in repo_root.rglob(f"*{ext}"):
@@ -223,13 +221,6 @@ def lookup(repo_root: Path, query: str) -> str:
             info = _extract_file(source, language)
             if info:
                 matches.append((rel, info))
-                discovered_chunks.extend(make_code_chunks(rel, language, info))
-
-    if discovered_chunks:
-        try:
-            index_chunks(repo_root, "code", discovered_chunks)
-        except Exception as exc:
-            logger.warning(f"Failed to index discovered chunks: {exc}")
 
     if not matches:
         return f"No files matching '{query}' found."
@@ -271,13 +262,30 @@ def _recall_context(storage) -> str:
     return "\n".join(lines)
 
 
-def _recall_decisions(storage) -> str:
-    """Recall decisions section (active only, no reasoning)."""
-    decisions = [d for d in _as_list(storage.read_collection(Collections.DECISIONS)) if d.get("active", True)]
-    if not decisions:
+def _recall_decisions(storage, repo_root: Path | None = None) -> str:
+    """Recall decisions section (active only, filtered by branch scope)."""
+    decisions = _as_list(storage.read_collection(Collections.DECISIONS))
+
+    # Get current branch for scope filtering
+    current_branch = None
+    if repo_root:
+        current_branch = _get_current_branch(repo_root)
+
+    active = []
+    for d in decisions:
+        if not d.get("active", True):
+            continue
+        scope = d.get("scope", "repo")
+        if scope == "repo":
+            active.append(d)  # Repo-wide always shown
+        elif scope == "branch" and current_branch:
+            if d.get("branch") == current_branch:
+                active.append(d)  # Branch-specific shown only on that branch
+
+    if not active:
         return ""
     lines = ["# Decisions"]
-    for decision in decisions:
+    for decision in active:
         lines.append(f"- {decision['decision']}")
     lines.append("")
     return "\n".join(lines)
@@ -336,7 +344,6 @@ def _recall_memory(repo_root: Path, storage) -> str:
 
     recent.sort(key=lambda e: e.get("timestamp", 0), reverse=True)
 
-    CATEGORY_WEIGHTS = {'architecture': 0.9, 'preference': 0.85, 'decision': 0.9, 'pattern': 0.8, 'bug': 0.7, 'general': 0.5, 'todo': 0.6}
 
     def _score(entry):
         cat = entry.get("category", "general")
@@ -455,17 +462,28 @@ def _recall_repo_map(base: Path, header_size: int) -> str:
 
 
 def recall(repo_root: Path, tier: str = "standard") -> str:
-    """Recall project memory with tiered retrieval."""
+    """Recall project memory with tiered retrieval. Hard timeout: 500ms on graph queries."""
+    import time
+
     global _recall_counter
     _recall_counter += 1
+
+    start = time.monotonic()
+    TIMEOUT_MS = 500
 
     base = mnemo_path(repo_root)
     if not base.exists():
         return ""
 
+    def _check_timeout():
+        """Raise if we've exceeded the recall timeout."""
+        elapsed_ms = (time.monotonic() - start) * 1000
+        if elapsed_ms > TIMEOUT_MS:
+            raise TimeoutError(f"Recall exceeded {TIMEOUT_MS}ms")
+
     # Periodic maintenance (every 10th recall)
     if _recall_counter % 10 == 0:
-        from ..corrections import decay_corrections
+        from ..records.corrections import decay_corrections
         decay_corrections(repo_root)
         try:
             auto_forget_sweep(repo_root)
@@ -473,22 +491,31 @@ def recall(repo_root: Path, tier: str = "standard") -> str:
             pass
 
     if tier == "compact":
-        return _recall_compact(repo_root)
+        try:
+            return _recall_compact(repo_root)
+        except (TimeoutError, Exception):
+            return "# Recall (degraded — timeout)\nContext loading timed out. Use mnemo_search for specific queries."
 
     storage = get_storage(repo_root)
 
     if tier == "deep":
-        return _recall_deep(repo_root, base, storage)
+        try:
+            return _recall_deep(repo_root, base, storage)
+        except (TimeoutError, Exception):
+            return "# Recall (degraded — timeout)\nContext loading timed out."
 
     # tier == "standard": budgeted ~2000 tokens
-    return _recall_standard(repo_root, base, storage)
+    try:
+        return _recall_standard(repo_root, base, storage)
+    except (TimeoutError, Exception):
+        return "# Recall (degraded — timeout)\nContext loading timed out. Use mnemo_search for specific queries."
 
 
 def _recall_compact(repo_root: Path) -> str:
     """Compact tier (~500 tokens): task + 3 memories + plan step + 1 warning."""
     from .retention import summarize_for_injection
     from ..plan import _load_plans
-    from ..regressions import _load_regressions
+    from ..quality.regressions import _load_regressions
 
     storage = get_storage(repo_root)
     parts: list[str] = []
@@ -537,7 +564,7 @@ def _recall_standard(repo_root: Path, base: Path, storage) -> str:
     sections = [
         _recall_context(storage),
         format_identity(repo_root),
-        _recall_decisions(storage),
+        _recall_decisions(storage, repo_root),
     ]
 
     _slots_mod._recall_counter += 1
@@ -560,8 +587,6 @@ def _recall_standard(repo_root: Path, base: Path, storage) -> str:
             branch = entry.get("branch", "main")
             if branch in (current_branch, "main", "master") or _compute_retention(entry, now) >= 0.5:
                 hot_memories.append(entry)
-
-    CATEGORY_WEIGHTS = {'architecture': 0.9, 'preference': 0.85, 'decision': 0.9, 'pattern': 0.8, 'bug': 0.7, 'general': 0.5, 'todo': 0.6}
 
     def _score_std(entry):
         cat = entry.get("category", "general")
@@ -624,7 +649,7 @@ def _recall_deep(repo_root: Path, base: Path, storage) -> str:
     sections = [
         _recall_context(storage),
         format_identity(repo_root),
-        _recall_decisions(storage),
+        _recall_decisions(storage, repo_root),
     ]
 
     _slots_mod._recall_counter += 1

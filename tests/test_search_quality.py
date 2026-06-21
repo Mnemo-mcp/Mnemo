@@ -83,7 +83,7 @@ class TestTokenBudget:
         ]
         storage.write_collection(Collections.MEMORY, entries)
 
-        with patch("mnemo.memory._get_current_branch", return_value="main"):
+        with patch("mnemo.memory.store._get_current_branch", return_value="main"):
             output = _recall_memory(repo, storage)
 
         char_budget = MEMORY_TOKEN_BUDGET * TOKEN_CHAR_RATIO

@@ -40,11 +40,11 @@ def _graph_query(root: Path, args: dict) -> str:
             return "Provide 'node' parameter."
         results = []
         for rel in ("CALLS", "HAS_METHOD", "MEMBER_OF"):
-            r = conn.execute(f"MATCH (a)-[e:{rel}]->(b) WHERE a.name CONTAINS '{node}' RETURN a.name, b.name LIMIT 10")
+            r = conn.execute(f"MATCH (a)-[e:{rel}]->(b) WHERE a.name CONTAINS $node RETURN a.name, b.name LIMIT 10", {"node": node})
             while r.has_next():
                 row = r.get_next()
                 results.append(f"{row[0]} --{rel}--> {row[1]}")
-            r = conn.execute(f"MATCH (a)-[e:{rel}]->(b) WHERE b.name CONTAINS '{node}' RETURN a.name, b.name LIMIT 10")
+            r = conn.execute(f"MATCH (a)-[e:{rel}]->(b) WHERE b.name CONTAINS $node RETURN a.name, b.name LIMIT 10", {"node": node})
             while r.has_next():
                 row = r.get_next()
                 results.append(f"{row[0]} --{rel}--> {row[1]}")
@@ -56,7 +56,7 @@ def _graph_query(root: Path, args: dict) -> str:
         if not name:
             return "Provide 'name' parameter."
         label = node_type.capitalize()
-        r = conn.execute(f"MATCH (n:{label}) WHERE n.name CONTAINS '{name}' RETURN n.id, n.name LIMIT 20")
+        r = conn.execute(f"MATCH (n:{label}) WHERE n.name CONTAINS $name RETURN n.id, n.name LIMIT 20", {"name": name})
         results = []
         while r.has_next():
             row = r.get_next()

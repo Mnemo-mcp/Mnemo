@@ -14,9 +14,13 @@ from ..tool_registry import tool
       })
 def _recall(root: Path, args: dict) -> str:
     from ..memory import recall
+    from ..core import datamark
     tier = args.get("tier", "standard")
     data = recall(root, tier=tier)
-    return data or "Memory is empty. Run mnemo_init first."
+    if not data:
+        return "Memory is empty. Run mnemo_init first."
+    # Datamark recalled content to prevent stored text from hijacking agent
+    return datamark(data)
 
 
 @tool("mnemo_remember",
@@ -57,11 +61,36 @@ def _search_mem(root: Path, args: dict) -> str:
       properties={
           "decision": {"type": "string", "description": "The decision that was made"},
           "reasoning": {"type": "string", "description": "Why this decision was made"},
+          "scope": {"type": "string", "description": "Scope: 'repo' (default, applies everywhere) or 'branch' (only on current branch)"},
       },
       required=["decision"])
 def _decide(root: Path, args: dict) -> str:
     from ..memory.services import decide_with_effects
-    return decide_with_effects(root, args["decision"], args.get("reasoning", ""))
+    return decide_with_effects(root, args["decision"], args.get("reasoning", ""), scope=args.get("scope", "repo"))
+
+
+@tool("mnemo_supersede",
+      "Supersede (replace) an existing decision by ID. The old decision becomes inactive.",
+      properties={
+          "decision_id": {"type": "string", "description": "ID of the decision to supersede"},
+      },
+      required=["decision_id"])
+def _supersede(root: Path, args: dict) -> str:
+    from ..memory.decisions import supersede_decision
+    supersede_decision(root, args["decision_id"])
+    return f"Decision #{args['decision_id']} superseded."
+
+
+@tool("mnemo_redact",
+      "Permanently redact a decision (e.g., if it contains an accidental secret). Removes text from event log.",
+      properties={
+          "decision_id": {"type": "string", "description": "ID of the decision to redact"},
+      },
+      required=["decision_id"])
+def _redact(root: Path, args: dict) -> str:
+    from ..memory.decisions import redact_decision
+    redact_decision(root, args["decision_id"])
+    return f"Decision #{args['decision_id']} redacted and purged."
 
 
 @tool("mnemo_context",
@@ -136,3 +165,31 @@ def _lesson(root: Path, args: dict) -> str:
         for entry in lessons:
             lines.append(f"- [{entry['confidence']:.2f}] {entry['content']}")
         return "\n".join(lines)
+
+
+@tool("mnemo_episode",
+      "Engineering episodes — track connected problem→decision→fix→outcome stories. Actions: list, start, close.",
+      properties={
+          "action": {"type": "string", "description": "list, start, or close"},
+          "title": {"type": "string", "description": "Episode title (for start)"},
+          "problem": {"type": "string", "description": "Problem description (for start)"},
+          "episode_id": {"type": "string", "description": "Episode ID (for close or view)"},
+          "outcome": {"type": "string", "description": "Outcome summary (for close)"},
+      })
+def _episode(root: Path, args: dict) -> str:
+    from ..memory.episodes import format_episode, start_episode, close_episode
+    action = args.get("action", "list")
+    if action == "start":
+        ep = start_episode(root, args.get("title", "Untitled"), args.get("problem", ""))
+        return f"Started episode {ep['id']}: {ep['title']}"
+    elif action == "close":
+        return close_episode(root, args.get("episode_id", ""), args.get("outcome", ""))
+    else:
+        return format_episode(root, args.get("episode_id", ""))
+
+
+@tool("mnemo_temporal",
+      "Show temporal intelligence — file instability scores, change frequency, hotspots over time.")
+def _temporal(root: Path, args: dict) -> str:
+    from ..memory.temporal import format_temporal_report
+    return format_temporal_report(root)

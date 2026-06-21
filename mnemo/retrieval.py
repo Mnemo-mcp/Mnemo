@@ -99,3 +99,27 @@ def delete_chunks(repo_root: Path, namespace: str) -> None:
     vec_path, meta_path = _index_path(repo_root, namespace)
     vec_path.unlink(missing_ok=True)
     meta_path.unlink(missing_ok=True)
+
+
+def remove_chunk(repo_root: Path, namespace: str, chunk_id: str) -> bool:
+    """Remove a single chunk from the vector index by ID. Returns True if found and removed."""
+    vec_path, meta_path = _index_path(repo_root, namespace)
+    if not vec_path.exists() or not meta_path.exists():
+        return False
+
+    meta = json.loads(meta_path.read_text())
+    idx = next((i for i, m in enumerate(meta) if m.get("id") == chunk_id), None)
+    if idx is None:
+        return False
+
+    vectors = np.load(vec_path)
+    vectors = np.delete(vectors, idx, axis=0)
+    meta.pop(idx)
+
+    if vectors.size == 0:
+        vec_path.unlink(missing_ok=True)
+        meta_path.unlink(missing_ok=True)
+    else:
+        np.save(vec_path, vectors)
+        meta_path.write_text(json.dumps(meta))
+    return True

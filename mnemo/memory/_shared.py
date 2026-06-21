@@ -74,6 +74,9 @@ _IMPORTANCE_MAP = {
     "architecture": 5, "decision": 5, "preference": 4, "pattern": 4, "bug": 3, "general": 2, "todo": 2,
 }
 
+# --- Category weights for recall scoring ---
+CATEGORY_WEIGHTS = {'architecture': 0.9, 'preference': 0.85, 'decision': 0.9, 'pattern': 0.8, 'bug': 0.7, 'general': 0.5, 'todo': 0.6}
+
 # --- File path detection ---
 _FILE_PATH_RE = re.compile(r'(?:[\w./\\-]+/[\w./\\-]+\.(?:py|js|ts|tsx|jsx|go|rs|java|cs|rb|php|c|cpp|h|hpp|kt|swift|scala|json|yaml|yml|toml|md|sh))\b')
 
@@ -102,7 +105,8 @@ def _next_id(entries: list[dict[str, Any]]) -> int:
     """Generate the next unique ID from existing entries."""
     if not entries:
         return 1
-    return max(e.get("id", 0) for e in entries) + 1
+    ids = [int(e.get("id", 0)) for e in entries if str(e.get("id", "0")).isdigit()]
+    return (max(ids) + 1) if ids else 1
 
 
 def _get_current_branch(repo_root: Path) -> str:
@@ -119,16 +123,14 @@ def _get_current_branch(repo_root: Path) -> str:
 
 def _text_similarity(a: str, b: str) -> float:
     """Similarity using SparseEmbedding (IDF-weighted token overlap)."""
-    from ..embeddings import KeywordEmbeddingProvider
-    provider = KeywordEmbeddingProvider()
+    from ..embeddings import get_keyword_provider
+    provider = get_keyword_provider()
     emb_a = provider.embed(a)
     emb_b = provider.embed(b)
     return emb_a.score(emb_b)
 
 
-# --- Re-exports from new modules (backward compatibility) ---
-from .indexing import _memory_to_chunk, _index_memory_entry  # noqa: E402, F401
-from .linking import _graph_link_entry  # noqa: E402, F401
+
 
 
 # --- Mutation hook management ---

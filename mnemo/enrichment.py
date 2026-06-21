@@ -54,7 +54,7 @@ def _plan_hints(repo_root: Path, tool_name: str, result: str, arguments: dict) -
 
     # Show next task hint (but not on every call — only on "work" tools)
     WORK_TOOLS = {"mnemo_remember", "mnemo_lookup", "mnemo_search", "mnemo_map",
-                  "mnemo_commit_message", "mnemo_task_done", "mnemo_dead_code",
+                  "mnemo_generate", "mnemo_plan", "mnemo_dead_code",
                   "mnemo_health"}
     if tool_name in WORK_TOOLS:
         hint = get_active_plan_hint(repo_root)
@@ -74,7 +74,7 @@ def _regression_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[
         return []
 
     try:
-        from mnemo.regressions import _load_regressions
+        from mnemo.quality.regressions import _load_regressions
         regressions = _load_regressions(repo_root)
         if not regressions:
             return []
@@ -99,7 +99,7 @@ def _incident_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[st
         return []
 
     try:
-        from mnemo.incidents import _load_incidents
+        from mnemo.records.incidents import _load_incidents
         incidents = _load_incidents(repo_root)
         if not incidents:
             return []
@@ -146,7 +146,7 @@ def _correction_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[
     """Surface relevant past corrections when the agent is generating suggestions or looking at code."""
     CORRECTION_TOOLS = {
         "mnemo_lookup", "mnemo_search", "mnemo_remember",
-        "mnemo_commit_message", "mnemo_pr_description", "mnemo_decide",
+        "mnemo_generate", "mnemo_decide",
         "mnemo_search_memory",
     }
     if tool_name not in CORRECTION_TOOLS:
@@ -157,7 +157,7 @@ def _correction_hints(repo_root: Path, tool_name: str, arguments: dict) -> list[
         return []
 
     try:
-        from mnemo.corrections import _load_corrections
+        from mnemo.records.corrections import _load_corrections
         corrections = _load_corrections(repo_root)
         if not corrections:
             return []

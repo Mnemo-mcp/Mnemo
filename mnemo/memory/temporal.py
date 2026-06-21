@@ -8,18 +8,13 @@ from pathlib import Path
 from typing import Any
 
 from ..config import mnemo_path
+from ..utils import load_json_file
 
 TEMPORAL_FILE = "temporal.json"
 
 
 def _load_temporal(repo_root: Path) -> dict[str, Any]:
-    path = mnemo_path(repo_root) / TEMPORAL_FILE
-    if not path.exists():
-        return {"nodes": {}, "snapshots": []}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {"nodes": {}, "snapshots": []}
+    return load_json_file(mnemo_path(repo_root) / TEMPORAL_FILE, default={"nodes": {}, "snapshots": []})
 
 
 def _save_temporal(repo_root: Path, data: dict[str, Any]) -> None:

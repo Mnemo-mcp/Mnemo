@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import mnemo_path
+from ..utils import load_json_file
 
 EPISODES_FILE = "episodes.json"
 
@@ -16,13 +17,7 @@ EPISODE_WINDOW = 300  # 5 minutes
 
 
 def _load_episodes(repo_root: Path) -> list[dict[str, Any]]:
-    path = mnemo_path(repo_root) / EPISODES_FILE
-    if not path.exists():
-        return []
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return []
+    return load_json_file(mnemo_path(repo_root) / EPISODES_FILE)
 
 
 def _save_episodes(repo_root: Path, episodes: list[dict[str, Any]]) -> None:

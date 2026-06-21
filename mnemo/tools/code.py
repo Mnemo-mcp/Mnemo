@@ -25,7 +25,7 @@ def _lookup(root: Path, args: dict) -> str:
     lines = []
 
     # Try as project/service first
-    r = conn.execute(f"MATCH (p:Project) WHERE p.name CONTAINS '{symbol}' RETURN p.id, p.name, p.language, p.path")
+    r = conn.execute("MATCH (p:Project) WHERE p.name CONTAINS $symbol RETURN p.id, p.name, p.language, p.path", {"symbol": symbol})
     if r.has_next():
         row = r.get_next()
         proj_path = row[3]
@@ -34,7 +34,7 @@ def _lookup(root: Path, args: dict) -> str:
 
         # All classes in this project
         prefix = f"{proj_path}/" if proj_path else ""
-        r2 = conn.execute(f"MATCH (c:Class) WHERE c.file STARTS WITH '{prefix}' RETURN c.name, c.file, c.implements")
+        r2 = conn.execute("MATCH (c:Class) WHERE c.file STARTS WITH $prefix RETURN c.name, c.file, c.implements", {"prefix": prefix})
         classes = []
         while r2.has_next():
             classes.append(r2.get_next())
@@ -42,7 +42,7 @@ def _lookup(root: Path, args: dict) -> str:
         for cname, cfile, cimpl in classes[:30]:
             impl = f" : {cimpl}" if cimpl else ""
             # Get methods for this class
-            r3 = conn.execute(f"MATCH (c:Class {{name: '{cname}', file: '{cfile}'}})-[:HAS_METHOD]->(m:Method) RETURN m.name")
+            r3 = conn.execute("MATCH (c:Class)-[:HAS_METHOD]->(m:Method) WHERE c.name = $cname AND c.file = $cfile RETURN m.name", {"cname": cname, "cfile": cfile})
             meths = []
             while r3.has_next():
                 meths.append(r3.get_next()[0])
@@ -50,7 +50,7 @@ def _lookup(root: Path, args: dict) -> str:
             lines.append(f"  - `{cname}{impl}`{meth_str}")
 
         # Key functions (not in classes)
-        r2 = conn.execute(f"MATCH (f:Function) WHERE f.file STARTS WITH '{prefix}' RETURN f.name, f.file LIMIT 15")
+        r2 = conn.execute("MATCH (f:Function) WHERE f.file STARTS WITH $prefix RETURN f.name, f.file LIMIT 15", {"prefix": prefix})
         funcs = []
         while r2.has_next():
             funcs.append(r2.get_next())
@@ -61,9 +61,10 @@ def _lookup(root: Path, args: dict) -> str:
 
         # Cross-service calls
         r2 = conn.execute(
-            f"MATCH (a:Function)-[:CALLS]->(b:Function) "
-            f"WHERE a.file STARTS WITH '{prefix}' AND NOT b.file STARTS WITH '{prefix}' "
-            f"RETURN DISTINCT b.name, b.file LIMIT 10"
+            "MATCH (a:Function)-[:CALLS]->(b:Function) "
+            "WHERE a.file STARTS WITH $prefix AND NOT b.file STARTS WITH $prefix "
+            "RETURN DISTINCT b.name, b.file LIMIT 10",
+            {"prefix": prefix}
         )
         ext_calls = []
         while r2.has_next():
@@ -76,7 +77,7 @@ def _lookup(root: Path, args: dict) -> str:
         return "\n".join(lines)
 
     # Try as class
-    r = conn.execute(f"MATCH (c:Class) WHERE c.name = '{symbol}' RETURN c.id, c.name, c.file, c.implements")
+    r = conn.execute("MATCH (c:Class) WHERE c.name = $symbol RETURN c.id, c.name, c.file, c.implements", {"symbol": symbol})
     if r.has_next():
         row = r.get_next()
         lines.append(f"# Class: {row[1]}")
@@ -84,7 +85,7 @@ def _lookup(root: Path, args: dict) -> str:
         if row[3]:
             lines.append(f"- Implements: {row[3]}")
         # Methods
-        r2 = conn.execute(f"MATCH (c:Class {{name: '{symbol}'}})-[:HAS_METHOD]->(m:Method) RETURN m.name, m.signature")
+        r2 = conn.execute("MATCH (c:Class)-[:HAS_METHOD]->(m:Method) WHERE c.name = $symbol RETURN m.name, m.signature", {"symbol": symbol})
         methods = []
         while r2.has_next():
             mrow = r2.get_next()
@@ -96,14 +97,14 @@ def _lookup(root: Path, args: dict) -> str:
         return "\n".join(lines)
 
     # Try as function
-    r = conn.execute(f"MATCH (f:Function) WHERE f.name = '{symbol}' RETURN f.id, f.name, f.file, f.signature")
+    r = conn.execute("MATCH (f:Function) WHERE f.name = $symbol RETURN f.id, f.name, f.file, f.signature", {"symbol": symbol})
     if r.has_next():
         row = r.get_next()
         lines.append(f"# Function: {row[1]}")
         lines.append(f"- File: `{row[2]}`")
         lines.append(f"- Signature: `{row[3] or row[1]}`")
         # Callers
-        r2 = conn.execute(f"MATCH (caller:Function)-[:CALLS]->(f:Function {{name: '{symbol}'}}) RETURN caller.name, caller.file LIMIT 10")
+        r2 = conn.execute("MATCH (caller:Function)-[:CALLS]->(f:Function) WHERE f.name = $symbol RETURN caller.name, caller.file LIMIT 10", {"symbol": symbol})
         callers = []
         while r2.has_next():
             crow = r2.get_next()
@@ -113,7 +114,8 @@ def _lookup(root: Path, args: dict) -> str:
         return "\n".join(lines)
 
     # Try as folder prefix (service without Project node)
-    r = conn.execute(f"MATCH (c:Class) WHERE c.file STARTS WITH '{symbol}/' RETURN c.name, c.file, c.implements LIMIT 30")
+    folder_prefix = symbol + "/"
+    r = conn.execute("MATCH (c:Class) WHERE c.file STARTS WITH $folder_prefix RETURN c.name, c.file, c.implements LIMIT 30", {"folder_prefix": folder_prefix})
     folder_classes = []
     while r.has_next():
         folder_classes.append(r.get_next())
@@ -121,7 +123,7 @@ def _lookup(root: Path, args: dict) -> str:
         lines.append(f"# Folder: {symbol}/ ({len(folder_classes)} classes)")
         for cname, cfile, cimpl in folder_classes:
             impl = f" : {cimpl}" if cimpl else ""
-            r2 = conn.execute(f"MATCH (c:Class {{name: '{cname}', file: '{cfile}'}})-[:HAS_METHOD]->(m:Method) RETURN m.name")
+            r2 = conn.execute("MATCH (c:Class)-[:HAS_METHOD]->(m:Method) WHERE c.name = $cname AND c.file = $cfile RETURN m.name", {"cname": cname, "cfile": cfile})
             meths = []
             while r2.has_next():
                 meths.append(r2.get_next()[0])

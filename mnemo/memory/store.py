@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -26,11 +25,11 @@ from ._shared import (
     _as_dict,
     _next_id,
     _text_similarity,
-    _index_memory_entry,
-    _graph_link_entry,
     _refresh_rule,
+    _get_current_branch,
 )
-# _get_current_branch is accessed via `import mnemo.memory` at call time for mockability
+from .indexing import _index_memory_entry
+from .linking import _graph_link_entry
 
 
 def _auto_categorize(text: str) -> str:
@@ -135,7 +134,7 @@ def add_memory(repo_root: Path, content: str, category: str = "general", source:
         "recall_count": 0,
         "last_recalled": None,
         "tier": tier,
-        "branch": sys.modules[__name__.rsplit(".", 1)[0]]._get_current_branch(repo_root),
+        "branch": _get_current_branch(repo_root),
         "tags": auto_tags,
         "files": files[:10],
         "concepts": concepts,
@@ -186,60 +185,52 @@ def forget_memory(repo_root: Path, memory_id: int) -> str:
         evict_memory_from_graph(repo_root, memory_id)
     except Exception:
         pass
+    # Remove from vector index
+    try:
+        from ..retrieval import remove_chunk
+        from ._shared import MEMORY_NAMESPACE
+        remove_chunk(repo_root, MEMORY_NAMESPACE, str(memory_id))
+    except Exception:
+        pass
     _refresh_rule(repo_root)
     return f"Memory #{memory_id} deleted."
 
 
-def add_decision(repo_root: Path, decision: str, reasoning: str = "") -> DecisionEntry:
-    """Record a decision with deduplication, contradiction detection, and refresh installed context files."""
-    decision, _ = strip_secrets(decision)
-    if reasoning:
-        reasoning, _ = strip_secrets(reasoning)
+def add_decision(repo_root: Path, decision: str, reasoning: str = "", scope: str = "repo", branch: str | None = None) -> DecisionEntry:
+    """Record a decision via event sourcing with dedup and contradiction detection.
 
-    storage = get_storage(repo_root)
-    entries = _as_list(storage.read_collection(Collections.DECISIONS))
+    Uses decisions.events.jsonl as append-only source of truth.
+    Rebuilds decisions.json (active snapshot) on every write for O(1) reads.
+    All existing readers of decisions.json continue working unchanged.
 
-    # Deduplication
-    for existing in entries:
-        if existing.get("active", True) and _text_similarity(decision, existing.get("decision", "")) >= DEDUP_SIMILARITY_THRESHOLD:
-            existing["timestamp"] = time.time()
-            if reasoning and not existing.get("reasoning"):
-                existing["reasoning"] = reasoning
-            storage.write_collection(Collections.DECISIONS, entries)
-            return existing
+    Args:
+        repo_root: Repository root path.
+        decision: Decision text.
+        reasoning: Why this decision was made.
+        scope: "repo" (applies everywhere) or "branch" (only on current branch).
+        branch: Branch name for scope="branch". Auto-detected if not provided.
+    """
+    from .decisions import log_decision
 
-    new_id = _next_id(entries)
-    entry = {
-        "id": new_id,
+    # Auto-detect branch for branch-scoped decisions
+    if scope == "branch" and not branch:
+        branch = _get_current_branch(repo_root)
+
+    event = log_decision(repo_root, decision, reasoning=reasoning, scope=scope, branch=branch, source="agent")
+
+    # Link to knowledge graph
+    _graph_link_entry(repo_root, f"decision:{event['id']}", "decision", decision)
+    _refresh_rule(repo_root)
+
+    # Return backward-compatible entry shape
+    return {
+        "id": event["id"],
         "timestamp": time.time(),
-        "decision": decision,
-        "reasoning": reasoning,
+        "decision": event.get("decision", decision),
+        "reasoning": event.get("reasoning", reasoning),
         "active": True,
         "superseded_by": None,
     }
-
-    # Detect contradictions
-    superseded = []
-    for existing in entries:
-        if not existing.get("active", True):
-            continue
-        sim = _text_similarity(decision, existing.get("decision", ""))
-        if CONTRADICTION_SIMILARITY_THRESHOLD <= sim < DEDUP_SIMILARITY_THRESHOLD:
-            existing["active"] = False
-            existing["superseded_by"] = new_id
-            superseded.append(existing)
-
-    entries.append(entry)
-    storage.write_collection(Collections.DECISIONS, entries)
-
-    # Cascade staleness — handled by engine/memory_graph.py
-    _graph_link_entry(repo_root, f"decision:{entry['id']}", "decision", decision)
-    _refresh_rule(repo_root)
-    record_audit(repo_root, 'add_decision', str(entry['id']), 'decision', decision[:100])
-
-    if superseded:
-        entry["_superseded"] = superseded
-    return entry
 
 
 def save_context(repo_root: Path, context: dict[str, Any]) -> None:

@@ -83,4 +83,22 @@ target-version = "py310"
 exclude = ["benchmark"]
 
 [tool.ruff.lint]
-ignore = ["E501", "F401"]
+ignore = ["E501", "F401", "E741"]
+
+[tool.coverage.run]
+source = ["mnemo"]
+omit = [
+    "mnemo/cli.py",          # CLI entry point — integration tested via subprocess
+    "mnemo/serve.py",        # HTTP server — needs httpx test client
+    "mnemo/watcher.py",      # Prototype — not production code yet
+    "mnemo/mcp_server.py",   # MCP stdio loop — tested via tool dispatch
+    "mnemo/ui_static/*",     # Static HTML
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__",
+    "pass",
+]
+fail_under = 80

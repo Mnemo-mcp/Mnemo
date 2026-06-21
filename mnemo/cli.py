@@ -29,18 +29,39 @@ def cli():
 @click.option(
     "--client",
     "-c",
-    default=DEFAULT_CLIENT,
+    default=None,
     type=click.Choice(CLIENT_CHOICES),
-    show_default=True,
-    help="AI client to configure.",
+    help="AI client to configure (required).",
 )
 @click.argument("path", default=".", type=click.Path(exists=True))
-def init(path: str, client: str):
+def init(path: str, client: str | None):
     """Initialize .mnemo/ in the current repo."""
+    if client is None:
+        click.echo("Error: --client is required. Specify which AI client to configure.\n")
+        click.echo("Available clients:")
+        click.echo("  mnemo init --client kiro         # Kiro CLI (hooks + skills + MCP)")
+        click.echo("  mnemo init --client cursor       # Cursor (.cursorrules + MCP)")
+        click.echo("  mnemo init --client claude-code  # Claude Code (CLAUDE.md + hooks + MCP)")
+        click.echo("  mnemo init --client amazonq      # Amazon Q (.amazonq/rules + MCP)")
+        click.echo("  mnemo init --client copilot      # GitHub Copilot (MCP)")
+        click.echo("  mnemo init --client generic      # Any MCP-compatible agent")
+        click.echo("  mnemo init --client all          # Configure all clients")
+        raise SystemExit(1)
+
     from .init import init as do_init
 
     result = do_init(Path(path).resolve(), client=client)
     click.echo(result)
+    click.echo("")
+    if client == "kiro":
+        click.echo("Next: Start a Kiro session:")
+        click.echo("  kiro chat --agent mnemo-enhanced")
+    elif client == "claude-code":
+        click.echo("Next: Start Claude Code in this directory.")
+    elif client == "cursor":
+        click.echo("Next: Open this folder in Cursor.")
+    else:
+        click.echo(f"Next: Start your AI client ({client}) in this directory.")
 
 
 @cli.command()
@@ -570,8 +591,6 @@ def pull():
 @click.argument("query")
 def search(query: str):
     """Search team knowledge in Hive."""
-    import os
-
     hive_dir = Path.home() / ".mnemo" / "hive" / "knowledge"
     if not hive_dir.exists():
         click.echo("Hive not initialized. Run `mnemo hive init` first.")
@@ -639,11 +658,6 @@ def contribute(content_type: str, title: str, domain: str, content: str, path: s
     # If content provided (from agent), fill the template body
     if content:
         # Replace template placeholder sections with actual content
-        lines = template.split("\n")
-        filled_lines = []
-        for line in lines:
-            filled_lines.append(line)
-            # After the frontmatter closing ---, inject content
         # Simple approach: append content after frontmatter
         frontmatter_end = template.rfind("---")
         if frontmatter_end > 0:
@@ -682,6 +696,254 @@ def contribute(content_type: str, title: str, domain: str, content: str, path: s
         subprocess.run([editor, str(target_file)], check=False)
     except FileNotFoundError:
         pass
+
+
+# --- Learnings commands (rebuilt from previous session) ---
+
+LEARNING_TYPES = ("architecture", "pattern", "pitfall", "tool", "investigation", "preference", "operational")
+
+
+@cli.command("learn")
+@click.option("--type", "-t", "learn_type", required=True, type=click.Choice(LEARNING_TYPES), help="Learning type.")
+@click.option("--key", "-k", required=True, help="Short key (lowercase-with-hyphens).")
+@click.option("--insight", "-i", required=True, help="What you learned (>20 chars).")
+@click.option("--confidence", "-c", default=8, type=int, help="Confidence 1-10.")
+@click.option("--source", "-s", default="observed", type=click.Choice(("observed", "user-stated", "inferred")))
+@click.argument("path", default=".", type=click.Path(exists=True))
+def learn(learn_type: str, key: str, insight: str, confidence: int, source: str, path: str):
+    """Store a typed learning with key-based dedup."""
+    import json as json_mod
+    import re
+    import time as time_mod
+    from datetime import datetime, timezone
+
+    from .config import mnemo_path
+    from .core.injection import has_injection
+
+    repo_root = Path(path).resolve()
+    learnings_path = mnemo_path(repo_root) / "learnings.json"
+
+    # Validation
+    if not re.match(r'^[a-zA-Z0-9_-]+$', key):
+        raise click.ClickException("Key must be alphanumeric with hyphens/underscores only.")
+    if len(insight) < 20:
+        raise click.ClickException("Insight must be >20 characters.")
+    if has_injection(insight):
+        raise click.ClickException("Rejected: insight contains injection pattern.")
+    if confidence < 1 or confidence > 10:
+        raise click.ClickException("Confidence must be 1-10.")
+
+    # Load existing
+    learnings = []
+    if learnings_path.exists():
+        try:
+            learnings = json_mod.loads(learnings_path.read_text(encoding="utf-8"))
+        except (json_mod.JSONDecodeError, OSError):
+            learnings = []
+
+    # Key-based dedup (latest wins)
+    dedup_key = f"{key}|{learn_type}"
+    learnings = [l for l in learnings if f"{l.get('key', '')}|{l.get('type', '')}" != dedup_key]
+
+    entry = {
+        "type": learn_type,
+        "key": key,
+        "insight": insight,
+        "confidence": confidence,
+        "source": source,
+        "trusted": source == "user-stated",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "files": [],
+    }
+    learnings.append(entry)
+
+    learnings_path.parent.mkdir(parents=True, exist_ok=True)
+    learnings_path.write_text(json_mod.dumps(learnings, indent=2), encoding="utf-8")
+    click.echo(f"✅ [{learn_type}:{key}] {insight[:60]}")
+
+
+@cli.command("learnings")
+@click.option("--type", "-t", "learn_type", default=None, type=click.Choice(LEARNING_TYPES), help="Filter by type.")
+@click.option("--limit", "-l", default=10, help="Max results.")
+@click.argument("path", default=".", type=click.Path(exists=True))
+def learnings(learn_type: str | None, limit: int, path: str):
+    """List stored learnings (sorted by confidence)."""
+    import json as json_mod
+
+    from .config import mnemo_path
+
+    repo_root = Path(path).resolve()
+    learnings_path = mnemo_path(repo_root) / "learnings.json"
+
+    if not learnings_path.exists():
+        click.echo("No learnings yet.")
+        return
+
+    entries = json_mod.loads(learnings_path.read_text(encoding="utf-8"))
+    if learn_type:
+        entries = [e for e in entries if e.get("type") == learn_type]
+
+    entries.sort(key=lambda e: e.get("confidence", 0), reverse=True)
+    entries = entries[:limit]
+
+    if not entries:
+        click.echo("No learnings found.")
+        return
+
+    for e in entries:
+        click.echo(f"  [{e.get('type')}:{e.get('key')}] (conf:{e.get('confidence')}) {e.get('insight', '')[:70]}")
+
+
+@cli.command("ingest")
+@click.option("--file", "session_file", default=None, help="Specific session .jsonl file.")
+@click.option("--dry-run", is_flag=True, help="Show what would be extracted without storing.")
+@click.argument("path", default=".", type=click.Path(exists=True))
+def ingest(session_file: str | None, dry_run: bool, path: str):
+    """ETL: Extract learnings from Kiro session transcripts."""
+    import json as json_mod
+    import re
+    import time as time_mod
+    from datetime import datetime, timezone
+
+    from .config import mnemo_path
+
+    repo_root = Path(path).resolve()
+    mnemo_dir = mnemo_path(repo_root)
+
+    # Find session file (CWD-filtered)
+    if session_file:
+        session_path = Path(session_file)
+    else:
+        sessions_dir = Path.home() / ".kiro" / "sessions" / "cli"
+        if not sessions_dir.exists():
+            raise click.ClickException(f"No sessions directory: {sessions_dir}")
+
+        # Filter to sessions whose CWD matches this repo
+        repo_str = str(repo_root)
+        files = sorted(sessions_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+        matched_files = []
+        for f in files:
+            meta = f.with_suffix(".json")
+            if meta.exists():
+                try:
+                    meta_data = json_mod.loads(meta.read_text())
+                    session_cwd = meta_data.get("cwd", "")
+                    if session_cwd and str(Path(session_cwd).resolve()) == repo_str:
+                        matched_files.append(f)
+                except (json_mod.JSONDecodeError, OSError):
+                    pass
+                if len(matched_files) >= 5:
+                    break
+
+        if not matched_files:
+            matched_files = files[:1]  # Fallback
+        if not matched_files:
+            raise click.ClickException("No session files found.")
+        session_path = matched_files[0]
+
+    # Check watermark (don't re-process)
+    watermark_file = mnemo_dir / ".ingest-watermark.json"
+    watermark = {}
+    if watermark_file.exists():
+        try:
+            watermark = json_mod.loads(watermark_file.read_text())
+        except (json_mod.JSONDecodeError, OSError):
+            pass
+
+    session_id = session_path.stem
+    session_mtime = session_path.stat().st_mtime
+    last_processed = watermark.get(session_id, {}).get("mtime", 0)
+
+    if session_mtime <= last_processed and not dry_run:
+        click.echo(f"Session {session_id[:8]} already processed. Skipping.")
+        return
+
+    click.echo(f"Ingesting: {session_path.name} ({session_path.stat().st_size // 1024}KB)")
+
+    # Parse session — extract assistant messages
+    assistant_texts = []
+    try:
+        with open(session_path) as f:
+            for line in f:
+                try:
+                    event = json_mod.loads(line)
+                    if event.get("kind") == "AssistantMessage":
+                        content = event.get("data", {}).get("content", [])
+                        if isinstance(content, list):
+                            for item in content:
+                                if isinstance(item, dict) and item.get("kind") == "text":
+                                    text = item.get("data", "")
+                                    if len(text) > 50:
+                                        assistant_texts.append(text)
+                except (json_mod.JSONDecodeError, TypeError):
+                    pass
+    except OSError as e:
+        raise click.ClickException(f"Failed to read session: {e}")
+
+    click.echo(f"Found {len(assistant_texts)} assistant messages")
+
+    # Extract learnings via pattern matching
+    learnings_found = []
+    decisions_found = []
+
+    for text in assistant_texts:
+        lower = text.lower()
+        # Architecture patterns
+        if any(w in lower for w in ("architecture", "pattern is", "structured as", "uses .* pattern", "convention")):
+            match = re.search(r'(?:architecture|structured as|uses .+ pattern|convention)[^.]*\.', text, re.I)
+            if match and len(match.group()) > 30:
+                learnings_found.append(("architecture", match.group().strip()[:200]))
+        # Decisions
+        if any(w in lower for w in ("decided to", "going with", "chose", "i'll use")):
+            match = re.search(r'(?:decided to|going with|chose|i\'ll use)[^.]*\.', text, re.I)
+            if match and len(match.group()) > 20:
+                decisions_found.append(match.group().strip()[:200])
+        # Bug fixes
+        if "root cause" in lower or ("the issue was" in lower and "fix" in lower):
+            match = re.search(r'(?:root cause|the issue was|the problem was)[^.]*\.', text, re.I)
+            if match and len(match.group()) > 25:
+                learnings_found.append(("investigation", match.group().strip()[:200]))
+
+    total = len(learnings_found) + len(decisions_found)
+    click.echo(f"Extracted {total} learnings")
+
+    if dry_run:
+        for ltype, insight in learnings_found:
+            click.echo(f"  [{ltype}] {insight[:70]}")
+        for dec in decisions_found:
+            click.echo(f"  [decision] {dec[:70]}")
+        return
+
+    # Store learnings
+    stored_l = 0
+    stored_d = 0
+    for ltype, insight in learnings_found:
+        key = re.sub(r'[^a-z0-9]+', '-', insight[:30].lower()).strip('-')
+        try:
+            from .core.injection import has_injection
+            if has_injection(insight):
+                continue
+            # Use the learn logic inline
+            ctx = click.Context(learn, info_name="learn")
+            ctx.invoke(learn, learn_type=ltype, key=key, insight=insight, confidence=7, source="observed", path=path)
+            stored_l += 1
+        except (click.ClickException, SystemExit):
+            pass
+
+    for dec in decisions_found:
+        try:
+            from .memory.store import add_decision
+            add_decision(repo_root, dec)
+            stored_d += 1
+        except (ValueError, Exception):
+            pass
+
+    click.echo(f"✅ Stored {stored_l} learnings, {stored_d} decisions")
+
+    # Update watermark
+    watermark[session_id] = {"mtime": session_mtime, "processed_at": time_mod.time()}
+    watermark_file.parent.mkdir(parents=True, exist_ok=True)
+    watermark_file.write_text(json_mod.dumps(watermark, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":

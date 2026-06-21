@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-MEMORY_NAMESPACE = "memory"
+from ._shared import MEMORY_NAMESPACE
 
 
 def _memory_to_chunk(entry: dict[str, Any]) -> dict[str, Any] | None:
@@ -25,4 +25,9 @@ def _index_memory_entry(repo_root: Path, entry: dict[str, Any]) -> None:
     chunk = _memory_to_chunk(entry)
     if chunk:
         from ..retrieval import index_chunks
+        from ..embeddings import get_keyword_provider, save_keyword_state
         index_chunks(repo_root, MEMORY_NAMESPACE, [chunk])
+        # Update BM25 IDF stats
+        provider = get_keyword_provider(repo_root)
+        provider.update_corpus([chunk["content"]])
+        save_keyword_state(repo_root)

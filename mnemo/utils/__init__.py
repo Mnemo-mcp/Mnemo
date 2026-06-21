@@ -15,6 +15,9 @@ Categories:
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from .logger import get_logger
 from .privacy import strip_secrets
 from .dedup import DedupMap
@@ -36,4 +39,15 @@ __all__ = [
     "stem",
     "expand_synonyms",
     "get_synonym_group",
+    "load_json_file",
 ]
+
+
+def load_json_file(path: Path, default=None):
+    """Load JSON from path, returning default if missing/corrupt."""
+    if not path.exists():
+        return default if default is not None else []
+    try:
+        return json.loads(path.read_text(encoding='utf-8'))
+    except (json.JSONDecodeError, OSError):
+        return default if default is not None else []

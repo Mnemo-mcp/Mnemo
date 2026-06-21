@@ -35,81 +35,6 @@ def _query(root: Path, args: dict) -> str:
         return f"Query error: {e}"
 
 
-@tool("mnemo_symbol",
-      "Get 360° context for a symbol: what file defines it, its methods, what calls it, what it calls, which community it belongs to.",
-      properties={
-          "symbol": {"type": "string", "description": "Symbol name (class, function, or method name)"},
-      },
-      required=["symbol"])
-def _context(root: Path, args: dict) -> str:
-    from ..engine.db import open_db, get_db_path
-    if not get_db_path(root).exists():
-        return "No code graph found. Run `mnemo init` first."
-    _, conn = open_db(root)
-    name = args["symbol"]
-    lines = [f"# Context: {name}\n"]
-
-    # Find the symbol (class or function)
-    r = conn.execute(f"MATCH (c:Class) WHERE c.name = '{name}' RETURN c.id, c.file, c.implements")
-    found = False
-    while r.has_next():
-        row = r.get_next()
-        lines.append(f"**Class** `{name}` in `{row[1]}`")
-        if row[2]:
-            lines.append(f"  Implements: {row[2]}")
-        found = True
-
-    if not found:
-        r = conn.execute(f"MATCH (f:Function) WHERE f.name = '{name}' RETURN f.id, f.file, f.signature")
-        while r.has_next():
-            row = r.get_next()
-            lines.append(f"**Function** `{name}` in `{row[1]}`")
-            lines.append(f"  Signature: {row[2]}")
-            found = True
-
-    if not found:
-        return f"Symbol '{name}' not found in the graph."
-
-    # Methods (if class)
-    r = conn.execute(f"MATCH (c:Class {{name: '{name}'}})-[:HAS_METHOD]->(m:Method) RETURN m.name, m.signature")
-    methods = []
-    while r.has_next():
-        row = r.get_next()
-        methods.append(f"  .{row[0]}() — {row[1][:60]}")
-    if methods:
-        lines.append(f"\n**Methods** ({len(methods)}):")
-        lines.extend(methods[:15])
-        if len(methods) > 15:
-            lines.append(f"  ... +{len(methods)-15} more")
-
-    # What calls this symbol
-    r = conn.execute(f"MATCH (a:Function)-[c:CALLS]->(b:Function) WHERE b.name = '{name}' RETURN a.name, a.file, c.confidence")
-    callers = []
-    while r.has_next():
-        row = r.get_next()
-        callers.append(f"  ← {row[0]} ({row[1]}) [conf: {row[2]}]")
-    if callers:
-        lines.append(f"\n**Called by** ({len(callers)}):")
-        lines.extend(callers[:10])
-
-    # What this symbol calls
-    r = conn.execute(f"MATCH (a:Function)-[c:CALLS]->(b:Function) WHERE a.name = '{name}' RETURN b.name, b.file, c.confidence")
-    callees = []
-    while r.has_next():
-        row = r.get_next()
-        callees.append(f"  → {row[0]} ({row[1]}) [conf: {row[2]}]")
-    if callees:
-        lines.append(f"\n**Calls** ({len(callees)}):")
-        lines.extend(callees[:10])
-
-    # Community membership
-    r = conn.execute(f"MATCH (c:Class {{name: '{name}'}})-[:MEMBER_OF]->(comm:Community) RETURN comm.name")
-    while r.has_next():
-        lines.append(f"\n**Community**: {r.get_next()[0]}")
-
-    return "\n".join(lines)
-
-
 @tool("mnemo_impact",
       "Blast radius analysis: what is affected if a symbol changes. Traverses callers/callees N hops deep.",
       properties={
@@ -170,7 +95,7 @@ def _traverse_callers(conn, name: str, max_depth: int) -> list[tuple[str, int, s
         current, depth = queue.pop(0)
         if depth >= max_depth:
             continue
-        r = conn.execute(f"MATCH (a:Function)-[:CALLS]->(b:Function) WHERE b.name = '{current}' RETURN a.name, a.file")
+        r = conn.execute("MATCH (a:Function)-[:CALLS]->(b:Function) WHERE b.name = $current RETURN a.name, a.file", {"current": current})
         while r.has_next():
             row = r.get_next()
             if row[0] not in visited:
@@ -191,7 +116,7 @@ def _traverse_callees(conn, name: str, max_depth: int) -> list[tuple[str, int, s
         current, depth = queue.pop(0)
         if depth >= max_depth:
             continue
-        r = conn.execute(f"MATCH (a:Function)-[:CALLS]->(b:Function) WHERE a.name = '{current}' RETURN b.name, b.file")
+        r = conn.execute("MATCH (a:Function)-[:CALLS]->(b:Function) WHERE a.name = $current RETURN b.name, b.file", {"current": current})
         while r.has_next():
             row = r.get_next()
             if row[0] not in visited:
@@ -202,57 +127,8 @@ def _traverse_callees(conn, name: str, max_depth: int) -> list[tuple[str, int, s
     return results
 
 
-@tool("mnemo_find",
-      "Search the code graph for symbols by name pattern. Returns matching classes, functions, and methods.",
-      properties={
-          "query": {"type": "string", "description": "Search query (name or pattern to find)"},
-          "type": {"type": "string", "description": "Filter by type: class, function, method, file (optional)"},
-          "limit": {"type": "integer", "description": "Max results (default 20)"},
-      },
-      required=["query"])
-def _search(root: Path, args: dict) -> str:
-    from ..engine.db import open_db, get_db_path
-    if not get_db_path(root).exists():
-        return "No code graph found. Run `mnemo init` first."
-    _, conn = open_db(root)
-    query = args["query"]
-    type_filter = args.get("type")
-    limit = int(args.get("limit", 20))
-
-    results = []
-
-    if not type_filter or type_filter == "class":
-        r = conn.execute(f"MATCH (c:Class) WHERE c.name CONTAINS '{query}' RETURN 'class' AS type, c.name, c.file LIMIT {limit}")
-        while r.has_next():
-            row = r.get_next()
-            results.append(f"  [{row[0]}] {row[1]} — {row[2]}")
-
-    if not type_filter or type_filter == "function":
-        r = conn.execute(f"MATCH (f:Function) WHERE f.name CONTAINS '{query}' RETURN 'function' AS type, f.name, f.file LIMIT {limit}")
-        while r.has_next():
-            row = r.get_next()
-            results.append(f"  [{row[0]}] {row[1]} — {row[2]}")
-
-    if not type_filter or type_filter == "method":
-        r = conn.execute(f"MATCH (m:Method) WHERE m.name CONTAINS '{query}' RETURN 'method' AS type, m.name, m.file LIMIT {limit}")
-        while r.has_next():
-            row = r.get_next()
-            results.append(f"  [{row[0]}] {row[1]} — {row[2]}")
-
-    if not type_filter or type_filter == "file":
-        r = conn.execute(f"MATCH (f:File) WHERE f.path CONTAINS '{query}' RETURN 'file' AS type, f.path, f.language LIMIT {limit}")
-        while r.has_next():
-            row = r.get_next()
-            results.append(f"  [{row[0]}] {row[1]} ({row[2]})")
-
-    if not results:
-        return f"No results for '{query}'."
-
-    return f"# Search: '{query}' ({len(results)} results)\n\n" + "\n".join(results[:limit])
-
-
 @tool("mnemo_communities",
-      "List functional areas (Leiden clusters) in the codebase. Shows how code is grouped into modules.",
+      "List functional areas (Louvain clusters) in the codebase. Shows how code is grouped into modules.",
       properties={
           "name": {"type": "string", "description": "Filter by community name (optional)"},
       })
@@ -265,7 +141,7 @@ def _communities(root: Path, args: dict) -> str:
 
     if name_filter:
         # Show details for a specific community
-        r = conn.execute(f"MATCH (c:Class)-[:MEMBER_OF]->(comm:Community) WHERE comm.name CONTAINS '{name_filter}' RETURN c.name, c.file")
+        r = conn.execute("MATCH (c:Class)-[:MEMBER_OF]->(comm:Community) WHERE comm.name CONTAINS $name_filter RETURN c.name, c.file", {"name_filter": name_filter})
         members = []
         while r.has_next():
             row = r.get_next()

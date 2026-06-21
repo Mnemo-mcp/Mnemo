@@ -52,6 +52,35 @@ def doctor(repo_root: Path, client: str = "kiro") -> str:
     else:
         lines.append("❌ mnemo binary not found in PATH")
 
+    # Check hook paths (Kiro)
+    agent_json = repo_root / ".kiro" / "agents" / "mnemo-enhanced.json"
+    if agent_json.exists():
+        import json
+        try:
+            agent_config = json.loads(agent_json.read_text())
+            hooks = agent_config.get("hooks", {})
+            stale_hooks = []
+            for hook_type, hook_list in hooks.items():
+                for hook in hook_list:
+                    cmd = hook.get("command", "")
+                    if cmd.startswith("/") and not Path(cmd).exists():
+                        stale_hooks.append((hook_type, cmd))
+                    elif cmd.startswith("/"):
+                        # Absolute but exists — warn that it won't survive repo moves
+                        stale_hooks.append((hook_type, f"{cmd} (absolute path — will break if repo moves)"))
+            if stale_hooks:
+                lines.append(f"\n❌ STALE HOOK PATHS ({len(stale_hooks)} broken):")
+                for hook_type, path in stale_hooks:
+                    lines.append(f"   {hook_type}: {path}")
+                lines.append("   Fix: run `mnemo init --client kiro` to regenerate with relative paths")
+                # Auto-fix: rewrite with relative paths
+                _auto_fix_hook_paths(agent_json, repo_root)
+                lines.append("   ✅ AUTO-FIXED: rewrote hooks to use relative paths")
+            else:
+                lines.append("✅ Hook paths valid")
+        except (json.JSONDecodeError, KeyError):
+            lines.append("⚠️  Could not parse mnemo-enhanced.json")
+
     # Check client config
     lines.append(f"\n## Client: {client}")
     client_configs = {
@@ -77,6 +106,19 @@ def _find_mnemo_command() -> str | None:
     except Exception:
         pass
     return None
+
+
+def _auto_fix_hook_paths(agent_json: Path, repo_root: Path) -> None:
+    """Rewrite absolute hook paths to relative paths."""
+    import re
+    content = agent_json.read_text()
+    # Replace any absolute path ending in .kiro/hooks/*.sh with relative
+    content = re.sub(
+        r'"command":\s*"/[^"]*\.kiro/hooks/([^"]+)"',
+        r'"command": ".kiro/hooks/\1"',
+        content,
+    )
+    agent_json.write_text(content)
 
 
 def _check_mcp_alive(command: str | None) -> bool:

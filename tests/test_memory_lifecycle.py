@@ -116,7 +116,7 @@ class TestAutoEviction:
         storage = get_storage(repo)
         storage.write_collection(Collections.MEMORY, [old_entry])
 
-        with patch("mnemo.memory._get_current_branch", return_value="main"):
+        with patch("mnemo.memory.store._get_current_branch", return_value="main"):
             _recall_memory(repo, storage)
 
         entries = storage.read_collection(Collections.MEMORY)
@@ -142,7 +142,7 @@ class TestAutoEviction:
 class TestContradiction:
     def test_superseded_by_set_on_similar_memory(self, tmp_path):
         repo = make_repo(tmp_path)
-        with patch("mnemo.memory._get_current_branch", return_value="main"):
+        with patch("mnemo.memory.store._get_current_branch", return_value="main"):
             add_memory(repo, "Use Redis for caching in the auth service", "architecture")
             add_memory(repo, "Use Memcached for caching in the auth service instead of Redis", "architecture")
 
@@ -159,7 +159,7 @@ class TestContradiction:
 class TestBranchAware:
     def test_branch_field_added(self, tmp_path):
         repo = make_repo(tmp_path)
-        with patch("mnemo.memory._get_current_branch", return_value="feature/auth"):
+        with patch("mnemo.memory.store._get_current_branch", return_value="feature/auth"):
             entry = add_memory(repo, "Working on auth feature", "general")
         assert entry["branch"] == "feature/auth"
 
