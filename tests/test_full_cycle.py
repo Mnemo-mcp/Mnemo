@@ -31,7 +31,7 @@ class TestRememberSearchRecallCycle:
             "Authentication uses JWT tokens with RS256",
             "Frontend built with React and TypeScript",
         ]
-        with patch("mnemo.memory._get_current_branch", return_value="main"):
+        with patch("mnemo.memory.store._get_current_branch", return_value="main"):
             for c in contents:
                 add_memory(repo, c, "architecture")
 
@@ -42,7 +42,7 @@ class TestRememberSearchRecallCycle:
 class TestContradictionSupersedes:
     def test_supersedes_old_memory(self, tmp_path):
         repo = make_repo(tmp_path)
-        with patch("mnemo.memory._get_current_branch", return_value="main"):
+        with patch("mnemo.memory.store._get_current_branch", return_value="main"):
             add_memory(repo, "Use Redis for caching user sessions in the auth service layer", "architecture")
             add_memory(repo, "Use Memcached for caching user sessions in the auth service layer instead of Redis", "architecture")
 
@@ -56,7 +56,7 @@ class TestContradictionSupersedes:
 class TestDedupPreventsDuplicates:
     def test_same_content_deduped(self, tmp_path):
         repo = make_repo(tmp_path)
-        with patch("mnemo.memory._get_current_branch", return_value="main"):
+        with patch("mnemo.memory.store._get_current_branch", return_value="main"):
             add_memory(repo, "Always use parameterized queries for SQL", "preference")
             add_memory(repo, "Always use parameterized queries for SQL", "preference")
 

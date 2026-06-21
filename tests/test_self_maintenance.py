@@ -117,7 +117,7 @@ class TestConsolidationTriggers:
 class TestConfidenceDecayOnCorrection:
     def test_correction_decays_matching_memory(self, tmp_path):
         repo = make_repo(tmp_path)
-        with patch("mnemo.memory._get_current_branch", return_value="main"):
+        with patch("mnemo.memory.store._get_current_branch", return_value="main"):
             entry = add_memory(repo, "Use Redis for session caching", "architecture")
 
         original_confidence = entry["confidence"]

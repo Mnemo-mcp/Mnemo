@@ -92,7 +92,7 @@ class TestKiroHooks:
         assert skill.exists()
         content = skill.read_text()
         assert "mnemo_recall" in content
-        assert "mnemo_remember" in content
+        assert "mnemo learn" in content
 
     def test_kiro_hook_scripts_are_executable(self, repo):
         hooks_dir = repo / ".kiro" / "hooks"
@@ -135,7 +135,7 @@ class TestKiroHooks:
         pretool = repo / ".kiro" / "hooks" / "pre-tool-use.sh"
         content = pretool.read_text()
         assert "rm -rf /" in content
-        assert "exit 1" in content
+        assert "exit 2" in content
         # Blocks credential exfiltration
         assert "credential" in content.lower() or "exfil" in content.lower()
 
