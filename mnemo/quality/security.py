@@ -62,10 +62,10 @@ def check_security(repo_root: Path, file_path: str = "") -> str:
             pass
         if not files:
             # Fallback: walk filesystem
-            from ..config import SUPPORTED_EXTENSIONS, should_ignore
+            from ..config import MAX_FILE_SIZE, SUPPORTED_EXTENSIONS, should_ignore
             for ext in SUPPORTED_EXTENSIONS:
                 for fp in repo_root.rglob(f"*{ext}"):
-                    if not should_ignore(fp) and fp.stat().st_size <= 200_000:
+                    if not should_ignore(fp, repo_root) and fp.stat().st_size <= MAX_FILE_SIZE:
                         files.append(str(fp.relative_to(repo_root)))
 
     for rel in files:

@@ -114,10 +114,13 @@ def check_conventions(repo_root: Path, file: str = "") -> str:
     violations: list[dict] = []
 
     # Check class names
-    query = "MATCH (f:File)-[:FILE_DEFINES_CLASS]->(c:Class) RETURN f.language, c.name, f.path"
     if file:
-        query = f"MATCH (f:File)-[:FILE_DEFINES_CLASS]->(c:Class) WHERE f.path CONTAINS '{file}' RETURN f.language, c.name, f.path"
-    result = conn.execute(query)
+        result = conn.execute(
+            "MATCH (f:File)-[:FILE_DEFINES_CLASS]->(c:Class) WHERE f.path CONTAINS $file_filter RETURN f.language, c.name, f.path",
+            {"file_filter": file}
+        )
+    else:
+        result = conn.execute("MATCH (f:File)-[:FILE_DEFINES_CLASS]->(c:Class) RETURN f.language, c.name, f.path")
     while result.has_next():
         row = result.get_next()
         lang = _LANG_MAP.get(row[0], row[0])
@@ -126,10 +129,13 @@ def check_conventions(repo_root: Path, file: str = "") -> str:
                 violations.append({"file": row[2], "symbol": row[1], "issue": f"Class `{row[1]}` doesn't match {_NAMING_PATTERNS[lang]['class'].pattern}"})
 
     # Check function names
-    query = "MATCH (f:File)-[:FILE_DEFINES_FUNCTION]->(fn:Function) RETURN f.language, fn.name, f.path"
     if file:
-        query = f"MATCH (f:File)-[:FILE_DEFINES_FUNCTION]->(fn:Function) WHERE f.path CONTAINS '{file}' RETURN f.language, fn.name, f.path"
-    result = conn.execute(query)
+        result = conn.execute(
+            "MATCH (f:File)-[:FILE_DEFINES_FUNCTION]->(fn:Function) WHERE f.path CONTAINS $file_filter RETURN f.language, fn.name, f.path",
+            {"file_filter": file}
+        )
+    else:
+        result = conn.execute("MATCH (f:File)-[:FILE_DEFINES_FUNCTION]->(fn:Function) RETURN f.language, fn.name, f.path")
     while result.has_next():
         row = result.get_next()
         lang = _LANG_MAP.get(row[0], row[0])

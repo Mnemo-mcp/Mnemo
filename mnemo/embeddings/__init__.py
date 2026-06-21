@@ -99,3 +99,30 @@ class KeywordEmbeddingProvider:
             return True
         except Exception:
             return False
+
+
+# Module-level singleton — preserves IDF state across calls within a session
+_provider_cache: KeywordEmbeddingProvider | None = None
+_BM25_STATE_FILE = "bm25_idf.json"
+
+
+def get_keyword_provider(repo_root: Path | None = None) -> KeywordEmbeddingProvider:
+    """Return a KeywordEmbeddingProvider with IDF state loaded from disk."""
+    global _provider_cache
+    if _provider_cache is not None:
+        return _provider_cache
+
+    _provider_cache = KeywordEmbeddingProvider()
+    if repo_root:
+        from ..config import mnemo_path
+        state_path = mnemo_path(repo_root) / _BM25_STATE_FILE
+        _provider_cache.load_state(state_path)
+    return _provider_cache
+
+
+def save_keyword_state(repo_root: Path) -> None:
+    """Persist current IDF state to disk."""
+    if _provider_cache and _provider_cache._total_docs > 0:
+        from ..config import mnemo_path
+        state_path = mnemo_path(repo_root) / _BM25_STATE_FILE
+        _provider_cache.save_state(state_path)

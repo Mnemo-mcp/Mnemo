@@ -108,74 +108,87 @@ def _incremental_update(repo_root: Path, all_files, changed: list[str], removed:
 
 def _delete_file_nodes(conn, file_path: str) -> None:
     """Remove all nodes and edges associated with a file."""
-    fp = file_path.replace("'", "\\'")
+    params = {"fp": file_path}
     # Delete methods belonging to classes in this file
     try:
-        conn.execute(f"MATCH (c:Class {{file: '{fp}'}})-[e:HAS_METHOD]->(m:Method) DELETE e")
-        conn.execute(f"MATCH (m:Method {{file: '{fp}'}}) DELETE m")
+        conn.execute("MATCH (c:Class {file: $fp})-[e:HAS_METHOD]->(m:Method) DELETE e", params)
+        conn.execute("MATCH (m:Method {file: $fp}) DELETE m", params)
     except RuntimeError:
         pass
     # Delete classes
     try:
-        conn.execute(f"MATCH (c:Class {{file: '{fp}'}})-[e]->() DELETE e")
-        conn.execute(f"MATCH ()-[e]->(c:Class {{file: '{fp}'}}) DELETE e")
-        conn.execute(f"MATCH (c:Class {{file: '{fp}'}}) DELETE c")
+        conn.execute("MATCH (c:Class {file: $fp})-[e]->() DELETE e", params)
+        conn.execute("MATCH ()-[e]->(c:Class {file: $fp}) DELETE e", params)
+        conn.execute("MATCH (c:Class {file: $fp}) DELETE c", params)
     except RuntimeError:
         pass
     # Delete functions
     try:
-        conn.execute(f"MATCH (f:Function {{file: '{fp}'}})-[e]->() DELETE e")
-        conn.execute(f"MATCH ()-[e]->(f:Function {{file: '{fp}'}}) DELETE e")
-        conn.execute(f"MATCH (f:Function {{file: '{fp}'}}) DELETE f")
+        conn.execute("MATCH (f:Function {file: $fp})-[e]->() DELETE e", params)
+        conn.execute("MATCH ()-[e]->(f:Function {file: $fp}) DELETE e", params)
+        conn.execute("MATCH (f:Function {file: $fp}) DELETE f", params)
     except RuntimeError:
         pass
     # Delete file node
     try:
-        conn.execute(f"MATCH (f:File {{path: '{fp}'}})-[e]->() DELETE e")
-        conn.execute(f"MATCH ()-[e]->(f:File {{path: '{fp}'}}) DELETE e")
-        conn.execute(f"MATCH (f:File {{path: '{fp}'}}) DELETE f")
+        conn.execute("MATCH (f:File {path: $fp})-[e]->() DELETE e", params)
+        conn.execute("MATCH ()-[e]->(f:File {path: $fp}) DELETE e", params)
+        conn.execute("MATCH (f:File {path: $fp}) DELETE f", params)
     except RuntimeError:
         pass
 
 
 def _insert_file_nodes(conn, fi, parse_result) -> None:
     """Insert nodes for a single parsed file into the graph."""
-    fp = fi.path.replace("'", "\\'")
+    fp = fi.path
 
     # File node
     try:
-        conn.execute(f"CREATE (:File {{path: '{fp}', language: '{fi.language}', hash: '{fi.hash}', size: {fi.size}}})")
+        conn.execute(
+            "CREATE (:File {path: $path, language: $lang, hash: $hash, size: $size})",
+            {"path": fp, "lang": fi.language, "hash": fi.hash, "size": fi.size}
+        )
     except RuntimeError:
         pass
 
     # Classes
     for cls in parse_result.classes:
-        name = cls.get("name", "").replace("'", "\\'")
-        impl = (cls.get("implements") or "").replace("'", "\\'")
+        name = cls.get("name", "")
+        impl = cls.get("implements") or ""
         node_id = f"{fp}:{name}"
         try:
-            conn.execute(f"CREATE (:Class {{id: '{node_id}', name: '{name}', file: '{fp}', implements: '{impl}'}})")
+            conn.execute(
+                "CREATE (:Class {id: $id, name: $name, file: $file, implements: $impl})",
+                {"id": node_id, "name": name, "file": fp, "impl": impl}
+            )
         except RuntimeError:
             pass
         # Methods
         for method in cls.get("methods", []):
             mname = method if isinstance(method, str) else method.get("name", "")
             msig = method if isinstance(method, str) else method.get("signature", mname)
-            mname_esc = mname.replace("'", "\\'")
-            msig_esc = str(msig)[:200].replace("'", "\\'")
-            mid = f"{fp}:{name}.{mname_esc}"
+            msig = str(msig)[:200]
+            mid = f"{fp}:{name}.{mname}"
             try:
-                conn.execute(f"CREATE (:Method {{id: '{mid}', name: '{mname_esc}', file: '{fp}', signature: '{msig_esc}'}})")
-                conn.execute(f"MATCH (c:Class {{id: '{node_id}'}}), (m:Method {{id: '{mid}'}}) CREATE (c)-[:HAS_METHOD]->(m)")
+                conn.execute(
+                    "CREATE (:Method {id: $id, name: $name, file: $file, signature: $sig})",
+                    {"id": mid, "name": mname, "file": fp, "sig": msig}
+                )
+                conn.execute(
+                    "MATCH (c:Class {id: $cid}), (m:Method {id: $mid}) CREATE (c)-[:HAS_METHOD]->(m)",
+                    {"cid": node_id, "mid": mid}
+                )
             except RuntimeError:
                 pass
 
     # Functions
     for func in parse_result.functions:
         fname = func if isinstance(func, str) else func.get("name", "")
-        fname_esc = fname.replace("'", "\\'")
-        fid = f"{fp}:{fname_esc}"
+        fid = f"{fp}:{fname}"
         try:
-            conn.execute(f"CREATE (:Function {{id: '{fid}', name: '{fname_esc}', file: '{fp}', signature: '{fname_esc}'}})")
+            conn.execute(
+                "CREATE (:Function {id: $id, name: $name, file: $file, signature: $sig})",
+                {"id": fid, "name": fname, "file": fp, "sig": fname}
+            )
         except RuntimeError:
             pass

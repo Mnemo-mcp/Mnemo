@@ -128,7 +128,7 @@ def _traverse_callees(conn, name: str, max_depth: int) -> list[tuple[str, int, s
 
 
 @tool("mnemo_communities",
-      "List functional areas (Leiden clusters) in the codebase. Shows how code is grouped into modules.",
+      "List functional areas (Louvain clusters) in the codebase. Shows how code is grouped into modules.",
       properties={
           "name": {"type": "string", "description": "Filter by community name (optional)"},
       })

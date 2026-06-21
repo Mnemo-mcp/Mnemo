@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from ..config import IGNORE_DIRS, SUPPORTED_EXTENSIONS, ignore_dirs_for
+from ..config import MAX_FILE_SIZE, SUPPORTED_EXTENSIONS, ignore_dirs_for
 
 from .db import open_db, init_schema, reset_db
 
@@ -173,8 +173,13 @@ def run_pipeline(repo_root: Path, force: bool = False) -> PipelineStats:
     chunks = _build_chunks(files, results)
     if chunks:
         from ..retrieval import delete_chunks, index_chunks
+        from ..embeddings import get_keyword_provider, save_keyword_state
         delete_chunks(repo_root, "code")
         index_chunks(repo_root, "code", chunks)
+        # Build BM25 IDF corpus from code chunks
+        provider = get_keyword_provider(repo_root)
+        provider.update_corpus([c["content"] for c in chunks])
+        save_keyword_state(repo_root)
     vector_ms = int((time.time() - t0) * 1000)
     print(f"  Phase 6 vectors: {len(chunks)} chunks indexed ({vector_ms}ms)", flush=True)
 
@@ -240,7 +245,7 @@ def phase_scan(repo_root: Path) -> list[FileInfo]:
                 size = filepath.stat().st_size
             except OSError:
                 continue
-            if size > 200_000:  # Skip files > 200KB
+            if size > MAX_FILE_SIZE:  # Skip large files
                 continue
 
             try:

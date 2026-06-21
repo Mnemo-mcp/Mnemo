@@ -11,6 +11,8 @@ DECISIONS_FILE = "decisions.json"
 CONTEXT_FILE = "context.json"
 MNEMOIGNORE_FILE = ".mnemoignore"
 
+MAX_FILE_SIZE = 200_000  # 200KB — skip files larger than this during indexing
+
 SUPPORTED_EXTENSIONS = {
     ".py": "python",
     ".js": "javascript",
@@ -86,7 +88,10 @@ def ignore_dirs_for(repo_root: Path) -> set[str]:
     return IGNORE_DIRS | load_mnemoignore(repo_root)
 
 
-def should_ignore(path: Path) -> bool:
-    """Check if a path should be ignored based on directory name."""
+def should_ignore(path: Path, repo_root: Path | None = None) -> bool:
+    """Check if a path should be ignored based on directory name.
 
-    return any(part in IGNORE_DIRS for part in path.parts)
+    Uses IGNORE_DIRS + .mnemoignore (if repo_root provided).
+    """
+    dirs = ignore_dirs_for(repo_root) if repo_root else IGNORE_DIRS
+    return any(part in dirs for part in path.parts)
