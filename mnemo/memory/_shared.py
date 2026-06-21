@@ -123,8 +123,8 @@ def _get_current_branch(repo_root: Path) -> str:
 
 def _text_similarity(a: str, b: str) -> float:
     """Similarity using SparseEmbedding (IDF-weighted token overlap)."""
-    from ..embeddings import KeywordEmbeddingProvider
-    provider = KeywordEmbeddingProvider()
+    from ..embeddings import get_keyword_provider
+    provider = get_keyword_provider()
     emb_a = provider.embed(a)
     emb_b = provider.embed(b)
     return emb_a.score(emb_b)

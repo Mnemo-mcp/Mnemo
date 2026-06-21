@@ -9,11 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from ..config import mnemo_path
-from ..retrieval import semantic_query, index_chunks
+from ..retrieval import semantic_query
 from ..storage import Collections, get_storage
 
 from ._shared import (
-    logger,
     MAX_OUTPUT_CHARS,
     MEMORY_TOKEN_BUDGET,
     TOKEN_CHAR_RATIO,
@@ -263,13 +262,30 @@ def _recall_context(storage) -> str:
     return "\n".join(lines)
 
 
-def _recall_decisions(storage) -> str:
-    """Recall decisions section (active only, no reasoning)."""
-    decisions = [d for d in _as_list(storage.read_collection(Collections.DECISIONS)) if d.get("active", True)]
-    if not decisions:
+def _recall_decisions(storage, repo_root: Path | None = None) -> str:
+    """Recall decisions section (active only, filtered by branch scope)."""
+    decisions = _as_list(storage.read_collection(Collections.DECISIONS))
+
+    # Get current branch for scope filtering
+    current_branch = None
+    if repo_root:
+        current_branch = _get_current_branch(repo_root)
+
+    active = []
+    for d in decisions:
+        if not d.get("active", True):
+            continue
+        scope = d.get("scope", "repo")
+        if scope == "repo":
+            active.append(d)  # Repo-wide always shown
+        elif scope == "branch" and current_branch:
+            if d.get("branch") == current_branch:
+                active.append(d)  # Branch-specific shown only on that branch
+
+    if not active:
         return ""
     lines = ["# Decisions"]
-    for decision in decisions:
+    for decision in active:
         lines.append(f"- {decision['decision']}")
     lines.append("")
     return "\n".join(lines)
@@ -446,13 +462,24 @@ def _recall_repo_map(base: Path, header_size: int) -> str:
 
 
 def recall(repo_root: Path, tier: str = "standard") -> str:
-    """Recall project memory with tiered retrieval."""
+    """Recall project memory with tiered retrieval. Hard timeout: 500ms on graph queries."""
+    import time
+
     global _recall_counter
     _recall_counter += 1
+
+    start = time.monotonic()
+    TIMEOUT_MS = 500
 
     base = mnemo_path(repo_root)
     if not base.exists():
         return ""
+
+    def _check_timeout():
+        """Raise if we've exceeded the recall timeout."""
+        elapsed_ms = (time.monotonic() - start) * 1000
+        if elapsed_ms > TIMEOUT_MS:
+            raise TimeoutError(f"Recall exceeded {TIMEOUT_MS}ms")
 
     # Periodic maintenance (every 10th recall)
     if _recall_counter % 10 == 0:
@@ -464,15 +491,24 @@ def recall(repo_root: Path, tier: str = "standard") -> str:
             pass
 
     if tier == "compact":
-        return _recall_compact(repo_root)
+        try:
+            return _recall_compact(repo_root)
+        except (TimeoutError, Exception):
+            return "# Recall (degraded — timeout)\nContext loading timed out. Use mnemo_search for specific queries."
 
     storage = get_storage(repo_root)
 
     if tier == "deep":
-        return _recall_deep(repo_root, base, storage)
+        try:
+            return _recall_deep(repo_root, base, storage)
+        except (TimeoutError, Exception):
+            return "# Recall (degraded — timeout)\nContext loading timed out."
 
     # tier == "standard": budgeted ~2000 tokens
-    return _recall_standard(repo_root, base, storage)
+    try:
+        return _recall_standard(repo_root, base, storage)
+    except (TimeoutError, Exception):
+        return "# Recall (degraded — timeout)\nContext loading timed out. Use mnemo_search for specific queries."
 
 
 def _recall_compact(repo_root: Path) -> str:
@@ -528,7 +564,7 @@ def _recall_standard(repo_root: Path, base: Path, storage) -> str:
     sections = [
         _recall_context(storage),
         format_identity(repo_root),
-        _recall_decisions(storage),
+        _recall_decisions(storage, repo_root),
     ]
 
     _slots_mod._recall_counter += 1
@@ -613,7 +649,7 @@ def _recall_deep(repo_root: Path, base: Path, storage) -> str:
     sections = [
         _recall_context(storage),
         format_identity(repo_root),
-        _recall_decisions(storage),
+        _recall_decisions(storage, repo_root),
     ]
 
     _slots_mod._recall_counter += 1
