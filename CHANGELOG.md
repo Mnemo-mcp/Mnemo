@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2026-06-21
+
+### Added
+- **Event-sourced decisions** — immutable JSONL append-only event log (`decisions.events.jsonl`) as source of truth, `decisions.json` is now a computed snapshot
+- **`mnemo_supersede` tool** — supersede (replace) an existing decision by ID
+- **`mnemo_redact` tool** — permanently redact a decision (e.g., accidental secrets)
+- **Branch-scoped decisions** — decisions tagged per branch, filtered on recall
+- **Quality gates** — `tests_pass`, `plan_done`, `no_findings` gates that block workflow advancement
+- **SDLC orchestrator** — state machine tracking phases (investigate → plan → implement → verify → review → ship) with gate enforcement
+- **6 workflow skills** — investigate, plan, implement, verify, review, ship — each with shell-command patterns for agent tool usage
+- **Template resolver system** — `{{PREAMBLE}}`, `{{LEARNINGS}}`, `{{CONTEXT_LOAD}}`, `{{TOOL_REFERENCE}}`, `{{PERSIST_BLOCK}}` placeholders expanded per-host
+- **`mnemo learn` CLI** — store typed learnings (7 types: architecture, pattern, pitfall, tool, investigation, preference, operational) with key-based dedup
+- **`mnemo learnings` CLI** — list stored learnings sorted by confidence
+- **`mnemo ingest` CLI** — ETL: extract learnings from Kiro session transcripts
+- **Security foundation** — injection pattern detection, datamark tagging, JSONL store with atomic ops
+- **Full hook RAG injection** — user-prompt-submit hook injects lookup + memory + code search results
+- **ETL stop hook** — session end automatically extracts and stores learnings
+- **Pre-tool-use security** — blocks catastrophic shell commands (rm -rf /, credential exfil)
+- **419 new tests** (222 → 641 total)
+
+### Changed
+- `mnemo init` now **requires** `--client` flag (no default client)
+- Agent-facing tools: 16 → 17 (added `mnemo_supersede`, `mnemo_redact`)
+- Hooks rewritten: full RAG injection on prompt-submit, ETL on stop, security on pre-tool-use
+- README completely updated: removed Council section, added workflow skills + orchestrator docs
+
+### Removed
+- Council/GAN loop evaluation system (never worked — agent won't call tools voluntarily)
+- 4 outdated planning docs (`NEXT_STEPS.md`, `PLAN_2026_06_20.md`, `RESTRUCTURING_STRATEGY.md`, `CODE_AUDIT_2026_06_20.md`)
+- `DEPLOYMENT_v0.5.md` (superseded by DISTRIBUTION.md)
+
+### Architecture
+- `.mnemo/decisions.events.jsonl` — append-only event log (source of truth)
+- `.mnemo/decisions.json` — pre-computed active snapshot (rebuilt from events)
+- `.mnemo/learnings.json` — typed learnings with confidence & key-dedup
+- `.mnemo/autorun_state.json` — SDLC orchestrator phase tracking
+- New modules: `mnemo/memory/decisions.py`, `mnemo/quality/gates.py`, `mnemo/skills/`, `mnemo/templates/`, `mnemo/core/`
+
 ## [0.5.0] - 2026-05-16
 
 ### Added
