@@ -53,6 +53,7 @@ _CORE_TOOLS = {
     "mnemo_plan", "mnemo_graph", "mnemo_lookup", "mnemo_audit",
     "mnemo_record", "mnemo_generate", "mnemo_map", "mnemo_context",
     "mnemo_forget", "mnemo_ask", "mnemo_lesson",
+    "mnemo_supersede", "mnemo_redact",
 }
 
 

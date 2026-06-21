@@ -14,9 +14,13 @@ from ..tool_registry import tool
       })
 def _recall(root: Path, args: dict) -> str:
     from ..memory import recall
+    from ..core import datamark
     tier = args.get("tier", "standard")
     data = recall(root, tier=tier)
-    return data or "Memory is empty. Run mnemo_init first."
+    if not data:
+        return "Memory is empty. Run mnemo_init first."
+    # Datamark recalled content to prevent stored text from hijacking agent
+    return datamark(data)
 
 
 @tool("mnemo_remember",
@@ -57,11 +61,36 @@ def _search_mem(root: Path, args: dict) -> str:
       properties={
           "decision": {"type": "string", "description": "The decision that was made"},
           "reasoning": {"type": "string", "description": "Why this decision was made"},
+          "scope": {"type": "string", "description": "Scope: 'repo' (default, applies everywhere) or 'branch' (only on current branch)"},
       },
       required=["decision"])
 def _decide(root: Path, args: dict) -> str:
     from ..memory.services import decide_with_effects
-    return decide_with_effects(root, args["decision"], args.get("reasoning", ""))
+    return decide_with_effects(root, args["decision"], args.get("reasoning", ""), scope=args.get("scope", "repo"))
+
+
+@tool("mnemo_supersede",
+      "Supersede (replace) an existing decision by ID. The old decision becomes inactive.",
+      properties={
+          "decision_id": {"type": "string", "description": "ID of the decision to supersede"},
+      },
+      required=["decision_id"])
+def _supersede(root: Path, args: dict) -> str:
+    from ..memory.decisions import supersede_decision
+    supersede_decision(root, args["decision_id"])
+    return f"Decision #{args['decision_id']} superseded."
+
+
+@tool("mnemo_redact",
+      "Permanently redact a decision (e.g., if it contains an accidental secret). Removes text from event log.",
+      properties={
+          "decision_id": {"type": "string", "description": "ID of the decision to redact"},
+      },
+      required=["decision_id"])
+def _redact(root: Path, args: dict) -> str:
+    from ..memory.decisions import redact_decision
+    redact_decision(root, args["decision_id"])
+    return f"Decision #{args['decision_id']} redacted and purged."
 
 
 @tool("mnemo_context",
