@@ -376,7 +376,7 @@ class TestPlanCombinations:
 
         # Check if plan was auto-created
         from mnemo.plan import _load_plans
-        plans = _load_plans(repo)
+        _ = _load_plans(repo)
         # May or may not trigger depending on detection threshold
         # At minimum, decision should be stored
         storage = get_storage(repo)

@@ -105,7 +105,7 @@ class TestHookLifecycleE2E:
     def test_stop_hook_extracts_bug_fix(self, repo, hooks_dir):
         """Stop hook detects bug fix patterns and stores them."""
         # Simulate agent response with bug fix
-        response = (
+        _ = (
             "I found and fixed the issue. The problem was that the connection pool "
             "was exhausting because we weren't closing connections in the finally block. "
             "The fix was to add a context manager pattern. Now it works correctly."
