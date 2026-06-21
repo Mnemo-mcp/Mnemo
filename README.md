@@ -7,18 +7,18 @@
 <p align="center">
   <a href="https://pypi.org/project/mnemo-dev/"><img src="https://img.shields.io/pypi/v/mnemo-dev?style=flat-square&color=blue" alt="PyPI" /></a>
   <a href="https://www.npmjs.com/package/@mnemo-dev/mcp"><img src="https://img.shields.io/npm/v/@mnemo-dev/mcp?style=flat-square&color=red" alt="npm" /></a>
-  <a href="#"><img src="https://img.shields.io/badge/tests-222%20passing-brightgreen?style=flat-square" alt="Tests" /></a>
+  <a href="#"><img src="https://img.shields.io/badge/tests-641%20passing-brightgreen?style=flat-square" alt="Tests" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-purple?style=flat-square" alt="License" /></a>
   <a href="https://pypi.org/project/mnemo-dev/"><img src="https://img.shields.io/pypi/pyversions/mnemo-dev?style=flat-square" alt="Python" /></a>
   <a href="https://marketplace.visualstudio.com/items?itemName=Nikhil1057.mnemo-vscode"><img src="https://img.shields.io/badge/VS%20Code-extension-007ACC?style=flat-square&logo=visualstudiocode" alt="VS Code" /></a>
 </p>
 
 <p align="center">
-  <code>[100% R@5]</code> <code>[2ms search]</code> <code>[58 tools]</code> <code>[16 agent-facing]</code> <code>[11 lifecycle hooks]</code> <code>[0 external DBs]</code> <code>[222 tests]</code>
+  <code>[100% R@5]</code> <code>[2ms search]</code> <code>[58 tools]</code> <code>[17 agent-facing]</code> <code>[11 lifecycle hooks]</code> <code>[0 external DBs]</code> <code>[641 tests]</code>
 </p>
 
 <p align="center">
-  <a href="#install">Install</a> • <a href="#why-mnemo">Why</a> • <a href="#benchmarks">Benchmarks</a> • <a href="#how-it-works">How It Works</a> • <a href="#supported-clients">Clients</a> • <a href="#features">Features</a> • <a href="#council-multi-angle-evaluation">Council</a> • <a href="#mcp-tools-16-agent-facing">Tools</a> • <a href="#dashboard-ui">Dashboard</a> • <a href="#architecture">Architecture</a>
+  <a href="#install">Install</a> • <a href="#why-mnemo">Why</a> • <a href="#benchmarks">Benchmarks</a> • <a href="#how-it-works">How It Works</a> • <a href="#supported-clients">Clients</a> • <a href="#features">Features</a> • <a href="#mcp-tools-17-agent-facing">Tools</a> • <a href="#dashboard-ui">Dashboard</a> • <a href="#architecture">Architecture</a>
 </p>
 
 ---
@@ -37,7 +37,7 @@ Session 2: you ask the agent to add a new endpoint. It already knows your servic
 ```bash
 pip install mnemo-dev    # or: brew tap Mnemo-mcp/tap && brew install mnemo
 cd your-project
-mnemo init              # defaults to Amazon Q (or: --client kiro, cursor, claude-code)
+mnemo init --client kiro # or: amazonq, cursor, claude-code, copilot, generic
 ```
 
 ---
@@ -89,8 +89,7 @@ Then initialize:
 
 ```bash
 cd your-project
-mnemo init                      # defaults to Amazon Q
-mnemo init --client kiro        # or: cursor, claude-code, copilot, generic
+mnemo init --client kiro        # or: amazonq, cursor, claude-code, copilot, generic
 ```
 
 **That's it.** Your agent now has persistent memory, semantic search, and architectural understanding.
@@ -245,7 +244,7 @@ Works with **any** agent that speaks MCP. One server, one memory, shared across 
                               ▼
 ┌─── DURING SESSION (tools + freshness) ──────────────────────────┐
 │                                                                  │
-│  Agent has 16 MCP tools available:                               │
+│  Agent has 17 MCP tools available:                               │
 │    • mnemo_lookup → full service/class architecture              │
 │    • mnemo_search → semantic search (code, memory, APIs)         │
 │    • mnemo_impact → blast radius if X changes                    │
@@ -287,6 +286,8 @@ Works with **any** agent that speaks MCP. One server, one memory, shared across 
 
 ### 🧠 Memory System
 - **Categorized storage**: architecture, pattern, bug, preference, decision, todo
+- **Event-sourced decisions**: JSONL append-only event log, computed snapshots, supersede/redact operations
+- **Branch-scoped decisions**: decisions tagged per branch, filtered on recall
 - **Retention scoring**: access frequency × recency × importance (Ebbinghaus-inspired decay)
 - **Branch-aware**: memories tagged with git branch, filtered on recall
 - **Contradiction detection**: new facts auto-supersede old conflicting ones (threshold: 0.6)
@@ -341,102 +342,45 @@ Works with **any** agent that speaks MCP. One server, one memory, shared across 
 
 ---
 
-## Council (Multi-Angle Evaluation)
+## Workflow Skills & Orchestrator
 
-Mnemo includes a built-in evaluation council that catches issues BEFORE they ship. When you give the agent a complex task, it automatically spawns independent evaluators — each using a fundamentally different validation method — and iterates until all pass.
+Mnemo includes **6 workflow skills** that guide agents through a structured SDLC pipeline, with **quality gates** enforcing standards between phases.
 
-### How It Works
-
-```
-Your Task → Phase Detection → Council Assembly → GAN Loop → Quality Output
-                                                     ↕
-                                              Mnemo Memory
-                                         (learns from each session)
-```
-
-**The agent decides when to council.** Simple tasks (typos, renames) → just does it. Complex tasks (features, architecture, debugging) → summons the council automatically.
-
-### The GAN Loop
+### The Pipeline
 
 ```
-Generator (writes code)
-     ↓
-Evaluator Council (parallel, blind to each other)
-  • Drift Detector   → "Does this match the spec?"
-  • Adversarial      → "Can I break it?" (null inputs, timeouts, race conditions)
-  • Security         → "Is this safe?" (injection, data leaks, compliance)
-  • Real-World       → "Will this survive production?" (deploy, scale, cost)
-  • Innovation       → "Is there a better paradigm?"
-     ↓
-Verdict:
-  ✅ ALL PASS     → advance
-  ❌ FAIL         → feedback to generator, loop again (max 3 iterations)
-  🔄 REPLAN       → approach is wrong, revise strategy
+investigate → plan → implement → verify → review → ship
+                                    ↑                ↑
+                              [tests_pass]    [tests_pass + plan_done + no_findings]
 ```
 
-### SDLC Phases
+Each phase has a dedicated skill template with explicit instructions, shell commands for mnemo tools, and persistence hooks. The orchestrator tracks state in `.mnemo/autorun_state.json` and blocks advancement when gates fail.
 
-The council adapts its composition based on what you're doing:
+### Quality Gates
 
-| Phase | Triggered by | Evaluators | Mode |
-|-------|---|---|---|
-| **plan** | "how should I...", "design", "architect" | drift, security, innovation | Advisory (no loop) |
-| **implement** | "build", "add", "create" | drift, adversarial, security, realworld | GAN loop (max 3 iter) |
-| **test** | "test", "validate" | drift, adversarial, realworld | GAN loop (max 3 iter) |
-| **review** | "review", "audit", "PR" | security, adversarial, innovation | Advisory (no loop) |
-| **debug** | "fix", "broken", "error", "500" | adversarial, drift, realworld | GAN loop (max 3 iter) |
+| Gate | What it checks | Blocks |
+|------|---------------|--------|
+| `tests_pass` | Runs test suite (pytest/npm/maven/gradle) | review, ship |
+| `plan_done` | All plan tasks marked complete | ship |
+| `no_findings` | No unresolved critical findings in memory | ship |
 
-### Memory Integration
+### Template Resolver System
 
-What makes this different from other council/evaluation tools:
+Skills use `{{RESOLVER}}` placeholders that get expanded per-host:
 
-- **Before evaluation**: council queries Mnemo memory for past issues on similar tasks
-- **After evaluation**: findings are stored back to memory
-- **Over time**: evaluators get smarter because they know YOUR codebase's specific weaknesses
-
-```
-Session 1:  Adversarial catches null check issue → stored in memory
-Session 5:  Same pattern in different file → evaluator proactively checks
-Session 10: Agent has learned your codebase's recurring problems
-```
-
-### Usage
-
-The council activates automatically for complex tasks. You can also trigger it explicitly:
-
-```
-"Council this: review my auth implementation"
-"Evaluate this from multiple angles"
-"Run the council on this change"
-```
-
-Or skip it:
-```
-"Skip council, just do it"
-```
-
-Direct CLI usage (outside the agent):
-```bash
-bash council/council.sh -- "Add caching to eligibility endpoint"
-bash council/council.sh --phase review --file src/auth.ts -- "Review this"
-bash council/council.sh --phase debug -- "Eligibility returns 500"
-```
-
-### Why Not Just Ask an AI to Write Code?
-
-| Plain AI | Mnemo with Council |
-|---|---|
-| One perspective | 5 independent evaluation methods |
-| Same check every time | Each evaluator uses a structurally different approach |
-| Forgets everything | Remembers what it caught, gets smarter |
-| You catch issues in PR review | Issues caught during generation |
-| "It works" | "It works AND survives adversarial testing AND meets compliance AND scales" |
+| Resolver | Injects |
+|----------|---------|
+| `{{PREAMBLE}}` | Mandatory header — forces tool usage, DO NOT PROCEED pattern |
+| `{{LEARNINGS}}` | Past learnings relevant to current skill |
+| `{{CONTEXT_LOAD}}` | Shell command to load brain context at skill start |
+| `{{TOOL_REFERENCE}}` | Available mnemo commands table |
+| `{{PERSIST_BLOCK}}` | Shell commands for persisting knowledge at skill end |
 
 ---
 
-## MCP Tools (58 total: 16 agent-facing + 42 specialized)
+## MCP Tools (58 total: 17 agent-facing + 42 specialized)
 
-Mnemo exposes **16 consolidated agent-facing tools** via MCP — designed to cover every workflow in minimal tool calls. Under the hood, these route to **42 specialized internal tools** for granular operations.
+Mnemo exposes **17 consolidated agent-facing tools** via MCP — designed to cover every workflow in minimal tool calls. Under the hood, these route to **42 specialized internal tools** for granular operations.
 
 ### Agent-Facing Tools (what the AI calls)
 
@@ -445,6 +389,8 @@ Mnemo exposes **16 consolidated agent-facing tools** via MCP — designed to cov
 | `mnemo_recall` | Load full project context at session start (budgeted ~2000 tokens) |
 | `mnemo_remember` | Store important context with auto-categorization & dedup |
 | `mnemo_decide` | Record permanent architectural decisions (never evicted) |
+| `mnemo_supersede` | Supersede (replace) an existing decision by ID |
+| `mnemo_redact` | Permanently redact a decision (e.g., accidental secrets) |
 | `mnemo_forget` | Delete a specific memory by ID |
 | `mnemo_search_memory` | Semantic search across memories (3-way RRF fusion) |
 | `mnemo_lookup` | 360° detail: class methods, function signatures, or full service architecture |
@@ -609,20 +555,23 @@ mnemo serve    # http://localhost:3333
 
 ```
 .mnemo/
-├── memory.json          Memories with retention scores & access history
-├── decisions.json       Permanent architectural decisions
-├── plans.json           Task tracking with dependencies
-├── context.json         Auto-detected project metadata
-├── graph.lbug/          LadybugDB knowledge graph (Kuzu engine)
-├── vectors_code.npy     ONNX embeddings of code symbols (384-dim)
-├── vectors_memory.npy   ONNX embeddings of memories
-├── meta_*.json          Vector metadata for cosine search
-├── engine-meta.json     File hashes for incremental detection
-├── parse-cache.json     AST parse cache (skip unchanged files)
-├── tree.md              Compact repo index (generated from graph)
-├── corrections.json     Wrong→right patterns with confidence
-├── lessons.json         Learned patterns with reinforcement
-└── slots.json           Pinned structured context (conventions, gotchas)
+├── memory.json              Memories with retention scores & access history
+├── decisions.json           Permanent architectural decisions (computed snapshot)
+├── decisions.events.jsonl   Event-sourced decision log (source of truth)
+├── plans.json               Task tracking with dependencies
+├── context.json             Auto-detected project metadata
+├── learnings.json           Typed learnings with confidence & key-dedup
+├── autorun_state.json       SDLC orchestrator phase tracking
+├── graph.lbug/              LadybugDB knowledge graph (Kuzu engine)
+├── vectors_code.npy         ONNX embeddings of code symbols (384-dim)
+├── vectors_memory.npy       ONNX embeddings of memories
+├── meta_*.json              Vector metadata for cosine search
+├── engine-meta.json         File hashes for incremental detection
+├── parse-cache.json         AST parse cache (skip unchanged files)
+├── tree.md                  Compact repo index (generated from graph)
+├── corrections.json         Wrong→right patterns with confidence
+├── lessons.json             Learned patterns with reinforcement
+└── slots.json               Pinned structured context (conventions, gotchas)
 ```
 
 **Stack**: Python · LadybugDB (Kuzu) · ONNX Runtime · tree-sitter · Roslyn · NetworkX (Louvain)
@@ -657,7 +606,7 @@ Pinned categories (never evicted): architecture, decision, preference
 ## CLI Reference
 
 ```bash
-mnemo init [--client CLIENT]     # Initialize in a repo (kiro, cursor, claude-code, amazonq, copilot)
+mnemo init --client CLIENT       # Initialize in a repo (kiro, cursor, claude-code, amazonq, copilot, generic)
 mnemo recall [--tier TIER]       # Show agent context (compact, standard, deep)
 mnemo map                        # Regenerate repo map from graph
 mnemo serve [-p PORT]            # Dashboard UI (default: 3333)
@@ -665,6 +614,9 @@ mnemo doctor                     # Diagnose installation issues
 mnemo reset                      # Remove Mnemo data (safe: only Mnemo-owned files)
 mnemo link [TARGET]              # Link another repo to multi-repo workspace
 mnemo remember "content" [-c CAT]# Store a memory
+mnemo learn -t TYPE -k KEY -i TXT# Store a typed learning (7 types, key-dedup)
+mnemo learnings [-t TYPE]        # List stored learnings (sorted by confidence)
+mnemo ingest [--file FILE]       # ETL: extract learnings from session transcripts
 mnemo tool NAME [--args]         # Call any MCP tool from CLI
 ```
 
@@ -697,7 +649,7 @@ supported yet — patterns are basenames only.
 git clone https://github.com/Mnemo-mcp/Mnemo.git
 cd Mnemo
 pip install -e ".[dev]"
-pytest                    # 222 tests
+pytest                    # 641 tests
 ruff check .              # Lint
 mnemo init                # Test on self
 ```

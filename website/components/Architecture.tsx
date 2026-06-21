@@ -7,17 +7,17 @@ const accordionItems = [
   {
     id: "accordion-btn-0",
     title: "MCP Protocol",
-    content: "Mnemo uses the Model Context Protocol (MCP) to communicate with AI coding agents. This standardized protocol ensures compatibility across all major agents without custom integrations.",
+    content: "Mnemo uses the Model Context Protocol (MCP) to communicate with AI coding agents. 17 agent-facing tools cover every workflow — from recall to impact analysis to code review.",
   },
   {
     id: "accordion-btn-1",
-    title: "Local-First Storage",
-    content: "All knowledge is stored locally on your machine. No cloud dependency, no data leaving your environment. Your engineering context stays private and under your control.",
+    title: "Event-Sourced Decisions",
+    content: "Architectural decisions are stored in an append-only JSONL event log. Supersede outdated decisions, redact accidental secrets — full audit trail, nothing mutated in place.",
   },
   {
     id: "accordion-btn-2",
-    title: "Graph Structure",
-    content: "Knowledge is stored as a directed graph with semantic edges. Nodes represent concepts (architecture decisions, patterns, errors) and edges represent relationships (depends-on, supersedes, relates-to).",
+    title: "SDLC Orchestrator",
+    content: "6 workflow skills guide agents through investigate → plan → implement → verify → review → ship. Quality gates block advancement when tests fail or plans are incomplete.",
   },
 ];
 
@@ -111,7 +111,7 @@ export default function Architecture() {
                     <text x="205" y="95" textAnchor="middle" className="text-[12px] font-bold pointer-events-none" fill="#F59E0B" style={{ fontFamily: "monospace" }}>Mnemo</text>
                     <text x="205" y="115" textAnchor="middle" className="text-[8px] fill-zinc-400 pointer-events-none" style={{ fontFamily: "monospace" }}>Knowledge Graph</text>
                     <text x="205" y="130" textAnchor="middle" className="text-[8px] fill-zinc-400 pointer-events-none" style={{ fontFamily: "monospace" }}>Semantic Memory</text>
-                    <text x="205" y="145" textAnchor="middle" className="text-[8px] fill-zinc-400 pointer-events-none" style={{ fontFamily: "monospace" }}>MCP Server</text>
+                    <text x="205" y="145" textAnchor="middle" className="text-[8px] fill-zinc-400 pointer-events-none" style={{ fontFamily: "monospace" }}>17 MCP Tools</text>
                   </g>
 
                   <g
