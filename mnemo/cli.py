@@ -55,7 +55,7 @@ def init(path: str, client: str | None):
     click.echo("")
     if client == "kiro":
         click.echo("Next: Start a Kiro session:")
-        click.echo("  kiro chat --agent mnemo-enhanced")
+        click.echo("  kiro-cli chat --agent mnemo-enhanced")
     elif client == "claude-code":
         click.echo("Next: Start Claude Code in this directory.")
     elif client == "cursor":
