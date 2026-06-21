@@ -133,7 +133,7 @@ def init(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
     _generate_legacy_files(repo_root)
 
     # Generate default rules.yaml if not exists
-    from .drift import _init_rules
+    from .quality.drift import _init_rules
     _init_rules(repo_root)
 
     from .knowledge import init_knowledge
@@ -183,6 +183,13 @@ def init(repo_root: Path, client: str = DEFAULT_CLIENT) -> str:
         pass
 
     save_context(repo_root, context_data)
+
+    # Migrate decisions to event-sourced format if needed
+    try:
+        from .memory.decisions import migrate_decisions
+        migrate_decisions(repo_root)
+    except Exception:
+        pass
 
     _ensure_gitignore(repo_root)
 
