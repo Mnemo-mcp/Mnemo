@@ -18,11 +18,53 @@ import click
 from .clients import CLIENT_CHOICES, DEFAULT_CLIENT
 
 
+def _check_for_update_quietly():
+    """Check PyPI for newer version, at most once per day. Non-blocking."""
+    import json as _json
+    import time as _time
+
+    from . import __version__
+
+    cache = Path.home() / ".mnemo_update_check"
+    now = _time.time()
+
+    # Only check once per 24h
+    if cache.exists():
+        try:
+            data = _json.loads(cache.read_text())
+            if now - data.get("ts", 0) < 86400:
+                if data.get("latest") and data["latest"] != __version__:
+                    click.echo(
+                        f"\n  ⬆  Mnemo {data['latest']} available (you have {__version__}). "
+                        f"Run: mnemo update\n",
+                        err=True,
+                    )
+                return
+        except Exception:
+            pass
+
+    # Background check — don't slow down CLI
+    try:
+        import urllib.request
+        url = "https://pypi.org/pypi/mnemo-dev/json"
+        with urllib.request.urlopen(url, timeout=3) as resp:  # nosec B310
+            latest = _json.loads(resp.read()).get("info", {}).get("version", "")
+        cache.write_text(_json.dumps({"ts": now, "latest": latest}))
+        if latest and latest != __version__:
+            click.echo(
+                f"\n  ⬆  Mnemo {latest} available (you have {__version__}). "
+                f"Run: mnemo update\n",
+                err=True,
+            )
+    except Exception:
+        # Network error — silently skip
+        pass
+
+
 @click.group()
 def cli():
     """Mnemo - persistent memory and repo map for AI coding assistants."""
-
-    pass
+    _check_for_update_quietly()
 
 
 @cli.command()
